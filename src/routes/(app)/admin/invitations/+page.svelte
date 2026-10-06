@@ -19,8 +19,8 @@
 
 <div class="grid gap-4">
 	<p class="text-sm text-muted-foreground">
-		Create invitations from <a href="/admin/users" class="text-primary hover:underline">Users</a> or a
-		project’s settings. Links are shown only once when created.
+		Create invitations from <a href="/admin/users" class="text-link hover:underline">Users</a> or a project’s
+		settings. Links are shown only once when created.
 	</p>
 	<div class="relative overflow-x-auto rounded-xl border border-border bg-surface">
 		<table class="w-full text-sm">

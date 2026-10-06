@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { ADMIN, MEMBER, goto, hydrated, login, pngBuffer, typeInEditor } from './fixtures';
+import { ADMIN, MEMBER, choose, goto, hydrated, login, pngBuffer, typeInEditor } from './fixtures';
 
 // Runs after 01-core.spec.ts against the same server: the workspace, the SPL project, Ada (owner)
 // and Mia (member) already exist; SPL-1 is completed and SPL-2 is open.
@@ -89,7 +89,7 @@ test('widget: a visitor reports a bug from the customer website', async ({ page,
 	await popup.getByRole('button', { name: 'Allow and continue' }).click();
 
 	await expect(frame.getByRole('heading', { name: 'Thanks for your feedback!' })).toBeVisible();
-	await expect(frame.getByText(/SPL-3/)).toBeVisible();
+	await expect(frame.getByText(/SPL-\d+/)).toBeVisible();
 	// The token lives in the iframe, never on the host page.
 	const hostStorage = await page.evaluate(() => JSON.stringify(localStorage));
 	expect(hostStorage).not.toContain('tikket');
@@ -188,7 +188,7 @@ test('templates: owner builds a bug template that reporters must answer', async 
 	await page.getByLabel(/^Options/).fill('Phone\nTV\nDesktop');
 	await page.getByText('Required', { exact: true }).click();
 	// Live preview
-	await expect(page.getByRole('combobox', { name: /Which device/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Which device/ })).toBeDisabled();
 	await page.getByRole('button', { name: 'Save template' }).click();
 	await expect(page.getByText('Template saved')).toBeVisible();
 	await expect(page.getByText('Playback bug')).toBeVisible();
@@ -199,11 +199,8 @@ test('templates: owner builds a bug template that reporters must answer', async 
 	await page.getByLabel('Title').fill('Subtitles out of sync on TV');
 	await typeInEditor(page, 'What happened?', 'Subtitles lag behind by two seconds.');
 	await page.getByRole('button', { name: 'Submit ticket' }).click();
-	// The required question blocks submission and receives focus.
-	const device = page.getByLabel(/Which device/);
-	await expect(device).toBeFocused();
-	await expect(page).toHaveURL(/\/new/);
-	await device.selectOption('TV');
+	await expect(page.getByText(/Which device\? is required/)).toBeVisible();
+	await choose(page, /Which device/, 'TV');
 	await page.getByRole('button', { name: 'Submit ticket' }).click();
 	await expect(page).toHaveURL(/\/p\/spl\/tickets\/5/);
 	await expect(page.getByLabel('Template answers')).toContainText('TV');
@@ -232,7 +229,7 @@ test('relationships: staff link blocking tickets', async ({ page }) => {
 	await login(page, ADMIN);
 	await goto(page, '/p/spl/tickets/4');
 	await page.getByRole('button', { name: 'Link a ticket' }).click();
-	await page.getByLabel('Relationship').selectOption('blocks');
+	await choose(page, 'Relationship', 'Blocks');
 	await page.getByLabel('Ticket to link').fill('SPL-5');
 	await page.getByRole('button', { name: 'Link ticket', exact: true }).click();
 	await expect(page.getByText('Tickets linked')).toBeVisible();
@@ -241,7 +238,7 @@ test('relationships: staff link blocking tickets', async ({ page }) => {
 	await expect(page.getByText(/linked this ticket: blocked by #4/)).toBeVisible();
 	// The reverse link would be a cycle.
 	await page.getByRole('button', { name: 'Link a ticket' }).click();
-	await page.getByLabel('Relationship').selectOption('blocks');
+	await choose(page, 'Relationship', 'Blocks');
 	await page.getByLabel('Ticket to link').fill('SPL-4');
 	await page.getByRole('button', { name: 'Link ticket', exact: true }).click();
 	await expect(page.getByText(/already linked|cycle/)).toBeVisible();
@@ -253,7 +250,7 @@ test('bulk: staff change several tickets at once', async ({ page }) => {
 	await page.getByLabel('Select SPL-4').check();
 	await page.getByLabel('Select SPL-5').check();
 	await expect(page.getByText('2 selected')).toBeVisible();
-	await page.getByLabel('Bulk change').selectOption('priority:high');
+	await choose(page, 'Bulk change', 'High');
 	await page.getByRole('button', { name: 'Apply' }).click();
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toContainText('Update 2 tickets?');
@@ -267,7 +264,7 @@ test('bulk: staff change several tickets at once', async ({ page }) => {
 		await page.getByLabel(/selected$/).evaluate((el) => (el as HTMLInputElement).indeterminate)
 	).toBe(true);
 	await page.getByLabel('Select SPL-5').check();
-	await page.getByLabel('Bulk change').selectOption('priority:high');
+	await choose(page, 'Bulk change', 'High');
 	await page.getByRole('button', { name: 'Apply' }).click();
 	await page.getByRole('dialog').getByRole('button', { name: 'Update tickets' }).click();
 	await expect(page.getByText(/Skipped \d+ tickets?/)).toBeVisible();

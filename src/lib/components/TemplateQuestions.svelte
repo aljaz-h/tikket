@@ -2,7 +2,7 @@
 	import Field from './ui/field.svelte';
 	import Input from './ui/input.svelte';
 	import Textarea from './ui/textarea.svelte';
-	import NativeSelect from './ui/native-select.svelte';
+	import Select from './ui/select.svelte';
 	import { templateFieldName, type TemplateFieldDef } from '$lib/shared/templates';
 
 	/** Renders a ticket template's questions as ordinary form fields (`tpl_<key>`). */
@@ -31,7 +31,7 @@
 						values[name] = (e.currentTarget as HTMLInputElement).checked;
 						onchange?.();
 					}}
-					class="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+					class="mt-0.5 size-4 shrink-0"
 					aria-invalid={!!errors[name]}
 					aria-describedby={field.help ? `${id}-hint` : undefined}
 				/>
@@ -70,20 +70,20 @@
 					aria-invalid={!!errors[name]}
 				/>
 			{:else if field.kind === 'select'}
-				<NativeSelect
+				<Select
 					{id}
 					{name}
 					required={field.required}
+					placeholder="Choose…"
 					value={String(values[name] ?? '')}
-					onchange={(e) => {
-						values[name] = (e.currentTarget as HTMLSelectElement).value;
+					items={field.options.map((o) => ({ value: o, label: o }))}
+					searchable={field.options.length > 10}
+					onchange={(v) => {
+						values[name] = v;
 						onchange?.();
 					}}
 					aria-invalid={!!errors[name]}
-				>
-					<option value="">Choose…</option>
-					{#each field.options as option (option)}<option value={option}>{option}</option>{/each}
-				</NativeSelect>
+				/>
 			{:else}
 				<Input
 					{id}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
-	import NativeSelect from '../ui/native-select.svelte';
+	import Select from '../ui/select.svelte';
 	import Textarea from '../ui/textarea.svelte';
 	import Input from '../ui/input.svelte';
 	import Button from '../ui/button.svelte';
@@ -40,11 +40,13 @@
 	class="grid gap-2"
 	use:enhance={quickSubmit({ success: 'Status updated' })}
 >
-	<NativeSelect name="status" bind:value={selected} onchange={onChange} aria-label="Status">
-		{#each TICKET_STATUSES as s (s)}
-			<option value={s}>{STATUS_META[s].label}</option>
-		{/each}
-	</NativeSelect>
+	<Select
+		name="status"
+		bind:value={selected as string}
+		onchange={onChange}
+		aria-label="Status"
+		items={TICKET_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
+	/>
 	{#if needsDetails || !js}
 		<div class="grid gap-2 rounded-lg border border-border bg-muted/50 p-2.5">
 			{#if selected === 'duplicate' || !js}

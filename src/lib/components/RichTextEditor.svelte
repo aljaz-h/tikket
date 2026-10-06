@@ -289,7 +289,7 @@
 
 <div
 	class={cn(
-		'rounded-md border border-input bg-surface shadow-card transition-colors focus-within:border-primary focus-within:ring-3 focus-within:ring-ring/40',
+		'rounded-md border border-input bg-surface shadow-card transition-colors focus-within:border-primary-border focus-within:ring-3 focus-within:ring-ring/40',
 		invalid && 'border-destructive'
 	)}
 >
@@ -316,7 +316,7 @@
 						tabindex={i === 0 ? 0 : -1}
 						class={cn(
 							'inline-flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-hover hover:text-foreground',
-							active && 'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary'
+							active && 'bg-primary-soft text-link hover:bg-primary-soft hover:text-link'
 						)}
 						aria-label={tool.label}
 						aria-pressed={tool.active ? active : undefined}
@@ -351,7 +351,7 @@
 				/>
 				<button
 					type="button"
-					class="rounded px-2 py-1 text-xs font-medium text-primary hover:bg-hover"
+					class="rounded px-2 py-1 text-xs font-medium text-link hover:bg-hover"
 					onclick={applyLink}
 				>
 					Apply

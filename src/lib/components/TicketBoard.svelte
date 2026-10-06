@@ -14,6 +14,7 @@
 	import { ticketPath, ticketRef } from '$lib/shared/format';
 	import type { TicketListRow } from '$lib/server/services/search';
 	import { cn } from '$lib/utils';
+	import Select from './ui/select.svelte';
 
 	interface Props {
 		projectKey: string;
@@ -31,6 +32,7 @@
 	let duplicateOpen = $state(false);
 	let duplicateTarget = $state('');
 	let announcement = $state('');
+	let attempts = $state(0);
 
 	/** Uses the ticket page's `status` form action – the same server-authorised mutation as everywhere else. */
 	async function move(number: number, status: TicketStatus, extra: Record<string, string> = {}) {
@@ -79,7 +81,7 @@
 				aria-label="{STATUS_META[status].label} ({totals[status]})"
 				class={cn(
 					'flex w-72 shrink-0 flex-col rounded-xl border border-border bg-surface-2/60 transition-colors',
-					over === status && dragging && 'border-primary bg-primary-soft'
+					over === status && dragging && 'border-primary-border bg-primary-soft'
 				)}
 				ondragover={(e) => {
 					if (!dragging) return;
@@ -143,23 +145,25 @@
 							</div>
 							{#if canManage}
 								<!-- Keyboard / touch alternative to drag and drop -->
-								<label class="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-									<span class="sr-only">Status of {ticketRef(projectKey, t.number)}</span>
-									<select
-										class="h-7 w-full rounded border border-border bg-surface px-1.5 text-xs text-foreground"
-										value={t.status}
-										disabled={busy === t.number}
-										onchange={(e) => {
-											const select = e.currentTarget as HTMLSelectElement;
-											const to = select.value as TicketStatus;
-											select.value = t.status;
-											request(t.number, t.status, to);
-										}}
-									>
-										{#each TICKET_STATUSES as s (s)}<option value={s}>{STATUS_META[s].label}</option
-											>{/each}
-									</select>
-								</label>
+								<div class="mt-2">
+									<!-- Re-created after every attempt so a cancelled or failed move snaps back. -->
+									{#key `${t.status}:${attempts}`}
+										<Select
+											size="sm"
+											aria-label="Status of {ticketRef(projectKey, t.number)}"
+											value={t.status}
+											disabled={busy === t.number}
+											items={TICKET_STATUSES.map((s) => ({
+												value: s,
+												label: STATUS_META[s].label
+											}))}
+											onchange={(to) => {
+												attempts++;
+												request(t.number, t.status, to as TicketStatus);
+											}}
+										/>
+									{/key}
+								</div>
 							{/if}
 						</li>
 					{:else}

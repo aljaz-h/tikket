@@ -8,7 +8,7 @@
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import Field from '$lib/components/ui/field.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import { TICKET_TYPES, TYPE_META, type TicketType } from '$lib/shared/constants';
 	import { ticketPath } from '$lib/shared/format';
 
@@ -64,9 +64,12 @@
 		>
 			<FormMessage message={errors.form} />
 			<Field label="Type" for="type">
-				<NativeSelect id="type" name="type" bind:value={type}>
-					{#each TICKET_TYPES as tt (tt)}<option value={tt}>{TYPE_META[tt].label}</option>{/each}
-				</NativeSelect>
+				<Select
+					id="type"
+					name="type"
+					bind:value={type}
+					items={TICKET_TYPES.map((tt) => ({ value: tt, label: TYPE_META[tt].label }))}
+				/>
 			</Field>
 			<TicketFields
 				{type}

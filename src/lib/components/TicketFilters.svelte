@@ -6,7 +6,7 @@
 	import X from '@lucide/svelte/icons/x';
 	import List from '@lucide/svelte/icons/list';
 	import Columns3 from '@lucide/svelte/icons/columns-3';
-	import NativeSelect from './ui/native-select.svelte';
+	import Select from './ui/select.svelte';
 	import Input from './ui/input.svelte';
 	import Button from './ui/button.svelte';
 	import {
@@ -49,11 +49,17 @@
 
 	$effect(() => {
 		// Close the filter panel when clicking elsewhere.
+		// Dropdown lists of the selects inside the panel are portalled to <body>.
+		const inPopup = (el: EventTarget | null) =>
+			el instanceof Element && !!el.closest('[data-select-content], [data-combobox-content]');
+		const popupOpen = () =>
+			!!document.querySelector('[data-select-content], [data-combobox-content]');
 		const onClick = (e: MouseEvent) => {
-			if (detailsEl?.open && !detailsEl.contains(e.target as Node)) detailsEl.open = false;
+			if (detailsEl?.open && !detailsEl.contains(e.target as Node) && !inPopup(e.target))
+				detailsEl.open = false;
 		};
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' && detailsEl?.open) {
+			if (e.key === 'Escape' && detailsEl?.open && !popupOpen()) {
 				detailsEl.open = false;
 				detailsEl.querySelector('summary')?.focus();
 			}
@@ -162,7 +168,7 @@
 			<summary
 				class={cn(
 					'inline-flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium select-none group-open/filters:bg-hover hover:bg-hover [&::-webkit-details-marker]:hidden',
-					count && 'border-primary/50'
+					count && 'border-primary-border/50'
 				)}
 			>
 				<SlidersHorizontal class="size-4" /> Filters
@@ -179,7 +185,7 @@
 						<div class="flex flex-wrap gap-1.5">
 							{#each TICKET_STATUSES as s (s)}
 								<label
-									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:checked]:text-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:checked]:text-link has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 								>
 									<input
 										type="checkbox"
@@ -197,7 +203,7 @@
 						<div class="flex flex-wrap gap-1.5">
 							{#each TICKET_TYPES as t (t)}
 								<label
-									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:checked]:text-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:checked]:text-link has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 								>
 									<input
 										type="checkbox"
@@ -215,7 +221,7 @@
 						<div class="flex flex-wrap gap-1.5">
 							{#each TICKET_PRIORITIES as p (p)}
 								<label
-									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:checked]:text-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:checked]:text-link has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 								>
 									<input
 										type="checkbox"
@@ -234,7 +240,7 @@
 							<div class="flex flex-wrap gap-1.5">
 								{#each labels as l (l.id)}
 									<label
-										class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+										class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 									>
 										<input
 											type="checkbox"
@@ -266,17 +272,19 @@
 						{#if showAssignee}
 							<label class="grid gap-1 text-xs font-semibold text-muted-foreground">
 								Assignee
-								<NativeSelect
+								<Select
 									name="assignee"
 									value={filters.assignee}
-									class="font-normal [&_select]:h-8"
-								>
-									<option value="">Anyone</option>
-									<option value="me">Me</option>
-									<option value="none">Unassigned</option>
-									{#each assignable as u (u.id)}<option value={u.username}>{u.displayName}</option
-										>{/each}
-								</NativeSelect>
+									size="sm"
+									searchable={assignable.length > 8}
+									class="font-normal"
+									items={[
+										{ value: '', label: 'Anyone' },
+										{ value: 'me', label: 'Me' },
+										{ value: 'none', label: 'Unassigned' },
+										...assignable.map((u) => ({ value: u.username, label: u.displayName }))
+									]}
+								/>
 							</label>
 						{/if}
 						<label class="grid gap-1 text-xs font-semibold text-muted-foreground"
@@ -322,15 +330,14 @@
 			</div>
 		</details>
 
-		<NativeSelect
+		<Select
 			name="sort"
 			value={filters.sort}
 			aria-label="Sort"
 			onchange={submit}
-			class="w-auto min-w-44"
-		>
-			{#each Object.entries(SORTS) as [value, label] (value)}<option {value}>{label}</option>{/each}
-		</NativeSelect>
+			class="w-auto min-w-56"
+			items={Object.entries(SORTS).map(([value, label]) => ({ value, label }))}
+		/>
 
 		{#if view}
 			<div class="flex rounded-md border border-border p-0.5" role="group" aria-label="View">

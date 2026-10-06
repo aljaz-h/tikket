@@ -75,3 +75,17 @@ export async function typeInEditor(page: Page, label: string, text: string) {
 	await editor.click();
 	await page.keyboard.type(text);
 }
+
+/** Picks an option in a Tikket select (a listbox after hydration, not a native <select>). */
+export async function choose(page: Page, label: string | RegExp, option: string | RegExp) {
+	// A plain select is a button that opens a listbox; a searchable one is a combobox input.
+	const exact = typeof label === 'string';
+	const control = page
+		.getByRole('button', { name: label, exact })
+		.or(page.getByRole('combobox', { name: label, exact }))
+		.first();
+	await control.click();
+	const item = page.getByRole('option', { name: option, exact: typeof option === 'string' });
+	if (!(await item.isVisible().catch(() => false))) await control.press('ArrowDown');
+	await item.click();
+}

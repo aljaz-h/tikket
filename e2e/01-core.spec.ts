@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
 	ADMIN,
+	choose,
 	MEMBER,
 	OUTSIDER,
 	goto,
@@ -162,11 +163,11 @@ test('7 & 8. owner reviews, sets priority, assigns, changes status and comments'
 }) => {
 	await login(page, ADMIN);
 	await goto(page, '/p/spl/tickets/1');
-	await page.getByLabel('Priority').selectOption('high');
+	await choose(page, 'Priority', 'High');
 	await expect(page.getByText('Priority updated')).toBeVisible();
-	await page.getByLabel('Assignee').selectOption({ label: ADMIN.name });
+	await choose(page, 'Assignee', ADMIN.name);
 	await expect(page.getByText('Assignee updated')).toBeVisible();
-	await page.getByLabel('Status').selectOption('in_progress');
+	await choose(page, 'Status', 'In Progress');
 	await expect(page.getByText('Status updated')).toBeVisible();
 	await expect(page.getByText('In Progress', { exact: true }).first()).toBeVisible();
 
@@ -196,7 +197,7 @@ test('9 & 10. member sees notifications, comments and upvotes', async ({ page })
 test('11. ticket completion via the board', async ({ page }) => {
 	await login(page, ADMIN);
 	await goto(page, '/p/spl/tickets?view=board');
-	await page.getByLabel('Status of SPL-1').selectOption('completed');
+	await choose(page, 'Status of SPL-1', 'Completed');
 	await expect(page.getByText('SPL-1 moved to Completed').first()).toBeVisible();
 	await goto(page, '/p/spl/tickets/1');
 	await expect(page.getByText('Completed', { exact: true }).first()).toBeVisible();

@@ -16,7 +16,7 @@
 	import Badge from '$lib/components/ui/badge.svelte';
 	import Dialog from '$lib/components/ui/dialog.svelte';
 	import Field from '$lib/components/ui/field.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 
 	let { data, form } = $props();
 	let createOpen = $state(false);
@@ -44,7 +44,9 @@
 		<Button onclick={() => (createOpen = true)}><UserPlus /> Create user</Button>
 	</div>
 	{#if inviteLink}
-		<div class="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary-soft p-2">
+		<div
+			class="flex items-center gap-2 rounded-lg border border-primary-border/40 bg-primary-soft p-2"
+		>
 			<Input
 				readonly
 				value={inviteLink}
@@ -141,10 +143,15 @@
 		<FormMessage message={errors.form} />
 		<AccountFields {errors} values={(form?.values ?? {}) as Record<string, string>} />
 		<Field label="Global role" for="role">
-			<NativeSelect id="role" name="role" value="user"
-				><option value="user">Normal user</option><option value="admin">Administrator</option
-				></NativeSelect
-			>
+			<Select
+				id="role"
+				name="role"
+				value="user"
+				items={[
+					{ value: 'user', label: 'Normal user' },
+					{ value: 'admin', label: 'Administrator' }
+				]}
+			/>
 		</Field>
 		<div class="flex justify-end gap-2">
 			<Button variant="ghost" onclick={() => (createOpen = false)}>Cancel</Button><Button
@@ -176,10 +183,15 @@
 			error={errors.inviteEmail}><Input id="inviteEmail" name="email" type="email" /></Field
 		>
 		<Field label="Global role" for="inviteRole">
-			<NativeSelect id="inviteRole" name="role" value="user"
-				><option value="user">Normal user</option><option value="admin">Administrator</option
-				></NativeSelect
-			>
+			<Select
+				id="inviteRole"
+				name="role"
+				value="user"
+				items={[
+					{ value: 'user', label: 'Normal user' },
+					{ value: 'admin', label: 'Administrator' }
+				]}
+			/>
 		</Field>
 		<div class="flex justify-end gap-2">
 			<Button variant="ghost" onclick={() => (inviteOpen = false)}>Cancel</Button><Button

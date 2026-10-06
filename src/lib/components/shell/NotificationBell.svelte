@@ -135,7 +135,7 @@
 		<a
 			href="/notifications"
 			onclick={() => (open = false)}
-			class="block border-t border-border px-3 py-2 text-center text-xs font-medium text-primary hover:bg-hover"
+			class="block border-t border-border px-3 py-2 text-center text-xs font-medium text-link hover:bg-hover"
 		>
 			View all notifications
 		</a>

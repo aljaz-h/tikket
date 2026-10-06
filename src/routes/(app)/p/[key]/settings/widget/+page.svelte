@@ -17,9 +17,10 @@
 	import Input from '$lib/components/ui/input.svelte';
 	import Textarea from '$lib/components/ui/textarea.svelte';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import { TYPE_META, WIDGET_POSITIONS, type WidgetPosition } from '$lib/shared/constants';
 	import { cn } from '$lib/utils';
+	import { DEFAULT_ACCENT, readableOn } from '$lib/shared/color';
 
 	let { data, form } = $props();
 	const errors = $derived((form?.errors ?? {}) as Record<string, string>);
@@ -27,7 +28,7 @@
 	let enabled = $state(false);
 	let label = $state('');
 	let position = $state<WidgetPosition>('bottom-right');
-	let accent = $state('#6c68ee');
+	let accent = $state(DEFAULT_ACCENT);
 	let defaultType = $state('bug');
 	let screenshots = $state(true);
 	let collect = $state(true);
@@ -46,6 +47,7 @@
 		origins = data.origins.join('\n');
 	});
 
+	const previewAccent = $derived(/^#[0-9a-f]{6}$/i.test(accent) ? accent : DEFAULT_ACCENT);
 	const snippet = $derived(
 		`<script src="${data.baseUrl}/widget.js" data-project="${data.project.key}" async></${'script'}>`
 	);
@@ -143,9 +145,12 @@
 						><Input id="buttonLabel" name="buttonLabel" maxlength={30} bind:value={label} /></Field
 					>
 					<Field label="Position" for="position">
-						<NativeSelect id="position" name="position" bind:value={position}>
-							{#each WIDGET_POSITIONS as p (p)}<option value={p}>{positionLabel(p)}</option>{/each}
-						</NativeSelect>
+						<Select
+							id="position"
+							name="position"
+							bind:value={position}
+							items={WIDGET_POSITIONS.map((p) => ({ value: p, label: positionLabel(p) }))}
+						/>
 					</Field>
 					<Field label="Accent colour" for="accentColor" error={errors.accentColor}>
 						<div class="flex gap-2">
@@ -165,11 +170,15 @@
 						</div>
 					</Field>
 					<Field label="Default report type" for="defaultType">
-						<NativeSelect id="defaultType" name="defaultType" bind:value={defaultType}>
-							{#each ['bug', 'feature', 'improvement'] as const as t (t)}<option value={t}
-									>{TYPE_META[t].label}</option
-								>{/each}
-						</NativeSelect>
+						<Select
+							id="defaultType"
+							name="defaultType"
+							bind:value={defaultType}
+							items={(['bug', 'feature', 'improvement'] as const).map((t) => ({
+								value: t,
+								label: TYPE_META[t].label
+							}))}
+						/>
 					</Field>
 				</div>
 				<label class="flex items-start gap-3">
@@ -286,11 +295,11 @@
 				<div class="absolute inset-x-3 top-7 h-2 w-36 rounded bg-border"></div>
 				<span
 					class={cn(
-						'absolute flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-pop',
+						'absolute flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-pop',
 						position.startsWith('top') ? 'top-3' : 'bottom-3',
 						position.endsWith('left') ? 'left-3' : 'right-3'
 					)}
-					style="background:{/^#[0-9a-f]{6}$/i.test(accent) ? accent : '#6c68ee'}"
+					style="background:{previewAccent};color:{readableOn(previewAccent)}"
 				>
 					<MessageSquare class="size-3.5" />{label || 'Feedback'}
 				</span>

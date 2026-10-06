@@ -16,7 +16,7 @@
 		type="checkbox"
 		bind:group
 		bind:indeterminate
-		class={cn('size-4 shrink-0 rounded border-border-strong accent-[var(--primary)]', className)}
+		class={cn('size-4 shrink-0', className)}
 		{...rest}
 	/>
 {:else}
@@ -24,7 +24,7 @@
 		type="checkbox"
 		bind:checked
 		bind:indeterminate
-		class={cn('size-4 shrink-0 rounded border-border-strong accent-[var(--primary)]', className)}
+		class={cn('size-4 shrink-0', className)}
 		{...rest}
 	/>
 {/if}

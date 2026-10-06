@@ -65,7 +65,7 @@
 					Already have an account?
 					<a
 						href="/login?next=/invite/{encodeURIComponent(page.params.token ?? '')}"
-						class="font-medium text-primary hover:underline">Sign in to accept</a
+						class="font-medium text-link hover:underline">Sign in to accept</a
 					>
 				</p>
 			{/if}

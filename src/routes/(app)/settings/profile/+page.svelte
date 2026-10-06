@@ -9,7 +9,7 @@
 	import Field from '$lib/components/ui/field.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Textarea from '$lib/components/ui/textarea.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 
 	let { data, form } = $props();
 	const errors = $derived((form?.errors ?? {}) as Record<string, string>);
@@ -110,11 +110,16 @@
 		})}
 	>
 		<Field label="Theme" for="theme" class="w-48">
-			<NativeSelect id="theme" name="theme" value={data.profile.theme ?? data.theme}>
-				<option value="dark">Dark</option>
-				<option value="light">Light</option>
-				<option value="system">Follow system</option>
-			</NativeSelect>
+			<Select
+				id="theme"
+				name="theme"
+				value={data.profile.theme ?? data.theme}
+				items={[
+					{ value: 'dark', label: 'Dark' },
+					{ value: 'light', label: 'Light' },
+					{ value: 'system', label: 'Follow system' }
+				]}
+			/>
 		</Field>
 		<Button type="submit" variant="secondary">Save</Button>
 	</form>

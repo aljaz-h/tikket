@@ -5,15 +5,17 @@
 		base: 'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4',
 		variants: {
 			variant: {
-				default: 'bg-primary text-primary-foreground shadow-card hover:bg-primary-hover',
-				secondary: 'border border-border bg-surface-2 text-foreground hover:bg-hover',
+				default:
+					'bg-primary text-primary-foreground shadow-card hover:bg-primary-hover active:bg-primary-active',
+				secondary:
+					'border border-border bg-surface-2 text-foreground hover:border-border-strong hover:bg-hover active:bg-muted',
 				outline: 'border border-border bg-transparent text-foreground hover:bg-hover',
 				ghost: 'text-foreground hover:bg-hover',
 				subtle: 'text-muted-foreground hover:bg-hover hover:text-foreground',
 				destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
 				'destructive-outline':
 					'border border-destructive/40 text-destructive hover:bg-destructive/10',
-				link: 'h-auto px-0 text-primary underline-offset-4 hover:underline'
+				link: 'h-auto px-0 text-link underline-offset-4 hover:text-link-hover hover:underline'
 			},
 			size: {
 				default: 'h-9 px-3.5',

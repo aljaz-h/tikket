@@ -9,7 +9,7 @@
 				href={seg.href}
 				target="_blank"
 				rel="noopener noreferrer nofollow ugc"
-				class="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+				class="text-link underline decoration-link/40 underline-offset-2 hover:decoration-link"
 				>{seg.value}</a
 			>{:else}{seg.value}{/if}{/each}
 </p>

@@ -14,7 +14,7 @@
 	import Input from '$lib/components/ui/input.svelte';
 	import Textarea from '$lib/components/ui/textarea.svelte';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import {
 		TEMPLATE_FIELD_KINDS,
 		TEMPLATE_FIELD_META,
@@ -168,9 +168,11 @@
 						/></Field
 					>
 					<Field label="Ticket type" for="tpl-type">
-						<NativeSelect id="tpl-type" bind:value={type}>
-							{#each TICKET_TYPES as t (t)}<option value={t}>{TYPE_META[t].label}</option>{/each}
-						</NativeSelect>
+						<Select
+							id="tpl-type"
+							bind:value={type}
+							items={TICKET_TYPES.map((t) => ({ value: t, label: TYPE_META[t].label }))}
+						/>
 					</Field>
 				</div>
 				<Field
@@ -242,11 +244,14 @@
 								/></Field
 							>
 							<Field label="Answer type" for="kind-{field.uid}">
-								<NativeSelect id="kind-{field.uid}" bind:value={field.kind}>
-									{#each TEMPLATE_FIELD_KINDS as k (k)}<option value={k}
-											>{TEMPLATE_FIELD_META[k].label}</option
-										>{/each}
-								</NativeSelect>
+								<Select
+									id="kind-{field.uid}"
+									bind:value={field.kind}
+									items={TEMPLATE_FIELD_KINDS.map((k) => ({
+										value: k,
+										label: TEMPLATE_FIELD_META[k].label
+									}))}
+								/>
 							</Field>
 						</div>
 						<Field label="Help text" for="help-{field.uid}" optional

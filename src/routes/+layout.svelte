@@ -29,11 +29,23 @@
 	{@render children()}
 </Tooltip.Provider>
 
+<!-- Restrained notifications: at most three visible, dismissible, colour only on the icon. -->
 <Toaster
 	theme={toasterTheme}
 	position="bottom-right"
 	closeButton
+	visibleToasts={3}
+	duration={4500}
 	toastOptions={{
-		class: '!bg-popover !text-foreground !border-border !shadow-pop !rounded-lg !font-sans'
+		class:
+			'!bg-popover !text-foreground !border-border !shadow-pop !rounded-lg !font-sans !text-[0.8125rem]',
+		classes: {
+			description: '!text-muted-foreground whitespace-pre-line',
+			closeButton: '!bg-popover !border-border !text-muted-foreground hover:!text-foreground',
+			success: '[&_[data-icon]]:!text-success',
+			error: '[&_[data-icon]]:!text-destructive',
+			warning: '[&_[data-icon]]:!text-warning',
+			info: '[&_[data-icon]]:!text-info'
+		}
 	}}
 />

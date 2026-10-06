@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="static/logo.svg" />
+    <img src="static/logo-on-light.svg" alt="Tikket" width="320" />
+  </picture>
+</p>
+
 # Tikket
 
 **Tikket** is a lightweight, self-hosted issue and feedback tracker. Users pick a project, choose what they want to report — a bug, a feature request, an improvement or general feedback — and describe it in their own words, with screenshots and links. Project owners triage, prioritise, discuss and resolve tickets, and publish a roadmap and changelog.
@@ -67,7 +74,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - Per-project roles: owner, moderator, member. Settings for voting, attachments, comments, submission policy and author edit policy. Archiving keeps all history read-only.
 - Secure, single-use, expiring invitation links (optionally bound to an email) for the instance or a specific project.
 - Admin area: users (search, create, invite, roles, disable/reactivate, revoke sessions, password-reset links), projects, invitations, system settings and an audit log.
-- Dark (default), light and system themes.
+- Dark (default), light and system themes in the Tikket charcoal-and-lime palette.
 
 ## Technology
 
@@ -139,6 +146,7 @@ listing every problem.
 | `UPLOADS_DIR`                                                  | `$DATA_DIR/uploads`                                | Attachment storage.                                                                                                                                                                                                                                       |
 | `MAX_UPLOAD_SIZE`                                              | `10M`                                              | Hard per-image limit (admins can set a lower limit in the UI).                                                                                                                                                                                            |
 | `BODY_SIZE_LIMIT`                                              | `25M` in Docker (`512K` adapter default otherwise) | Max request body. Must be ≥ `MAX_UPLOAD_SIZE`; the no-JS form can send several images at once.                                                                                                                                                            |
+| `SHUTDOWN_TIMEOUT`                                             | `10` in Docker (`30` adapter default otherwise)    | Seconds to let in-flight requests finish after `SIGTERM` before remaining connections are closed. Keep it below the container stop grace period (30 s in the Compose files) so shutdown is always clean.                                                  |
 | `ADDRESS_HEADER` / `XFF_DEPTH`                                 | empty / `1`                                        | Set to `X-Forwarded-For` / number of trusted proxy hops when Tikket is only reachable through your proxy, so rate limiting and audit logs see real client IPs. Leave empty otherwise — see [trusted proxies](docs/deployment-coolify.md#trusted-proxies). |
 | `LOGIN_RATE_LIMIT`                                             | `10`                                               | Failed sign-ins per account per 15 min (per-IP limit is 3×).                                                                                                                                                                                              |
 | `MIGRATIONS_DIR`                                               | `./drizzle`                                        | Location of SQL migrations.                                                                                                                                                                                                                               |
@@ -245,6 +253,7 @@ Schema changes: edit `schema.ts`, run `npm run db:generate -- --name <change>`, 
 - **Unit/integration additions for deployment**: start-up environment validation, concurrent migrations from several processes, failed-migration rollback, idempotent restarts.
 - **Deployment** (`tests/deployment/run.sh`, needs Docker): builds the production image, deploys `compose.external-proxy.yml` on an external network and drives it through **nginx (NPM-style), Caddy and Traefik** terminating HTTPS – Secure cookies, CSRF, spoofed forwarded headers, large uploads, links built from `ORIGIN`, persistence across re-creation/upgrade/`down`+`up`, start-up failures for bad configuration, read-only filesystem, loopback-only port override.
 - **Phase 2** (`tests/unit/phase2.test.ts`, `tests/integration/phase2.test.ts`): origin normalisation, environment sanitising, template validation, blocking-cycle detection, bulk form parsing; widget enable/origins/token scoping and revocation, template versioning and snapshots, internal-note isolation (pages, files, notifications, search, editing), bulk edits with skipped tickets and grouped notifications, vote/follower merging, relationships, and upgrading an existing database to the new schema.
+- **Branding** (`e2e/03-branding.spec.ts`): favicon/manifest assets, dark default and switching to light (checked against the token colours), keyboard use of the custom dropdowns, ticket context menu, custom/indeterminate checkboxes, and no console or hydration errors.
 - **End-to-end** (`e2e/`, Playwright against the production build, plus `e2e/host-server.mjs` as a third-party website on another origin). `02-phase2.spec.ts` covers the widget across origins (config/CSP checks, sign-in pop-up, consent, ticket creation, ignored spoofed messages, mobile), annotation with a pixel check that redaction is burned in, templates, internal notes, relationships and bulk editing. `01-core.spec.ts`: setup, login/logout, project creation, invitation & membership, ticket submission with uploaded and pasted screenshots, owner review (priority, assignee, status, comment), notifications, upvote, completion on the board, private-project isolation (pages, files, search APIs, forged posts), mobile submission without horizontal overflow, and no console errors.
 
 ```bash
@@ -281,6 +290,12 @@ Key decisions:
 - **History is preserved**: foreign keys default to `RESTRICT`, comments are soft-deleted, projects are archived rather than deleted.
 - **Progressive enhancement**: every mutation is a SvelteKit form action; the board's drag & drop and status selector post to the ticket page's `?/status` action.
 - **No polling**: the unread count refreshes on navigation; notifications load when the bell opens.
+
+### Design system
+
+- **Tokens** live in `src/app.css`: colours are CSS variables for the dark default (`:root`, `.dark`), `.light` and `.theme-system` (follows the OS), mapped to Tailwind colours with `@theme inline`. Components use only these (`bg-primary`, `text-link`, `border-primary-border`, `bg-primary-soft`, `text-muted-foreground`, …), never raw colour values. Lime (`#B8F779`) is used for primary actions, focus rings and selected states; text links use `--link`, which is a darker green in the light theme for contrast.
+- **Logo**: `src/lib/components/Logo.svelte` renders the icon and – when the workspace is called "Tikket" – the official wordmark in its original proportions; other workspace names are shown next to the icon. Favicons, touch and manifest icons are in `static/`.
+- **Controls**: `ui/select.svelte` renders a themed native `<select>` on the server and without JavaScript, and swaps to an accessible bits-ui listbox (searchable for long lists such as people) after hydration, submitting through a hidden input. Checkboxes and radios are native inputs drawn by base styles (lime when checked, indeterminate for "select all"). Dialogs, menus, context menus and tooltips are bits-ui (focus trap, Escape, scroll lock); no `alert`/`confirm`/`prompt` is used. Toasts are capped at three, dismissible, with colour only on the icon. Scrollbars are slim and brighten on hover. Animations are disabled under `prefers-reduced-motion`.
 
 ### Phase 2 design notes
 

@@ -138,7 +138,7 @@
 						aria-current={isActive(item.href) ? 'page' : undefined}
 						class={cn(
 							'flex h-8 items-center gap-2.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground',
-							isActive(item.href) && 'bg-hover font-medium text-foreground',
+							isActive(item.href) && 'bg-hover font-medium text-foreground [&>svg]:text-link',
 							collapsed && 'w-9 justify-center self-center px-0'
 						)}
 					>
@@ -146,7 +146,7 @@
 						{#if !collapsed}
 							<span class="flex-1 truncate">{item.label}</span>
 							{#if item.badge}<span
-									class="rounded-full bg-primary-soft px-1.5 text-xs font-medium text-primary"
+									class="rounded-full bg-primary-soft px-1.5 text-xs font-medium text-link"
 									>{item.badge}</span
 								>{/if}
 						{:else}<span class="sr-only">{item.label}</span>{/if}

@@ -448,8 +448,7 @@
 						type="button"
 						class={cn(
 							'inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground',
-							tool === t.id &&
-								'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary',
+							tool === t.id && 'bg-primary-soft text-link hover:bg-primary-soft hover:text-link',
 							t.id === 'redact' && tool !== t.id && 'text-destructive'
 						)}
 						aria-pressed={tool === t.id}

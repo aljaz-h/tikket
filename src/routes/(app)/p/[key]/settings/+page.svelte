@@ -15,7 +15,7 @@
 	import Input from '$lib/components/ui/input.svelte';
 	import Field from '$lib/components/ui/field.svelte';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import ConfirmDialog from '$lib/components/ui/confirm-dialog.svelte';
 	import Badge from '$lib/components/ui/badge.svelte';
 	import {
@@ -90,20 +90,23 @@
 							for="submissionPolicy"
 							hint="Applies to public projects. Private projects only accept members."
 						>
-							<NativeSelect
+							<Select
 								id="submissionPolicy"
 								name="submissionPolicy"
 								value={p.submissionPolicy}
-							>
-								<option value="any_user">Any signed-in user</option>
-								<option value="members">Project members only</option>
-							</NativeSelect>
+								items={[
+									{ value: 'any_user', label: 'Any signed-in user' },
+									{ value: 'members', label: 'Project members only' }
+								]}
+							/>
 						</Field>
 						<Field label="Editing own submissions" for="editPolicy">
-							<NativeSelect id="editPolicy" name="editPolicy" value={p.editPolicy}>
-								{#each EDIT_POLICIES as e (e)}<option value={e}>{EDIT_POLICY_META[e]}</option
-									>{/each}
-							</NativeSelect>
+							<Select
+								id="editPolicy"
+								name="editPolicy"
+								value={p.editPolicy}
+								items={EDIT_POLICIES.map((e) => ({ value: e, label: EDIT_POLICY_META[e] }))}
+							/>
 						</Field>
 						{#each [{ name: 'votingEnabled', label: 'Voting', hint: 'Let users upvote tickets they care about.' }, { name: 'attachmentsEnabled', label: 'Screenshots & attachments', hint: 'Allow images on tickets and comments.' }, { name: 'commentsEnabled', label: 'Comments', hint: 'When off, only project staff can comment.' }] as opt (opt.name)}
 							<label class="flex items-start gap-3">
@@ -151,10 +154,13 @@
 						required
 						class="flex-1"
 					/>
-					<NativeSelect name="role" value="member" aria-label="Role" class="sm:w-36">
-						{#each PROJECT_ROLES as r (r)}<option value={r}>{PROJECT_ROLE_META[r].label}</option
-							>{/each}
-					</NativeSelect>
+					<Select
+						name="role"
+						value="member"
+						aria-label="Role"
+						class="sm:w-36"
+						items={PROJECT_ROLES.map((r) => ({ value: r, label: PROJECT_ROLE_META[r].label }))}
+					/>
 					<Button type="submit" variant="secondary"><UserPlus /> Add</Button>
 				</form>
 				{#if errors.member}<p class="mt-2 text-xs text-destructive" role="alert">
@@ -178,17 +184,17 @@
 								use:enhance={quickSubmit({ success: 'Role updated' })}
 							>
 								<input type="hidden" name="userId" value={m.userId} />
-								<NativeSelect
+								<Select
 									name="role"
 									value={m.role}
 									aria-label="Role of {m.displayName}"
 									class="w-36"
-									onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
-								>
-									{#each PROJECT_ROLES as r (r)}<option value={r}
-											>{PROJECT_ROLE_META[r].label}</option
-										>{/each}
-								</NativeSelect>
+									autosubmit
+									items={PROJECT_ROLES.map((r) => ({
+										value: r,
+										label: PROJECT_ROLE_META[r].label
+									}))}
+								/>
 								<noscript><Button type="submit" size="xs" variant="outline">Save</Button></noscript>
 							</form>
 							<Button
@@ -223,10 +229,13 @@
 							aria-label="Email"
 							class="flex-1"
 						/>
-						<NativeSelect name="role" value="member" aria-label="Role" class="sm:w-36">
-							{#each PROJECT_ROLES as r (r)}<option value={r}>{PROJECT_ROLE_META[r].label}</option
-								>{/each}
-						</NativeSelect>
+						<Select
+							name="role"
+							value="member"
+							aria-label="Role"
+							class="sm:w-36"
+							items={PROJECT_ROLES.map((r) => ({ value: r, label: PROJECT_ROLE_META[r].label }))}
+						/>
 						<Button type="submit" variant="secondary"><Link /> Create link</Button>
 					</form>
 					{#if errors.inviteEmail}<p class="mt-2 text-xs text-destructive" role="alert">
@@ -234,7 +243,7 @@
 						</p>{/if}
 					{#if form && 'inviteLink' in form && form.inviteLink}
 						<div
-							class="mt-3 flex items-center gap-2 rounded-lg border border-primary/40 bg-primary-soft p-2"
+							class="mt-3 flex items-center gap-2 rounded-lg border border-primary-border/40 bg-primary-soft p-2"
 						>
 							<Input
 								readonly
@@ -294,9 +303,13 @@
 						maxlength={40}
 						class="flex-1"
 					/>
-					<NativeSelect name="color" value="slate" aria-label="Colour" class="sm:w-32">
-						{#each LABEL_COLORS as c (c)}<option value={c}>{c}</option>{/each}
-					</NativeSelect>
+					<Select
+						name="color"
+						value="slate"
+						aria-label="Colour"
+						class="sm:w-32"
+						items={LABEL_COLORS.map((c) => ({ value: c, label: c }))}
+					/>
 					<Button type="submit" variant="secondary">Add label</Button>
 				</form>
 				{#if errors.name}<p class="mt-2 text-xs text-destructive" role="alert">
@@ -321,14 +334,14 @@
 										class="h-8 min-w-32 flex-1"
 										maxlength={40}
 									/>
-									<NativeSelect
+									<Select
 										name="color"
 										value={label.color}
 										aria-label="Colour"
-										class="w-28 [&_select]:h-8"
-									>
-										{#each LABEL_COLORS as c (c)}<option value={c}>{c}</option>{/each}
-									</NativeSelect>
+										class="w-28"
+										size="sm"
+										items={LABEL_COLORS.map((c) => ({ value: c, label: c }))}
+									/>
 									<span class="text-xs text-muted-foreground">{label.usage} tickets</span>
 									<Button type="submit" size="xs" variant="outline">Save</Button>
 								</form>

@@ -162,7 +162,7 @@
 				{@const Icon = option.icon}
 				<label
 					class={cn(
-						'flex cursor-pointer gap-3 rounded-lg border border-border p-3 transition-colors hover:border-border-strong has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring'
+						'flex cursor-pointer gap-3 rounded-lg border border-border p-3 transition-colors hover:border-border-strong has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring'
 					)}
 				>
 					<input

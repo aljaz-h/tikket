@@ -14,7 +14,8 @@
 	import Field from '$lib/components/ui/field.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Textarea from '$lib/components/ui/textarea.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
+	import { readableOn } from '$lib/shared/color';
 	import { TYPE_ICONS, TYPE_TONES } from '$lib/components/icons';
 	import { TYPE_META, type TicketType } from '$lib/shared/constants';
 	import { ENVIRONMENT_LABELS, sanitizeEnvironment } from '$lib/shared/widget';
@@ -24,6 +25,26 @@
 	let { data } = $props();
 
 	const TYPES: TicketType[] = ['bug', 'feature', 'improvement'];
+	// The project's accent colour themes the form; text on it uses whichever colour reads better.
+	const accentStyle = $derived.by(() => {
+		const a = data.config.accentColor;
+		const fg = readableOn(a);
+		const light = fg === '#0d0f11';
+		return [
+			`--primary:${a}`,
+			`--primary-hover:${a}`,
+			`--primary-active:${a}`,
+			`--primary-foreground:${fg}`,
+			`--primary-soft:${a}22`,
+			`--primary-border:${a}`,
+			`--ring:${a}99`,
+			// Only light accents are legible as text on the dark form.
+			light ? `--link:${a}` : '',
+			light ? `--link-hover:${a}` : ''
+		]
+			.filter(Boolean)
+			.join(';');
+	});
 	const storageKey = $derived(`tikket:widget:${data.key}`);
 
 	let token = $state<string | null>(null);
@@ -223,13 +244,7 @@
 	}
 </script>
 
-<main
-	id="main"
-	class="flex h-dvh flex-col bg-background"
-	style="--primary:{data.config.accentColor}; --ring:{data.config
-		.accentColor}99; --primary-hover:{data.config
-		.accentColor}; --primary-foreground:#ffffff; --primary-soft:{data.config.accentColor}22"
->
+<main id="main" class="flex h-dvh flex-col bg-background" style={accentStyle}>
 	<header class="flex items-center gap-2 border-b border-border px-4 py-3">
 		<div class="min-w-0 flex-1">
 			<h1 class="truncate text-sm font-semibold">Send feedback</h1>
@@ -292,7 +307,7 @@
 						{#each TYPES as t (t)}
 							{@const Icon = TYPE_ICONS[t]}
 							<label
-								class="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-border bg-surface px-1 py-2 text-center text-xs font-medium transition-colors hover:border-border-strong has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+								class="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-border bg-surface px-1 py-2 text-center text-xs font-medium transition-colors hover:border-border-strong has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 							>
 								<input type="radio" name="type" value={t} bind:group={type} class="sr-only" />
 								<Icon class={cn('tone-text size-4', TYPE_TONES[t])} />
@@ -329,13 +344,12 @@
 
 				{#if templates.length > 1}
 					<Field label="Form" for="w-template">
-						<NativeSelect
+						<Select
 							id="w-template"
 							value={String(template?.id ?? '')}
-							onchange={(e) => (templateId = Number((e.currentTarget as HTMLSelectElement).value))}
-						>
-							{#each templates as t (t.id)}<option value={String(t.id)}>{t.name}</option>{/each}
-						</NativeSelect>
+							onchange={(v) => (templateId = Number(v))}
+							items={templates.map((t) => ({ value: String(t.id), label: t.name }))}
+						/>
 					</Field>
 				{/if}
 				{#if template}
@@ -367,11 +381,7 @@
 				{#if data.config.collectContext && preview}
 					<div class="rounded-lg border border-border text-xs">
 						<label class="flex items-center gap-2 px-3 py-2">
-							<input
-								type="checkbox"
-								bind:checked={includeContext}
-								class="size-3.5 accent-[var(--primary)]"
-							/>
+							<input type="checkbox" bind:checked={includeContext} class="size-4" />
 							<Info class="size-3.5 text-muted-foreground" />
 							<span class="flex-1">Include page information</span>
 						</label>

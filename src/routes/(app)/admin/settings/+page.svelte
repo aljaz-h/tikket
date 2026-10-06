@@ -6,7 +6,7 @@
 	import Field from '$lib/components/ui/field.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Switch from '$lib/components/ui/switch.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import { IMAGE_MIME_TYPES } from '$lib/shared/constants';
 
 	let { data, form } = $props();
@@ -42,11 +42,17 @@
 			for="defaultTheme"
 			hint="Users can override this in their profile."
 		>
-			<NativeSelect id="defaultTheme" name="defaultTheme" value={s.defaultTheme} class="w-48"
-				><option value="dark">Dark</option><option value="light">Light</option><option
-					value="system">Follow system</option
-				></NativeSelect
-			>
+			<Select
+				id="defaultTheme"
+				name="defaultTheme"
+				value={s.defaultTheme}
+				class="w-48"
+				items={[
+					{ value: 'dark', label: 'Dark' },
+					{ value: 'light', label: 'Light' },
+					{ value: 'system', label: 'Follow system' }
+				]}
+			/>
 		</Field>
 	</Card>
 
@@ -145,7 +151,7 @@
 							name="allowedImageTypes"
 							value={t}
 							checked={s.allowedImageTypes.includes(t)}
-							class="size-4 accent-[var(--primary)]"
+							class="size-4"
 						/>{t.replace('image/', '').toUpperCase()}</label
 					>
 				{/each}

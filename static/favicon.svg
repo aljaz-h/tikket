@@ -1,1 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#6c68ee"/><path d="M9 11.5h14M16 11.5V23" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><circle cx="23" cy="21.5" r="2.2" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Tikket icon</title>
+  <desc id="desc">Lime green ticket with two text lines and a checkmark.</desc>
+  <defs>
+    <linearGradient id="ticket" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#83ef8b"/>
+      <stop offset="1" stop-color="#c6ff5e"/>
+    </linearGradient>
+  </defs>
+  <!-- Ticket silhouette with two inward semicircular notches. -->
+  <path fill="url(#ticket)" fill-rule="evenodd" d="M42 35 H214 Q229 35 229 50 V92 C214 92 202 104 202 119 S214 146 229 146 V206 Q229 221 214 221 H42 Q27 221 27 206 V146 C42 146 54 134 54 119 S42 92 27 92 V50 Q27 35 42 35 Z"/>
+  <g fill="none" stroke="#14201c" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M84 87 L157 78" stroke-width="17"/>
+    <path d="M84 122 L127 116" stroke-width="17"/>
+    <path d="M132 163 L151 181 L186 140" stroke-width="18"/>
+  </g>
+</svg>

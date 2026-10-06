@@ -30,7 +30,6 @@
 	</form>
 </Card>
 <p class="mt-4 text-center text-sm text-muted-foreground">
-	Already have an account? <a href="/login" class="font-medium text-primary hover:underline"
-		>Sign in</a
+	Already have an account? <a href="/login" class="font-medium text-link hover:underline">Sign in</a
 	>
 </p>

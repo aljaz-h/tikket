@@ -216,3 +216,14 @@ describe('bulk form parsing', () => {
 		).toThrow(/at most/);
 	});
 });
+
+describe('accent colour contrast', () => {
+	it('picks charcoal text on light accents and white on dark ones', async () => {
+		const { readableOn, luminance } = await import('../../src/lib/shared/color');
+		expect(readableOn('#b8f779')).toBe('#0d0f11');
+		expect(readableOn('#ffffff')).toBe('#0d0f11');
+		expect(readableOn('#1d4ed8')).toBe('#ffffff');
+		expect(readableOn('#000000')).toBe('#ffffff');
+		expect(luminance('nope')).toBe(0);
+	});
+});

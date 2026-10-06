@@ -16,7 +16,7 @@
 	import FormMessage from '$lib/components/FormMessage.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import Kbd from '$lib/components/ui/kbd.svelte';
 	import { TYPE_ICONS, TYPE_TONES } from '$lib/components/icons';
 	import {
@@ -275,7 +275,7 @@
 				<section aria-labelledby="step-project" class="grid gap-3">
 					<h2 id="step-project" class="flex items-center gap-2 text-sm font-semibold">
 						<span
-							class="flex size-5 items-center justify-center rounded-full bg-primary-soft text-xs text-primary"
+							class="flex size-5 items-center justify-center rounded-full bg-primary-soft text-xs text-link"
 							>1</span
 						>
 						Project
@@ -302,7 +302,7 @@
 						<div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Project">
 							{#each data.projects as p (p.key)}
 								<label
-									class="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-border-strong has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+									class="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-border-strong has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 								>
 									<input
 										type="radio"
@@ -320,22 +320,21 @@
 											>{p.key}</span
 										>
 									</span>
-									{#if projectKey === p.key}<Check class="size-4 text-primary" />{/if}
+									{#if projectKey === p.key}<Check class="size-4 text-link" />{/if}
 								</label>
 							{/each}
 						</div>
 					{:else}
-						<NativeSelect
+						<Select
 							name="project"
 							aria-label="Project"
 							required
+							placeholder="Choose a project…"
+							searchable
 							value={projectKey}
-							onchange={(e) => selectProject((e.currentTarget as HTMLSelectElement).value)}
-						>
-							<option value="" disabled>Choose a project…</option>
-							{#each data.projects as p (p.key)}<option value={p.key}>{p.name} ({p.key})</option
-								>{/each}
-						</NativeSelect>
+							onchange={(v) => selectProject(v)}
+							items={data.projects.map((p) => ({ value: p.key, label: `${p.name} (${p.key})` }))}
+						/>
 					{/if}
 					{#if errors.project}<p class="text-xs text-destructive" role="alert">
 							{errors.project}
@@ -346,7 +345,7 @@
 				<section aria-labelledby="step-type" class="grid gap-3">
 					<h2 id="step-type" class="flex items-center gap-2 text-sm font-semibold">
 						<span
-							class="flex size-5 items-center justify-center rounded-full bg-primary-soft text-xs text-primary"
+							class="flex size-5 items-center justify-center rounded-full bg-primary-soft text-xs text-link"
 							>2</span
 						>
 						What would you like to report?
@@ -356,7 +355,7 @@
 							{@const Icon = TYPE_ICONS[t]}
 							<label
 								class={cn(
-									'flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-border-strong has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring',
+									'flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-border-strong has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring',
 									t === 'feedback' && 'sm:col-span-2 sm:py-2.5'
 								)}
 							>
@@ -400,7 +399,7 @@
 					<div class="flex items-center justify-between gap-2">
 						<h2 id="step-details" class="flex items-center gap-2 text-sm font-semibold">
 							<span
-								class="flex size-5 items-center justify-center rounded-full bg-primary-soft text-xs text-primary"
+								class="flex size-5 items-center justify-center rounded-full bg-primary-soft text-xs text-link"
 								>3</span
 							>
 							Describe it
@@ -436,17 +435,15 @@
 									>
 										<input type="hidden" name="templateId" value={template.id} />
 										{#if templates.length > 1}
-											<label class="grid gap-1.5 text-[0.8125rem] font-medium">
+											<div class="grid gap-1.5 text-[0.8125rem] font-medium">
 												Form
-												<NativeSelect
+												<Select
+													aria-label="Form"
 													value={String(template.id)}
-													onchange={(e) =>
-														(templateId = Number((e.currentTarget as HTMLSelectElement).value))}
-												>
-													{#each templates as t (t.id)}<option value={String(t.id)}>{t.name}</option
-														>{/each}
-												</NativeSelect>
-											</label>
+													onchange={(v) => (templateId = Number(v))}
+													items={templates.map((t) => ({ value: String(t.id), label: t.name }))}
+												/>
+											</div>
 										{/if}
 										<TemplateQuestions fields={template.fields} bind:values={answers} {errors} />
 									</div>

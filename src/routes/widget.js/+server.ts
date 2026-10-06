@@ -27,8 +27,19 @@ const LOADER = String.raw`(function () {
 		.then(function (cfg) { if (cfg && cfg.enabled) mount(cfg); })
 		.catch(function () {});
 
+	// Charcoal or white text, whichever contrasts more with the accent colour (WCAG luminance).
+	function readable(hex) {
+		var l = [1, 3, 5].map(function (i) {
+			var c = parseInt(hex.slice(i, i + 2), 16) / 255;
+			return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+		});
+		var lum = 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2];
+		return (lum + 0.05) / 0.055 >= 1.05 / (lum + 0.05) ? '#0d0f11' : '#fff';
+	}
+
 	function mount(cfg) {
-		var color = /^#[0-9a-f]{6}$/i.test(cfg.accentColor) ? cfg.accentColor : '#6c68ee';
+		var color = /^#[0-9a-f]{6}$/i.test(cfg.accentColor) ? cfg.accentColor : '#b8f779';
+		var ink = readable(color);
 		var pos = String(cfg.position || 'bottom-right').split('-');
 		var host = document.createElement('div');
 		host.setAttribute('data-tikket-widget', key);
@@ -39,11 +50,11 @@ const LOADER = String.raw`(function () {
 			'<style>' +
 			':host{all:initial}' +
 			'.btn{position:fixed;' + v + ':20px;' + h + ':20px;z-index:2147483646;display:flex;align-items:center;gap:8px;' +
-			'padding:10px 16px;border:0;border-radius:999px;background:' + color + ';color:#fff;font:600 14px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;' +
+			'padding:10px 16px;border:0;border-radius:999px;background:' + color + ';color:' + ink + ';font:600 14px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;' +
 			'box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}' +
-			'.btn:focus-visible{outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 0 6px ' + color + '}' +
+			'.btn:focus-visible{outline:3px solid ' + ink + ';outline-offset:2px;box-shadow:0 0 0 6px ' + color + '}' +
 			'.panel{position:fixed;' + v + ':76px;' + h + ':20px;z-index:2147483647;width:380px;height:min(620px,calc(100vh - 100px));' +
-			'border:0;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);background:#16171a;overflow:hidden;display:none}' +
+			'border:0;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.35);background:#0d0f11;overflow:hidden;display:none}' +
 			'.panel.open{display:block}' +
 			'iframe{width:100%;height:100%;border:0;display:block;color-scheme:normal}' +
 			'@media (max-width:480px){.panel{inset:0;width:100%;height:100%;border-radius:0}}' +

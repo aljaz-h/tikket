@@ -13,7 +13,7 @@
 	import { untrack } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Checkbox from '$lib/components/ui/checkbox.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import Dialog from '$lib/components/ui/dialog.svelte';
 	import {
 		PRIORITY_META,
@@ -61,6 +61,20 @@
 	});
 </script>
 
+{#snippet columns(bulk: boolean)}
+	<div
+		class="hidden items-center gap-3 px-4 text-xs text-muted-foreground sm:flex"
+		aria-hidden="true"
+	>
+		{#if bulk}<span class="w-5"></span>{/if}<span class="w-4"></span><span class="w-20">Ticket</span
+		><span class="flex-1">Title</span>
+		<span class="hidden w-24 md:block">Type</span><span class="hidden w-20 lg:block">Priority</span>
+		<span class="w-14 text-right">Votes</span><span class="w-6"></span><span class="w-24 text-right"
+			>Updated</span
+		>
+	</div>
+{/snippet}
+
 <div class="grid gap-4">
 	<TicketFilters
 		filters={data.filters}
@@ -79,18 +93,6 @@
 		/>
 	{:else if data.list}
 		{#if data.list.rows.length}
-			<div
-				class="hidden items-center gap-3 px-4 text-xs text-muted-foreground sm:flex"
-				aria-hidden="true"
-			>
-				<span class="w-4"></span><span class="w-20">Ticket</span><span class="flex-1">Title</span>
-				<span class="hidden w-24 md:block">Type</span><span class="hidden w-20 lg:block"
-					>Priority</span
-				>
-				<span class="w-14 text-right">Votes</span><span class="w-6"></span><span
-					class="w-24 text-right">Updated</span
-				>
-			</div>
 			{#if canBulk}
 				<form
 					bind:this={formEl}
@@ -158,45 +160,48 @@
 							>
 						</label>
 						<span class="flex-1"></span>
-						<NativeSelect
+						<Select
 							name="change"
 							bind:value={change}
 							aria-label="Bulk change"
-							class="h-8 w-full text-xs sm:w-56"
-						>
-							<option value="">Change selected…</option>
-							<optgroup label="Status">
-								{#each TICKET_STATUSES.filter((s) => s !== 'duplicate') as s (s)}<option
-										value="status:{s}">{STATUS_META[s].label}</option
-									>{/each}
-							</optgroup>
-							<optgroup label="Priority">
-								{#each TICKET_PRIORITIES as p (p)}<option value="priority:{p}"
-										>{PRIORITY_META[p].label}</option
-									>{/each}
-							</optgroup>
-							<optgroup label="Assignee">
-								<option value="assign:none">Unassigned</option>
-								{#each data.assignable as u (u.id)}<option value="assign:{u.id}"
-										>{u.displayName}</option
-									>{/each}
-							</optgroup>
-							{#if data.labels.length}
-								<optgroup label="Add label">
-									{#each data.labels as l (l.id)}<option value="addLabel:{l.id}">+ {l.name}</option
-										>{/each}
-								</optgroup>
-								<optgroup label="Remove label">
-									{#each data.labels as l (l.id)}<option value="removeLabel:{l.id}"
-											>− {l.name}</option
-										>{/each}
-								</optgroup>
-							{/if}
-						</NativeSelect>
+							placeholder="Change selected…"
+							size="sm"
+							searchable
+							class="w-full sm:w-60"
+							items={[
+								...TICKET_STATUSES.filter((s) => s !== 'duplicate').map((s) => ({
+									value: `status:${s}`,
+									label: STATUS_META[s].label,
+									group: 'Status'
+								})),
+								...TICKET_PRIORITIES.map((p) => ({
+									value: `priority:${p}`,
+									label: PRIORITY_META[p].label,
+									group: 'Priority'
+								})),
+								{ value: 'assign:none', label: 'Unassigned', group: 'Assignee' },
+								...data.assignable.map((u) => ({
+									value: `assign:${u.id}`,
+									label: u.displayName,
+									group: 'Assignee'
+								})),
+								...data.labels.map((l) => ({
+									value: `addLabel:${l.id}`,
+									label: `+ ${l.name}`,
+									group: 'Add label'
+								})),
+								...data.labels.map((l) => ({
+									value: `removeLabel:${l.id}`,
+									label: `− ${l.name}`,
+									group: 'Remove label'
+								}))
+							]}
+						/>
 						<Button type="submit" size="sm" disabled={!selected.length || !change} loading={pending}
 							>Apply</Button
 						>
 					</div>
+					{@render columns(true)}
 					<TicketList tickets={data.list.rows} bind:selected />
 				</form>
 				<Dialog
@@ -217,6 +222,7 @@
 					{/snippet}
 				</Dialog>
 			{:else}
+				{@render columns(false)}
 				<TicketList tickets={data.list.rows} />
 			{/if}
 			<Pagination

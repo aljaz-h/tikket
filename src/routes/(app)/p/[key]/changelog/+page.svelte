@@ -196,7 +196,7 @@
 								name="ticketId"
 								value={t.id}
 								bind:group={selected}
-								class="size-4 accent-[var(--primary)]"
+								class="size-4"
 							/>
 							<span class="font-mono text-xs text-muted-foreground"
 								>{ticketRef(data.project.key, t.number)}</span

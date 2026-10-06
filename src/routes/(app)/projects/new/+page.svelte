@@ -6,7 +6,7 @@
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import Field from '$lib/components/ui/field.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 
 	let { data, form } = $props();
 	let pending = $state(false);
@@ -40,11 +40,16 @@
 					error={errors.ownerId}
 					hint="The owner manages the project, its members and settings."
 				>
-					<NativeSelect id="ownerId" name="ownerId" value={values.ownerId ?? String(data.user?.id)}>
-						{#each data.owners as owner (owner.id)}
-							<option value={String(owner.id)}>{owner.displayName} (@{owner.username})</option>
-						{/each}
-					</NativeSelect>
+					<Select
+						id="ownerId"
+						name="ownerId"
+						value={values.ownerId ?? String(data.user?.id)}
+						searchable={data.owners.length > 8}
+						items={data.owners.map((o) => ({
+							value: String(o.id),
+							label: `${o.displayName} (@${o.username})`
+						}))}
+					/>
 				</Field>
 			{/if}
 			<div class="flex justify-end gap-2 border-t border-border pt-5">

@@ -23,7 +23,8 @@ ENV NODE_ENV=production \
 	PORT=3000 \
 	DATA_DIR=/data \
 	MIGRATIONS_DIR=/app/drizzle \
-	BODY_SIZE_LIMIT=25M
+	BODY_SIZE_LIMIT=25M \
+	SHUTDOWN_TIMEOUT=10
 WORKDIR /app
 
 COPY --from=build /app/package.json ./

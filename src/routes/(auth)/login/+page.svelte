@@ -54,8 +54,7 @@
 </Card>
 {#if data.app.registrationEnabled}
 	<p class="mt-4 text-center text-sm text-muted-foreground">
-		New here? <a href="/register" class="font-medium text-primary hover:underline"
-			>Create an account</a
+		New here? <a href="/register" class="font-medium text-link hover:underline">Create an account</a
 		>
 	</p>
 {:else}

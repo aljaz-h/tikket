@@ -11,7 +11,7 @@
 	import Card from '$lib/components/ui/card.svelte';
 	import Badge from '$lib/components/ui/badge.svelte';
 	import Input from '$lib/components/ui/input.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import ConfirmDialog from '$lib/components/ui/confirm-dialog.svelte';
 	import { PROJECT_ROLE_META } from '$lib/shared/constants';
 	import { formatDate, formatDateTime, projectPath } from '$lib/shared/format';
@@ -59,15 +59,17 @@
 			class="flex flex-wrap items-center gap-2"
 			use:enhance={quickSubmit({ success: 'Role updated' })}
 		>
-			<NativeSelect
+			<Select
 				name="role"
 				value={u.role}
 				aria-label="Global role"
 				class="w-48"
 				disabled={data.isSelf}
-			>
-				<option value="user">Normal user</option><option value="admin">Administrator</option>
-			</NativeSelect>
+				items={[
+					{ value: 'user', label: 'Normal user' },
+					{ value: 'admin', label: 'Administrator' }
+				]}
+			/>
 			<Button type="submit" variant="secondary" disabled={data.isSelf}>Save role</Button>
 			{#if data.isSelf}<p class="text-xs text-muted-foreground">
 					You cannot change your own role.
@@ -105,7 +107,9 @@
 			{/if}
 		</div>
 		{#if resetLink}
-			<div class="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary-soft p-2">
+			<div
+				class="flex items-center gap-2 rounded-lg border border-primary-border/40 bg-primary-soft p-2"
+			>
 				<Input
 					readonly
 					value={resetLink}

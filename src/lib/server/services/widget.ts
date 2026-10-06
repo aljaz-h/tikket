@@ -6,6 +6,7 @@ import {
 	type WidgetPosition
 } from '../../shared/constants';
 import { normalizeOrigin } from '../../shared/widget';
+import { DEFAULT_ACCENT } from '../../shared/color';
 import { accessForProject, findProjectByKey, type ProjectAccess } from '../authz';
 import { randomToken, sha256 } from '../auth/tokens';
 import { getDb, schema } from '../db';
@@ -31,7 +32,7 @@ const DEFAULTS: WidgetConfig = {
 	enabled: false,
 	buttonLabel: 'Feedback',
 	position: 'bottom-right',
-	accentColor: '#6c68ee',
+	accentColor: DEFAULT_ACCENT,
 	defaultType: 'bug',
 	screenshotsEnabled: true,
 	collectContext: true,
@@ -103,7 +104,7 @@ export function saveWidgetSettings(
 	if (!TICKET_TYPES.includes(input.defaultType))
 		throw new ServiceError('Invalid ticket type', 'defaultType');
 	if (!/^#[0-9a-f]{6}$/i.test(input.accentColor))
-		throw new ServiceError('Use a hex colour like #6c68ee', 'accentColor');
+		throw new ServiceError('Use a hex colour like #b8f779', 'accentColor');
 	if (input.enabled && !input.origins.length)
 		throw new ServiceError('Add at least one website origin before enabling the widget', 'origins');
 	const values = {

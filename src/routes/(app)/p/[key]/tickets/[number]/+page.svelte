@@ -35,7 +35,7 @@
 	import { quickSubmit } from '$lib/components/ticket/enhance';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
-	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Select from '$lib/components/ui/select.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import PopoverContent from '$lib/components/ui/popover-content.svelte';
 	import ConfirmDialog from '$lib/components/ui/confirm-dialog.svelte';
@@ -208,7 +208,7 @@
 							href={t.context.affectedUrl}
 							target="_blank"
 							rel="noopener noreferrer nofollow ugc"
-							class="truncate text-primary hover:underline">{t.context.affectedUrl}</a
+							class="truncate text-link hover:underline">{t.context.affectedUrl}</a
 						>
 					</div>
 				{/if}
@@ -252,7 +252,7 @@
 						<summary
 							class="flex cursor-pointer items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 						>
-							<Globe class="size-3.5" /> Environment
+							<Globe class="size-4" /> Environment
 							<span class="font-normal tracking-normal normal-case"
 								>· reported by the reporter’s browser, not verified</span
 							>
@@ -281,7 +281,7 @@
 										onclick={() => {
 											removeAttachment = item;
 											removeOpen = true;
-										}}><Trash2 class="size-3.5" /></button
+										}}><Trash2 class="size-4" /></button
 									>
 								{/if}
 							{/snippet}
@@ -340,7 +340,7 @@
 										{#if a.type === 'status' && a.data.duplicateOf}
 											{@const dup = a.data.duplicateOf as { number: number; title: string }}
 											of
-											<a href={ticketPath(key, dup.number)} class="text-primary hover:underline"
+											<a href={ticketPath(key, dup.number)} class="text-link hover:underline"
 												>{ticketRef(key, dup.number)}</a
 											>
 										{/if}
@@ -479,15 +479,13 @@
 							action="?/priority"
 							use:enhance={quickSubmit({ success: 'Priority updated' })}
 						>
-							<NativeSelect
+							<Select
 								name="priority"
 								value={t.priority}
 								aria-label="Priority"
-								onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
-							>
-								{#each TICKET_PRIORITIES as p (p)}<option value={p}>{PRIORITY_META[p].label}</option
-									>{/each}
-							</NativeSelect>
+								autosubmit
+								items={TICKET_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_META[p].label }))}
+							/>
 							<noscript
 								><Button type="submit" size="xs" variant="outline" class="mt-1.5"
 									>Save priority</Button
@@ -507,17 +505,17 @@
 							action="?/assign"
 							use:enhance={quickSubmit({ success: 'Assignee updated' })}
 						>
-							<NativeSelect
+							<Select
 								name="assigneeId"
 								value={t.assigneeId ? String(t.assigneeId) : 'none'}
 								aria-label="Assignee"
-								onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
-							>
-								<option value="none">Unassigned</option>
-								{#each data.assignable as u (u.id)}<option value={String(u.id)}
-										>{u.displayName}</option
-									>{/each}
-							</NativeSelect>
+								autosubmit
+								searchable={data.assignable.length > 6}
+								items={[
+									{ value: 'none', label: 'Unassigned' },
+									...data.assignable.map((u) => ({ value: String(u.id), label: u.displayName }))
+								]}
+							/>
 							<noscript
 								><Button type="submit" size="xs" variant="outline" class="mt-1.5"
 									>Save assignee</Button
@@ -531,8 +529,7 @@
 								use:enhance={quickSubmit({ success: 'Assigned to you' })}
 							>
 								<input type="hidden" name="assigneeId" value={data.user.id} />
-								<button type="submit" class="text-xs text-primary hover:underline"
-									>Assign to me</button
+								<button type="submit" class="text-xs text-link hover:underline">Assign to me</button
 								>
 							</form>
 						{/if}
@@ -557,7 +554,7 @@
 											class="swatch-bg swatch-{label.color} rounded px-1.5 py-0.5 font-medium"
 											>{label.name}</span
 										>{/each}
-								{:else}<Tag class="size-3.5" /> Add labels{/if}
+								{:else}<Tag class="size-4" /> Add labels{/if}
 							</Popover.Trigger>
 							<PopoverContent class="w-60">
 								<form
@@ -577,7 +574,7 @@
 													name="labelId"
 													value={label.id}
 													bind:group={selectedLabels}
-													class="size-4 accent-[var(--primary)]"
+													class="size-4"
 												/>
 												<span class="swatch-{label.color} swatch-solid size-2.5 rounded-full"
 												></span>{label.name}
@@ -630,8 +627,8 @@
 							<dd>
 								<a
 									href={projectPath(key, 'changelog')}
-									class="inline-flex items-center gap-1 text-primary hover:underline"
-									><Rocket class="size-3.5" />{release.version}</a
+									class="inline-flex items-center gap-1 text-link hover:underline"
+									><Rocket class="size-4" />{release.version}</a
 								>
 							</dd>
 						</div>
@@ -663,11 +660,12 @@
 								onSuccess: () => (relationOpen = false)
 							})}
 						>
-							<NativeSelect name="relation" bind:value={relation} aria-label="Relationship">
-								{#each Object.entries(RELATION_CHOICES) as [value, label] (value)}<option {value}
-										>{label}</option
-									>{/each}
-							</NativeSelect>
+							<Select
+								name="relation"
+								bind:value={relation as string}
+								aria-label="Relationship"
+								items={Object.entries(RELATION_CHOICES).map(([value, label]) => ({ value, label }))}
+							/>
 							<Input
 								name="ticket"
 								placeholder="{key}-12"

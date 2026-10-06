@@ -202,7 +202,7 @@
 			aria-label={label}
 			class={cn(
 				'rounded-lg border border-dashed border-border-strong transition-colors',
-				dragging && 'border-primary bg-primary-soft',
+				dragging && 'border-primary-border bg-primary-soft',
 				compact ? 'p-2' : 'p-3'
 			)}
 			ondragenter={(e) => {

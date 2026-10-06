@@ -71,7 +71,7 @@
 						href="/register"
 						target="_blank"
 						rel="noopener"
-						class="font-medium text-primary hover:underline">Create one</a
+						class="font-medium text-link hover:underline">Create one</a
 					>, then sign in here.
 				</p>
 			{/if}

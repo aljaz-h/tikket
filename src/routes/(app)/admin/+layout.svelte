@@ -31,7 +31,7 @@
 				class={cn(
 					'-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap',
 					active(tab)
-						? 'border-primary font-medium'
+						? 'border-primary-border font-medium'
 						: 'border-transparent text-muted-foreground hover:text-foreground'
 				)}>{tab.label}</a
 			>
