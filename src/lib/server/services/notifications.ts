@@ -12,6 +12,8 @@ export interface NotifyInput {
 	ticketId: number | null;
 	actorId: number | null;
 	data: Record<string, unknown>;
+	/** Restrict recipients to project owners/moderators and administrators (internal notes). */
+	staffOnly?: boolean;
 }
 
 /**
@@ -43,6 +45,13 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 		.filter((u) => u.status === 'active')
 		.filter((u) => getNotificationPrefs(u)[input.type])
 		.filter((u) => userCanViewProject(u, input.project, u.memberRole))
+		.filter(
+			(u) =>
+				!input.staffOnly ||
+				u.role === 'admin' ||
+				u.memberRole === 'owner' ||
+				u.memberRole === 'moderator'
+		)
 		.map((u) => ({
 			userId: u.id,
 			type: input.type,

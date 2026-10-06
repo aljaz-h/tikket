@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			descriptionHtml: ticket.descriptionHtml,
 			context: ticket.context
 		},
-		attachments: getTicketDetail(user, ticket).attachments,
+		attachments: getTicketDetail(user, ticket, { internal: false }).attachments,
 		remainingAttachments: Math.max(
 			0,
 			getSettings().maxAttachmentsPerTicket - ticketAttachmentCount(ticket.id)

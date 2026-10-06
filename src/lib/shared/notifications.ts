@@ -22,13 +22,17 @@ export function describeNotification(n: NotificationLike): string {
 		case 'new_ticket':
 			return `${who} submitted a new ticket`;
 		case 'comment':
-			return `${who} commented`;
+			return d.internal ? `${who} added an internal note` : `${who} commented`;
 		case 'mention':
-			return `${who} mentioned you`;
+			return d.internal ? `${who} mentioned you in an internal note` : `${who} mentioned you`;
 		case 'assigned':
-			return `${who} assigned this ticket to you`;
+			return Number(d.bulkCount) > 1
+				? `${who} assigned ${d.bulkCount} tickets to you`
+				: `${who} assigned this ticket to you`;
 		case 'status': {
 			const to = d.to as TicketStatus | undefined;
+			if (Number(d.bulkCount) > 1)
+				return `${who} changed the status of ${d.bulkCount} tickets to ${to ? STATUS_META[to].label : 'a new status'}`;
 			if (to === 'completed') return `${who} marked this as completed`;
 			if (to === 'declined') return `${who} declined this ticket`;
 			if (to === 'duplicate') return `${who} marked this as a duplicate`;

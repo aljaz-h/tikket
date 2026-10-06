@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Lock from '@lucide/svelte/icons/lock';
 	import RichText from '../RichText.svelte';
 	import RichTextEditor from '../RichTextEditor.svelte';
 	import UserAvatar from '../UserAvatar.svelte';
@@ -18,6 +19,7 @@
 		comment: {
 			id: number;
 			bodyHtml: string;
+			internal: boolean;
 			createdAt: Date;
 			editedAt: Date | null;
 			deletedAt: Date | null;
@@ -53,14 +55,27 @@
 <article
 	id="comment-{comment.id}"
 	class="flex scroll-mt-24 gap-3"
-	aria-label="Comment by {comment.author.displayName}"
+	aria-label="{comment.internal ? 'Internal note' : 'Comment'} by {comment.author.displayName}"
+	data-internal={comment.internal || undefined}
 >
 	<UserAvatar user={comment.author} size="md" class="mt-0.5" />
-	<div class="min-w-0 flex-1 rounded-xl border border-border bg-surface">
+	<div
+		class="min-w-0 flex-1 rounded-xl border {comment.internal
+			? 'border-[var(--internal-border)] bg-[var(--internal-bg)]'
+			: 'border-border bg-surface'}"
+	>
 		<header
-			class="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3.5 py-2 text-sm"
+			class="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3.5 py-2 text-sm {comment.internal
+				? 'border-[var(--internal-border)]'
+				: 'border-border'}"
 		>
 			<span class="font-medium">{comment.author.displayName}</span>
+			{#if comment.internal}
+				<span
+					class="inline-flex items-center gap-1 rounded-full border border-[var(--internal-border)] px-2 py-0.5 text-xs font-medium text-[var(--internal-fg)]"
+					title="Only project staff can see this note"><Lock class="size-3" /> Internal note</span
+				>
+			{/if}
 			{#if roleLabel}<Badge variant="muted">{roleLabel}</Badge>{/if}
 			{#if isReporter}<Badge>Reporter</Badge>{/if}
 			<a href="#comment-{comment.id}" class="text-xs text-muted-foreground hover:underline"
@@ -133,7 +148,7 @@
 {#if comment.canDelete}
 	<ConfirmDialog
 		bind:open={confirmOpen}
-		title="Delete this comment?"
+		title={comment.internal ? 'Delete this internal note?' : 'Delete this comment?'}
 		description={comment.author.id === currentUserId
 			? 'The comment will be replaced by a “removed” note.'
 			: 'You are removing another user’s comment as a moderator. This is recorded in the activity history.'}

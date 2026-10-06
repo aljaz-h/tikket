@@ -86,7 +86,7 @@ describe('ticket creation', () => {
 		const t = createTicket(member, access(member, project), input());
 		expect(t.status).toBe('open');
 		expect(t.priority).toBe('medium');
-		const detail = getTicketDetail(member, t);
+		const detail = getTicketDetail(member, t, { internal: true });
 		expect(detail.isFollowing).toBe(true);
 		expect(detail.activity.map((a) => a.type)).toEqual(['created']);
 	});
@@ -117,7 +117,7 @@ describe('attachments', () => {
 		const stored = findAttachment(att.id)!;
 		expect(stored.ticketId).toBe(t.id);
 		expect(stored.projectId).toBe(project.id);
-		expect(getTicketDetail(member, t).attachments).toHaveLength(1);
+		expect(getTicketDetail(member, t, { internal: true }).attachments).toHaveLength(1);
 	});
 
 	it('rejects files that are not images regardless of the declared type', async () => {
@@ -130,7 +130,7 @@ describe('attachments', () => {
 	it('cannot attach another user’s upload', async () => {
 		const att = await storeImage(await png(), { uploaderId: outsider.id });
 		const t = createTicket(member, access(member, project), input(), [att.id]);
-		expect(getTicketDetail(member, t).attachments).toHaveLength(0);
+		expect(getTicketDetail(member, t, { internal: true }).attachments).toHaveLength(0);
 		expect(findAttachment(att.id)!.attachedAt).toBeNull();
 	});
 });
@@ -141,7 +141,9 @@ describe('editing', () => {
 		updateTicketContent(member, access(member, project), t, input('Renamed title'));
 		const updated = getTicket(project.id, t.number)!;
 		expect(updated.title).toBe('Renamed title');
-		expect(getTicketDetail(member, updated).activity.at(-1)?.type).toBe('edited');
+		expect(getTicketDetail(member, updated, { internal: true }).activity.at(-1)?.type).toBe(
+			'edited'
+		);
 	});
 
 	it('blocks authors once the ticket has been triaged (while_open policy)', () => {
@@ -171,7 +173,9 @@ describe('status, priority and assignment', () => {
 		changeStatus(owner, access(owner, project), done, { status: 'open', note: null });
 		const reopened = getTicket(project.id, 1)!;
 		expect(reopened.closedAt).toBeNull();
-		const activity = getTicketDetail(owner, reopened).activity.filter((a) => a.type === 'status');
+		const activity = getTicketDetail(owner, reopened, { internal: true }).activity.filter(
+			(a) => a.type === 'status'
+		);
 		expect(activity.map((a) => a.data.effect)).toEqual(['completed', 'reopened']);
 	});
 
@@ -204,7 +208,9 @@ describe('status, priority and assignment', () => {
 		});
 		const after = getTicket(project.id, dup.number)!;
 		expect(after.duplicateOfId).toBe(original.id);
-		expect(getTicketDetail(owner, original).duplicates.map((d) => d.number)).toEqual([dup.number]);
+		expect(
+			getTicketDetail(owner, original, { internal: true }).duplicates.map((d) => d.number)
+		).toEqual([dup.number]);
 	});
 
 	it('records priority changes and assignments to staff only', () => {
@@ -215,7 +221,7 @@ describe('status, priority and assignment', () => {
 		expect(() => assignTicket(owner, access(owner, project), t, member.id)).toThrow(/staff/);
 		assignTicket(owner, access(owner, project), t, owner.id);
 		expect(getTicket(project.id, 1)!.assigneeId).toBe(owner.id);
-		const types = getTicketDetail(owner, t).activity.map((a) => a.type);
+		const types = getTicketDetail(owner, t, { internal: true }).activity.map((a) => a.type);
 		expect(types).toContain('priority');
 		expect(types).toContain('assigned');
 	});
@@ -226,7 +232,9 @@ describe('status, priority and assignment', () => {
 		const other = makeProject(owner, { key: 'KAN' });
 		const foreign = createLabel(other.id, 'Foreign', 'rose');
 		setTicketLabels(owner, access(owner, project), t, [label.id, foreign.id]);
-		expect(getTicketDetail(owner, t).labels.map((l) => l.name)).toEqual(['iOS']);
+		expect(getTicketDetail(owner, t, { internal: true }).labels.map((l) => l.name)).toEqual([
+			'iOS'
+		]);
 	});
 });
 
@@ -272,7 +280,7 @@ describe('comments and notifications', () => {
 		// The outsider cannot see the private project, so they are not notified.
 		expect(unreadCount(outsider.id)).toBe(0);
 		// Commenters follow the ticket automatically.
-		expect(getTicketDetail(owner, t).isFollowing).toBe(true);
+		expect(getTicketDetail(owner, t, { internal: true }).isFollowing).toBe(true);
 		addComment(member, access(member, project), t, {
 			html: '<p>Any update?</p>',
 			text: 'Any update?'
@@ -297,7 +305,9 @@ describe('comments and notifications', () => {
 		expect(removed.deletedAt).not.toBeNull();
 		expect(removed.bodyHtml).toBe('');
 		expect(getTicket(project.id, 1)!.commentCount).toBe(0);
-		expect(getTicketDetail(owner, t).activity.at(-1)?.type).toBe('comment_removed');
+		expect(getTicketDetail(owner, t, { internal: true }).activity.at(-1)?.type).toBe(
+			'comment_removed'
+		);
 	});
 
 	it('follow / unfollow toggles notifications', () => {

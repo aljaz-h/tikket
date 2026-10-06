@@ -9,6 +9,7 @@
 	import Send from '@lucide/svelte/icons/send';
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import TicketFields, { type TicketDraft } from '$lib/components/TicketFields.svelte';
+	import TemplateQuestions from '$lib/components/TemplateQuestions.svelte';
 	import ProjectIcon from '$lib/components/ProjectIcon.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
@@ -51,8 +52,8 @@
 		projectKey = v.project ?? data.preselected;
 		type = (v.type as TicketType) || data.initialType || '';
 		draft = {
-			title: v.title ?? '',
-			description: v.description ?? '',
+			title: v.title ?? data.prefill.title,
+			description: v.description ?? plainToHtml(data.prefill.description),
 			context: Object.fromEntries(
 				Object.entries(v)
 					.filter(([k]) => k.startsWith('ctx_'))
@@ -63,6 +64,38 @@
 	});
 
 	const project = $derived(data.projects.find((p) => p.key === projectKey));
+
+	// Custom ticket template for the chosen project and type (the default one unless picked).
+	let templateId = $state<number | null>(null);
+	let answers = $state<Record<string, string | boolean>>({});
+	$effect.pre(() => {
+		if (mounted) return;
+		const v = (form?.values ?? {}) as Record<string, string>;
+		templateId = Number(v.templateId) || null;
+		answers = Object.fromEntries(
+			Object.entries(v)
+				.filter(([k]) => k.startsWith('tpl_'))
+				.map(([k, val]) => [k, val === 'on' ? true : val])
+		);
+	});
+	const templates = $derived(
+		project && type ? project.templates.filter((t) => t.type === type) : []
+	);
+	const template = $derived(
+		templates.find((t) => t.id === templateId) ??
+			templates.find((t) => t.isDefault) ??
+			templates[0] ??
+			null
+	);
+
+	function plainToHtml(text: string) {
+		if (!text) return '';
+		const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return esc
+			.split(/\n{2,}/)
+			.map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+			.join('');
+	}
 	const projectLocked = $derived(
 		!!data.preselected && data.projects.length > 0 && projectKey === data.preselected
 	);
@@ -163,6 +196,13 @@
 	$effect(() => {
 		const title = draft.title.trim();
 		const key = projectKey;
+		const kind = type;
+		// A few words of the description sharpen the match without sending the whole text.
+		const text = draft.description
+			.replace(/<[^>]*>/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim()
+			.slice(0, 300);
 		clearTimeout(similarTimer);
 		if (!mounted || title.length < 5 || !key) {
 			similar = [];
@@ -171,13 +211,13 @@
 		similarTimer = setTimeout(async () => {
 			try {
 				const res = await fetch(
-					`/api/similar?project=${encodeURIComponent(key)}&q=${encodeURIComponent(title)}`
+					`/api/similar?project=${encodeURIComponent(key)}&q=${encodeURIComponent(title)}&text=${encodeURIComponent(text)}&type=${kind}`
 				);
 				if (res.ok) similar = (await res.json()).items;
 			} catch {
 				/* offline */
 			}
-		}, 350);
+		}, 400);
 	});
 
 	const contextFilled = $derived(
@@ -387,6 +427,31 @@
 							onchange={saveDraft}
 							onsubmitshortcut={() => formEl?.requestSubmit()}
 						>
+							{#snippet extra()}
+								{#if template}
+									<div
+										class="grid gap-4 rounded-lg border border-border p-3"
+										role="group"
+										aria-label="{template.name} questions"
+									>
+										<input type="hidden" name="templateId" value={template.id} />
+										{#if templates.length > 1}
+											<label class="grid gap-1.5 text-[0.8125rem] font-medium">
+												Form
+												<NativeSelect
+													value={String(template.id)}
+													onchange={(e) =>
+														(templateId = Number((e.currentTarget as HTMLSelectElement).value))}
+												>
+													{#each templates as t (t.id)}<option value={String(t.id)}>{t.name}</option
+														>{/each}
+												</NativeSelect>
+											</label>
+										{/if}
+										<TemplateQuestions fields={template.fields} bind:values={answers} {errors} />
+									</div>
+								{/if}
+							{/snippet}
 							{#snippet afterTitle()}
 								{#if similar.length}
 									<div

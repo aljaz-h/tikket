@@ -56,6 +56,10 @@
 						required={selected === 'duplicate' && js}
 						class="h-8 font-mono"
 					/>
+					<span class="font-normal text-muted-foreground"
+						>Merges into the original: its voters and followers are added there (each person counted
+						once). This ticket keeps its own history.</span
+					>
 				</label>
 			{/if}
 			<label class="grid gap-1 text-xs font-medium">

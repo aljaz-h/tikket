@@ -142,6 +142,20 @@ export function requireProjectById(actor: Actor, id: number, need: ProjectNeed =
 	return access!;
 }
 
+/**
+ * Internal staff notes: readable by project owners, moderators and administrators only – also in
+ * archived projects. Every place that returns comments, comment attachments, activity or
+ * notifications must go through this check.
+ */
+export function canViewInternalNotes(access: ProjectAccess): boolean {
+	return access.isStaff;
+}
+
+/** Writing internal notes additionally requires an active (non-archived) project. */
+export function canWriteInternalNotes(access: ProjectAccess): boolean {
+	return access.isStaff && !access.archived;
+}
+
 /** May the actor edit the ticket's title, description and context? */
 export function canEditTicket(access: ProjectAccess, actor: Actor, ticket: Ticket): boolean {
 	if (!isActive(actor) || access.archived) return false;
@@ -152,6 +166,13 @@ export function canEditTicket(access: ProjectAccess, actor: Actor, ticket: Ticke
 }
 
 export function canEditComment(access: ProjectAccess, actor: Actor, comment: TicketComment) {
+	if (comment.internal)
+		return (
+			isActive(actor) &&
+			comment.deletedAt === null &&
+			comment.authorId === actor.id &&
+			canWriteInternalNotes(access)
+		);
 	return (
 		isActive(actor) &&
 		!access.archived &&
@@ -163,6 +184,7 @@ export function canEditComment(access: ProjectAccess, actor: Actor, comment: Tic
 
 export function canDeleteComment(access: ProjectAccess, actor: Actor, comment: TicketComment) {
 	if (!isActive(actor) || access.archived || comment.deletedAt !== null) return false;
+	if (comment.internal && !canViewInternalNotes(access)) return false;
 	return comment.authorId === actor.id || access.isStaff;
 }
 

@@ -7,6 +7,7 @@
 	import UserAvatar from './UserAvatar.svelte';
 	import TimeAgo from './TimeAgo.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
+	import Checkbox from './ui/checkbox.svelte';
 	import { ticketPath, ticketRef } from '$lib/shared/format';
 	import type { TicketPriority, TicketStatus, TicketType } from '$lib/shared/constants';
 
@@ -29,14 +30,31 @@
 		};
 		showProject?: boolean;
 		showPriority?: boolean;
+		/** Bulk selection: renders a checkbox before the row link when set. */
+		selected?: boolean;
+		onselect?: (selected: boolean) => void;
 	}
-	let { ticket, showProject = false, showPriority = true }: Props = $props();
+	let { ticket, showProject = false, showPriority = true, selected, onselect }: Props = $props();
+	const selectable = $derived(selected !== undefined);
 </script>
 
-<li class="group relative">
+<li class="group relative flex items-stretch {selected ? 'bg-primary-soft' : ''}">
+	{#if selectable}
+		<label
+			class="flex shrink-0 cursor-pointer items-start py-3 pl-3 sm:items-center sm:py-0 sm:pl-4"
+		>
+			<span class="sr-only">Select {ticketRef(ticket.projectKey, ticket.number)}</span>
+			<Checkbox
+				name="ticket"
+				value={ticket.number}
+				checked={selected}
+				onchange={(e) => onselect?.((e.currentTarget as HTMLInputElement).checked)}
+			/>
+		</label>
+	{/if}
 	<a
 		href={ticketPath(ticket.projectKey, ticket.number)}
-		class="flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none sm:items-center sm:px-4"
+		class="flex min-w-0 flex-1 items-start gap-3 px-3 py-2.5 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none sm:items-center sm:px-4"
 	>
 		<StatusBadge status={ticket.status} iconOnly class="mt-0.5 sm:mt-0" />
 		<span

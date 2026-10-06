@@ -10,5 +10,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const project = key ? findProjectByKey(key) : undefined;
 	if (!project || q.length < 4 || !accessForProject(locals.user, project).canView)
 		return json({ items: [] });
-	return json({ items: similarTickets(project.id, q, 5) });
+	const text = (url.searchParams.get('text') ?? '').slice(0, 300);
+	const type = url.searchParams.get('type') ?? undefined;
+	return json({ items: similarTickets(project.id, q, { text, type, limit: 5 }) });
 };

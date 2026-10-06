@@ -13,6 +13,8 @@
 	import X from '@lucide/svelte/icons/x';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import PencilLine from '@lucide/svelte/icons/pencil-line';
+	import ImageAnnotator from './ImageAnnotator.svelte';
 	import { formatBytes } from '$lib/shared/text';
 	import { cn } from '$lib/utils';
 
@@ -29,6 +31,14 @@
 		accept: string[];
 		compact?: boolean;
 		label?: string;
+		/** Endpoint overrides (the widget uploads with a bearer token instead of the session). */
+		uploadUrl?: string;
+		deleteUrl?: (id: string) => string;
+		headers?: Record<string, string>;
+		/** Shown instead of the picker when uploads are not possible yet (e.g. not signed in). */
+		disabledHint?: string | null;
+		/** Offer the annotation editor for uploaded images. */
+		editable?: boolean;
 		onchange?: (items: UploadedItem[]) => void;
 	}
 
@@ -40,8 +50,16 @@
 		accept,
 		compact = false,
 		label = 'Screenshots',
+		uploadUrl = '/api/uploads',
+		deleteUrl = (id: string) => `/api/uploads/${id}`,
+		headers = {},
+		disabledHint = null,
+		editable = true,
 		onchange
 	}: Props = $props();
+
+	let editing = $state<UploadedItem | null>(null);
+	let editorOpen = $state(false);
 
 	interface Pending {
 		key: string;
@@ -62,7 +80,7 @@
 		enhanced = true;
 		const onPaste = (e: ClipboardEvent) => {
 			const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
-			if (!files.length) return;
+			if (!files.length || disabledHint || editorOpen) return;
 			e.preventDefault();
 			void addFiles(files, 'pasted');
 		};
@@ -74,13 +92,18 @@
 		onchange?.(items);
 	}
 
-	async function upload(file: File, pending: Pending) {
+	async function send(file: Blob, fileName: string) {
 		const body = new FormData();
-		body.append('file', file, file.name || 'screenshot.png');
+		body.append('file', file, fileName);
+		const res = await fetch(uploadUrl, { method: 'POST', body, headers });
+		const data = await res.json().catch(() => ({}));
+		if (!res.ok) throw new Error(data.message ?? 'Upload failed');
+		return data as { id: string; name: string; size: number };
+	}
+
+	async function upload(file: File, pending: Pending) {
 		try {
-			const res = await fetch('/api/uploads', { method: 'POST', body });
-			const data = await res.json().catch(() => ({}));
-			if (!res.ok) throw new Error(data.message ?? 'Upload failed');
+			const data = await send(file, file.name || 'screenshot.png');
 			items = [
 				...items,
 				{ id: data.id, name: data.name, size: data.size, preview: pending.preview }
@@ -133,8 +156,33 @@
 		emit();
 		announcement = `${item.name} removed`;
 		if (item.preview.startsWith('blob:')) URL.revokeObjectURL(item.preview);
-		await fetch(`/api/uploads/${item.id}`, { method: 'DELETE' }).catch(() => {});
+		await fetch(deleteUrl(item.id), { method: 'DELETE', headers }).catch(() => {});
 	}
+
+	/** Uploads the annotated image, swaps it in place and discards the unedited original. */
+	async function saveEdited(blob: Blob, fileName: string) {
+		const original = editing;
+		if (!original) return;
+		const data = await send(blob, fileName);
+		const preview = URL.createObjectURL(blob);
+		items = items.map((i) =>
+			i.id === original.id ? { id: data.id, name: data.name, size: data.size, preview } : i
+		);
+		emit();
+		announcement = `${data.name} saved`;
+		if (original.preview.startsWith('blob:')) URL.revokeObjectURL(original.preview);
+		await fetch(deleteUrl(original.id), { method: 'DELETE', headers }).catch(() => {});
+		editing = null;
+	}
+
+	function edit(item: UploadedItem) {
+		editing = item;
+		editorOpen = true;
+	}
+
+	/** Full-resolution source for the editor: the local file when available, else the stored upload. */
+	const editSource = (item: UploadedItem) =>
+		item.preview.startsWith('blob:') ? item.preview : `/api/files/${item.id}`;
 
 	function onDrop(e: DragEvent) {
 		e.preventDefault();
@@ -194,6 +242,16 @@
 							>
 								<X class="size-3.5" />
 							</button>
+							{#if editable}
+								<button
+									type="button"
+									class="absolute top-1 left-1 inline-flex h-6 items-center gap-1 rounded-full bg-black/70 px-2 text-[0.6875rem] font-medium text-white opacity-90 transition-opacity hover:bg-black focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+									aria-label="Edit {item.name}"
+									onclick={() => edit(item)}
+								>
+									<PencilLine class="size-3" /> Edit
+								</button>
+							{/if}
 						</li>
 					{/each}
 					{#each uploading as pending (pending.key)}
@@ -209,44 +267,48 @@
 					{/each}
 				</ul>
 			{/if}
-			<div class={cn('flex items-center gap-3', compact ? 'text-xs' : 'text-sm')}>
-				<button
-					type="button"
-					class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 text-[0.8125rem] font-medium hover:bg-hover"
-					onclick={() => fileInput?.click()}
-					disabled={items.length + uploading.length >= maxFiles}
-				>
-					<ImagePlus class="size-4" />
-					{compact ? 'Image' : 'Add screenshots'}
-				</button>
-				<p class="text-muted-foreground">
-					{#if compact}
-						Drop or paste images
-					{:else}
-						Drag & drop, or paste with <kbd class="rounded border border-border px-1 text-xs"
-							>Ctrl</kbd
-						>
-						+
-						<kbd class="rounded border border-border px-1 text-xs">V</kbd>. Up to {maxFiles}, {formatBytes(
-							maxSize
-						)} each.
-					{/if}
-				</p>
-			</div>
-			<input
-				bind:this={fileInput}
-				type="file"
-				accept={acceptAttr}
-				multiple
-				class="sr-only"
-				tabindex="-1"
-				aria-hidden="true"
-				onchange={(e) => {
-					const input = e.currentTarget as HTMLInputElement;
-					void addFiles([...(input.files ?? [])]);
-					input.value = '';
-				}}
-			/>
+			{#if disabledHint}
+				<p class={cn('text-muted-foreground', compact ? 'text-xs' : 'text-sm')}>{disabledHint}</p>
+			{:else}
+				<div class={cn('flex items-center gap-3', compact ? 'text-xs' : 'text-sm')}>
+					<button
+						type="button"
+						class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 text-[0.8125rem] font-medium hover:bg-hover"
+						onclick={() => fileInput?.click()}
+						disabled={items.length + uploading.length >= maxFiles}
+					>
+						<ImagePlus class="size-4" />
+						{compact ? 'Image' : 'Add screenshots'}
+					</button>
+					<p class="text-muted-foreground">
+						{#if compact}
+							Drop or paste images
+						{:else}
+							Drag & drop, or paste with <kbd class="rounded border border-border px-1 text-xs"
+								>Ctrl</kbd
+							>
+							+
+							<kbd class="rounded border border-border px-1 text-xs">V</kbd>. Up to {maxFiles}, {formatBytes(
+								maxSize
+							)} each.
+						{/if}
+					</p>
+				</div>
+				<input
+					bind:this={fileInput}
+					type="file"
+					accept={acceptAttr}
+					multiple
+					class="sr-only"
+					tabindex="-1"
+					aria-hidden="true"
+					onchange={(e) => {
+						const input = e.currentTarget as HTMLInputElement;
+						void addFiles([...(input.files ?? [])]);
+						input.value = '';
+					}}
+				/>
+			{/if}
 		</div>
 		{#if errors.length}
 			<ul class="grid gap-1" role="alert">
@@ -258,6 +320,16 @@
 			</ul>
 		{/if}
 		<div class="sr-only" aria-live="polite">{announcement}</div>
+		{#if editing}
+			<ImageAnnotator
+				bind:open={editorOpen}
+				src={editSource(editing)}
+				name={editing.name}
+				{maxSize}
+				onsave={saveEdited}
+				oncancel={() => (editing = null)}
+			/>
+		{/if}
 	{:else}
 		<input
 			type="file"

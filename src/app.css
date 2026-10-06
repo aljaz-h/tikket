@@ -48,6 +48,10 @@
 	--tone-improvement: oklch(0.56 0.13 175);
 	--tone-feedback: oklch(0.6 0.14 70);
 
+	--internal-bg: oklch(0.97 0.035 85);
+	--internal-border: oklch(0.86 0.08 80);
+	--internal-fg: oklch(0.5 0.12 65);
+
 	color-scheme: light;
 }
 
@@ -92,6 +96,10 @@
 	--tone-improvement: oklch(0.76 0.12 175);
 	--tone-feedback: oklch(0.8 0.13 80);
 
+	--internal-bg: oklch(0.23 0.03 80);
+	--internal-border: oklch(0.38 0.06 80);
+	--internal-fg: oklch(0.83 0.12 85);
+
 	color-scheme: dark;
 }
 
@@ -133,6 +141,9 @@
 		--tone-feature: oklch(0.74 0.15 290);
 		--tone-improvement: oklch(0.76 0.12 175);
 		--tone-feedback: oklch(0.8 0.13 80);
+		--internal-bg: oklch(0.23 0.03 80);
+		--internal-border: oklch(0.38 0.06 80);
+		--internal-fg: oklch(0.83 0.12 85);
 		color-scheme: dark;
 	}
 }

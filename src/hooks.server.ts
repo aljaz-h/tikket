@@ -18,6 +18,7 @@ import { checkConfiguration, checkDataDirectory, markReady } from '$lib/server/s
 import { pruneOldNotifications } from '$lib/server/services/notifications';
 import { needsSetup } from '$lib/server/services/users';
 import { cleanupAbandonedUploads } from '$lib/server/uploads';
+import { findWidget, listAllowedOrigins } from '$lib/server/services/widget';
 import { THEME_COOKIE, THEMES, type Theme } from '$lib/shared/constants';
 
 function maintenance() {
@@ -47,6 +48,12 @@ export const init: ServerInit = async () => {
 	markReady();
 	console.info(`[tikket] ready – serving ${process.env.ORIGIN || '(ORIGIN not set: development)'}`);
 };
+
+/** Origins allowed to frame the widget form of a project (empty list when disabled/unknown). */
+function widgetFrameAncestors(key: string): string[] {
+	const widget = findWidget(key);
+	return widget ? listAllowedOrigins(widget.project.id) : [];
+}
 
 let setupDone = false;
 function setupRequired() {
@@ -109,9 +116,25 @@ export const handle: Handle = async ({ event, resolve }) => {
 	response.headers.delete('link');
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-	response.headers.set('X-Frame-Options', 'DENY');
-	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-	response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
+	// Embeddable feedback widget: only the widget form may be framed, and only by the project's
+	// allowed origins (plus Tikket itself for the settings preview). Its sign-in popup must keep
+	// `window.opener` to hand the token back, so it gets no COOP; it can never be framed.
+	const embed =
+		event.route.id === '/embed/[key]' && event.params.key
+			? widgetFrameAncestors(event.params.key)
+			: null;
+	if (embed) {
+		const csp = response.headers.get('content-security-policy');
+		if (csp)
+			response.headers.set(
+				'content-security-policy',
+				csp.replace(/frame-ancestors[^;]*/, `frame-ancestors 'self' ${embed.join(' ')}`.trim())
+			);
+	} else response.headers.set('X-Frame-Options', 'DENY');
+	if (!event.route.id?.startsWith('/embed/'))
+		response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+	if (!response.headers.has('Cross-Origin-Resource-Policy'))
+		response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
 	response.headers.set(
 		'Permissions-Policy',
 		'camera=(), microphone=(), geolocation=(), interest-cohort=()'

@@ -224,10 +224,28 @@ export function boardTickets(opts: Omit<QueryOptions, 'pageSize'>, perColumn = 6
 	return { columns, totals, statuses };
 }
 
-/** Possible duplicates for a draft title, best matches first. */
-export function similarTickets(projectId: number, text: string, limit = 5) {
-	const match = toFtsQuery(text, 'any');
+/**
+ * Possible duplicates for a draft ticket, best matches first. Lightweight scoring on top of FTS5
+ * BM25: title matches weigh 4× description matches, tickets of the same type and unresolved
+ * tickets rank higher, and a few distinctive words of the description widen the search.
+ * Duplicates themselves are skipped (their canonical ticket is shown instead). The caller must
+ * have checked that the actor can view the project.
+ */
+export function similarTickets(
+	projectId: number,
+	title: string,
+	opts: { text?: string; type?: string; limit?: number } = {}
+) {
+	const keywords = (opts.text ?? '')
+		.toLowerCase()
+		.match(/[\p{L}\p{N}_]{5,}/gu)
+		?.filter((w, i, all) => all.indexOf(w) === i)
+		.sort((a, b) => b.length - a.length)
+		.slice(0, 6)
+		.join(' ');
+	const match = toFtsQuery(`${title} ${keywords ?? ''}`, 'any');
 	if (!match) return [];
+	const type = opts.type ?? '';
 	return getDb().all<{
 		number: number;
 		title: string;
@@ -238,9 +256,11 @@ export function similarTickets(projectId: number, text: string, limit = 5) {
 		select t.number as number, t.title as title, t.status as status, t.type as type, t.vote_count as voteCount
 		from tickets_fts f
 		join tickets t on t.id = f.rowid
-		where tickets_fts match ${match} and t.project_id = ${projectId}
+		where tickets_fts match ${match} and t.project_id = ${projectId} and t.status <> 'duplicate'
 		order by bm25(tickets_fts, 4.0, 1.0)
-		limit ${limit}
+			- (case when t.type = ${type} then 1.5 else 0 end)
+			- (case when t.status in ('open','planned','in_progress','on_hold') then 0.5 else 0 end)
+		limit ${opts.limit ?? 5}
 	`);
 }
 

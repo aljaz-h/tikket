@@ -3,6 +3,7 @@ import { alias } from 'drizzle-orm/sqlite-core';
 import {
 	STATUS_META,
 	type TicketContext,
+	type TicketEnvironment,
 	type TicketPriority,
 	type TicketStatus,
 	type TicketType
@@ -16,6 +17,7 @@ import { pendingAttachmentsFor, removeFiles } from '../uploads';
 import { followerIds, notify } from './notifications';
 import { isAssignable, projectStaffIds } from './projects';
 import { ServiceError } from './users';
+import { saveTemplateResponse, type TemplateResponseInput } from './templates';
 
 type ActiveActor = NonNullable<Actor>;
 
@@ -100,11 +102,18 @@ export interface TicketInput {
 	context: TicketContext;
 }
 
+export interface CreateTicketExtras {
+	source?: 'web' | 'widget';
+	environment?: TicketEnvironment | null;
+	template?: TemplateResponseInput | null;
+}
+
 export function createTicket(
 	actor: ActiveActor,
 	access: ProjectAccess,
 	input: TicketInput,
-	attachmentIds: string[] = []
+	attachmentIds: string[] = [],
+	extras: CreateTicketExtras = {}
 ): Ticket {
 	if (!access.canSubmit)
 		throw new ServiceError('You cannot submit tickets to this project', 'form', 403);
@@ -128,16 +137,22 @@ export function createTicket(
 					descriptionHtml: input.descriptionHtml,
 					descriptionText: input.descriptionText,
 					context: input.context,
-					reporterId: actor.id
+					reporterId: actor.id,
+					source: extras.source ?? 'web',
+					environment: extras.environment ?? null
 				})
 				.returning()
 				.get();
 			attachPending(tx, actor.id, attachmentIds, { projectId: project.id, ticketId: created.id });
+			if (extras.template) saveTemplateResponse(tx, created.id, extras.template);
 			tx.insert(schema.ticketFollowers)
 				.values({ ticketId: created.id, userId: actor.id })
 				.onConflictDoNothing()
 				.run();
-			addActivity(tx, created.id, actor.id, 'created', { type: input.type });
+			addActivity(tx, created.id, actor.id, 'created', {
+				type: input.type,
+				source: extras.source ?? 'web'
+			});
 			notify(
 				projectStaffIds(project.id),
 				{
@@ -320,9 +335,12 @@ export function changeStatus(
 						.values(followers.map((userId) => ({ ticketId: target!.id, userId })))
 						.onConflictDoNothing()
 						.run();
+				const merged = mergeIntoCanonical(tx, ticket.id, target.id);
 				addActivity(tx, target.id, actor.id, 'duplicate_linked', {
 					number: ticket.number,
-					title: ticket.title
+					title: ticket.title,
+					votesAdded: merged.votesAdded || undefined,
+					duplicatesMoved: merged.duplicatesMoved || undefined
 				});
 			}
 			notify(
@@ -339,6 +357,40 @@ export function changeStatus(
 		},
 		{ behavior: 'immediate' }
 	);
+}
+
+/**
+ * Folds a duplicate into its canonical ticket: every voter of the duplicate counts as a voter
+ * of the canonical ticket (once – people who voted on both are not counted twice), and tickets
+ * that were duplicates of the duplicate now point at the canonical ticket, so duplicate chains
+ * never form. The duplicate keeps its own votes, comments and history untouched.
+ */
+export function mergeIntoCanonical(tx: DB, duplicateId: number, canonicalId: number) {
+	const voters = tx
+		.select({ userId: schema.ticketVotes.userId })
+		.from(schema.ticketVotes)
+		.where(eq(schema.ticketVotes.ticketId, duplicateId))
+		.all();
+	let votesAdded = 0;
+	if (voters.length) {
+		votesAdded = tx
+			.insert(schema.ticketVotes)
+			.values(voters.map((v) => ({ ticketId: canonicalId, userId: v.userId })))
+			.onConflictDoNothing()
+			.run().changes;
+		tx.update(schema.tickets)
+			.set({
+				voteCount: sql`(select count(*) from ${schema.ticketVotes} where ${schema.ticketVotes.ticketId} = ${canonicalId})`
+			})
+			.where(eq(schema.tickets.id, canonicalId))
+			.run();
+	}
+	const duplicatesMoved = tx
+		.update(schema.tickets)
+		.set({ duplicateOfId: canonicalId })
+		.where(eq(schema.tickets.duplicateOfId, duplicateId))
+		.run().changes;
+	return { votesAdded, duplicatesMoved };
 }
 
 export function changePriority(
@@ -537,7 +589,12 @@ export function setFollow(actor: ActiveActor, ticket: Ticket, on: boolean) {
 
 // ── Detail view ──────────────────────────────────────────────────────────
 
-export function getTicketDetail(actor: Actor, ticket: Ticket) {
+/**
+ * Everything the ticket page shows. `opts.internal` decides whether internal staff notes
+ * (and their attachments and activity) are included – callers pass
+ * `canViewInternalNotes(access)`; nothing internal leaves this function otherwise.
+ */
+export function getTicketDetail(actor: Actor, ticket: Ticket, opts: { internal: boolean }) {
 	const db = getDb();
 	const reporter = alias(schema.users, 'reporter');
 	const assignee = alias(schema.users, 'assignee');
@@ -599,6 +656,7 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 		.select({
 			id: schema.ticketComments.id,
 			bodyHtml: schema.ticketComments.bodyHtml,
+			internal: schema.ticketComments.internal,
 			createdAt: schema.ticketComments.createdAt,
 			editedAt: schema.ticketComments.editedAt,
 			deletedAt: schema.ticketComments.deletedAt,
@@ -621,7 +679,12 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 				eq(schema.projectMembers.projectId, ticket.projectId)
 			)
 		)
-		.where(eq(schema.ticketComments.ticketId, ticket.id))
+		.where(
+			and(
+				eq(schema.ticketComments.ticketId, ticket.id),
+				opts.internal ? undefined : eq(schema.ticketComments.internal, false)
+			)
+		)
 		.orderBy(asc(schema.ticketComments.createdAt))
 		.all()
 		.map((c) => ({
@@ -647,7 +710,8 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 		.leftJoin(activityActor, eq(activityActor.id, schema.ticketActivity.actorId))
 		.where(eq(schema.ticketActivity.ticketId, ticket.id))
 		.orderBy(asc(schema.ticketActivity.createdAt))
-		.all();
+		.all()
+		.filter((a) => opts.internal || !(a.data as { internal?: boolean } | null)?.internal);
 
 	const duplicateOf = ticket.duplicateOfId
 		? db

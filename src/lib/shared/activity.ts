@@ -1,5 +1,7 @@
 import {
 	PRIORITY_META,
+	RELATION_CHOICES,
+	type RelationChoice,
 	STATUS_META,
 	TYPE_META,
 	type TicketPriority,
@@ -32,10 +34,18 @@ export function describeActivity(type: string, data: Record<string, unknown>): s
 		}
 		case 'labels':
 			return 'updated the labels';
-		case 'duplicate_linked':
-			return `linked a duplicate (#${data.number})`;
+		case 'duplicate_linked': {
+			const votes = Number(data.votesAdded ?? 0);
+			return `merged duplicate #${data.number} into this ticket${votes ? ` (+${votes} vote${votes === 1 ? '' : 's'})` : ''}`;
+		}
+		case 'relation_added':
+			return `linked this ticket: ${RELATION_CHOICES[data.relation as RelationChoice]?.toLowerCase() ?? 'related to'} #${data.number}`;
+		case 'relation_removed':
+			return `removed the link: ${RELATION_CHOICES[data.relation as RelationChoice]?.toLowerCase() ?? 'related to'} #${data.number}`;
+		case 'bulk':
+			return 'updated this ticket in a bulk edit';
 		case 'comment_removed':
-			return 'removed a comment';
+			return data.internal ? 'removed an internal note' : 'removed a comment';
 		case 'attachment_removed':
 			return `removed an attachment (${data.name ?? 'image'})`;
 		default:

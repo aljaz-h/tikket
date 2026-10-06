@@ -11,10 +11,13 @@ import {
 	type FieldErrors
 } from './validation';
 import type { TicketInput } from './services/tickets';
+import { resolveTemplate, type TemplateResponseInput } from './services/templates';
+import { validateTemplateAnswers } from '../shared/templates';
 
 export interface ParsedTicketForm {
 	input: TicketInput;
 	attachmentIds: string[];
+	template: TemplateResponseInput | null;
 }
 
 /** Values echoed back to the form after a validation error. */
@@ -31,7 +34,7 @@ export function ticketFormValues(form: FormData) {
 export async function parseTicketForm(
 	form: FormData,
 	userId: number,
-	opts: { allowFiles: boolean }
+	opts: { allowFiles: boolean; templatesForProject?: number }
 ): Promise<{ ok: true; data: ParsedTicketForm } | { ok: false; errors: FieldErrors }> {
 	const raw = formToObject(form);
 	const base = ticketInputSchema.safeParse(raw);
@@ -54,6 +57,27 @@ export async function parseTicketForm(
 		if (!description.text.trim())
 			errors.description = 'Please describe what you would like to report';
 	}
+	// Custom template questions (new tickets only): validated against the active template.
+	let template: TemplateResponseInput | null = null;
+	if (opts.templatesForProject && base.success) {
+		const tpl = resolveTemplate(
+			opts.templatesForProject,
+			base.data.type,
+			Number(raw.templateId) || null
+		);
+		if (tpl) {
+			const result = validateTemplateAnswers(tpl.fields, raw);
+			if (!result.ok) Object.assign(errors, result.errors);
+			else
+				template = {
+					templateId: tpl.id,
+					templateName: tpl.name,
+					templateVersion: tpl.version,
+					answers: result.answers
+				};
+		}
+	}
+
 	if (Object.keys(errors).length || !base.success || !ctx.success) return { ok: false, errors };
 
 	const attachmentIds = form.getAll('attachmentIds').map(String).filter(Boolean);
@@ -81,7 +105,8 @@ export async function parseTicketForm(
 				descriptionText: description.text,
 				context: ctx.data as TicketContext
 			},
-			attachmentIds
+			attachmentIds,
+			template
 		}
 	};
 }

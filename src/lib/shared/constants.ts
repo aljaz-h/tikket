@@ -259,3 +259,54 @@ export type ProjectColor = (typeof PROJECT_COLORS)[number];
 export const LABEL_COLORS = PROJECT_COLORS;
 
 export const PAGE_SIZE = 25;
+
+// ── Phase 2 ─────────────────────────────────────────────────────────────────
+
+export const WIDGET_POSITIONS = ['bottom-right', 'bottom-left', 'top-right', 'top-left'] as const;
+export type WidgetPosition = (typeof WIDGET_POSITIONS)[number];
+
+/** Page/browser context the widget may attach (after the user reviewed it). */
+export interface TicketEnvironment {
+	pageUrl?: string;
+	pageTitle?: string;
+	browser?: string;
+	browserVersion?: string;
+	os?: string;
+	viewport?: string;
+	capturedAt?: string;
+	origin?: string;
+}
+
+export const TEMPLATE_FIELD_KINDS = [
+	'short_text',
+	'long_text',
+	'select',
+	'checkbox',
+	'url'
+] as const;
+export type TemplateFieldKind = (typeof TEMPLATE_FIELD_KINDS)[number];
+export const TEMPLATE_FIELD_META: Record<TemplateFieldKind, { label: string }> = {
+	short_text: { label: 'Short text' },
+	long_text: { label: 'Long text' },
+	select: { label: 'Dropdown' },
+	checkbox: { label: 'Checkbox' },
+	url: { label: 'URL' }
+};
+
+/** Answer stored with a ticket, including the question as it was asked. */
+export interface TemplateAnswer {
+	key: string;
+	label: string;
+	kind: TemplateFieldKind;
+	value: string | boolean;
+}
+
+export const RELATION_KINDS = ['relates', 'blocks'] as const;
+export type RelationKind = (typeof RELATION_KINDS)[number];
+/** What staff choose in the UI; "blocked_by" is stored as the inverse "blocks". */
+export const RELATION_CHOICES = {
+	relates: 'Related to',
+	blocks: 'Blocks',
+	blocked_by: 'Blocked by'
+} as const;
+export type RelationChoice = keyof typeof RELATION_CHOICES;

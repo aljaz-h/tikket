@@ -62,6 +62,10 @@ export const limiters = {
 	password: new RateLimiter(10, FIFTEEN_MINUTES),
 	/** Uploads per user. */
 	upload: new RateLimiter(120, 10 * 60 * 1000),
+	/** Widget submissions per client IP (in addition to the per-user write limit). */
+	widgetIp: new RateLimiter(30, 10 * 60 * 1000),
+	/** Widget sign-in / authorisation attempts per IP. */
+	widgetAuth: new RateLimiter(30, 60 * 60 * 1000),
 	/** Content creation (tickets / comments) per user. */
 	write: new RateLimiter(60, 10 * 60 * 1000)
 };

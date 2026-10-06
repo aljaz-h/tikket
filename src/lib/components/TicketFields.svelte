@@ -26,6 +26,8 @@
 		limits: { maxFiles: number; maxSize: number; accept: string[] };
 		showUploader?: boolean;
 		afterTitle?: Snippet;
+		/** Extra questions (ticket templates) shown before the screenshots. */
+		extra?: Snippet;
 		onchange?: () => void;
 		onsubmitshortcut?: () => void;
 		editorKey?: string | number;
@@ -39,6 +41,7 @@
 		limits,
 		showUploader = true,
 		afterTitle,
+		extra,
 		onchange,
 		onsubmitshortcut,
 		editorKey = 0
@@ -156,6 +159,8 @@
 			</div>
 		</details>
 	{/if}
+
+	{@render extra?.()}
 
 	{#if allowAttachments && showUploader}
 		<Field label="Screenshots" optional error={errors.attachments}>

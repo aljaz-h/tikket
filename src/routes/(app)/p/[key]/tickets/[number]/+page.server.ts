@@ -1,5 +1,18 @@
 import { error, fail } from '@sveltejs/kit';
-import { canDeleteComment, canEditComment, canEditTicket } from '$lib/server/authz';
+import {
+	canDeleteComment,
+	canEditComment,
+	canEditTicket,
+	canViewInternalNotes,
+	canWriteInternalNotes
+} from '$lib/server/authz';
+import { getTemplateResponse } from '$lib/server/services/templates';
+import {
+	addRelationship,
+	listRelationships,
+	removeRelationship
+} from '$lib/server/services/relationships';
+import { RELATION_CHOICES, type RelationChoice } from '$lib/shared/constants';
 import { handleServiceError, intParam, requireActionUser } from '$lib/server/http';
 import { normaliseRichInput } from '$lib/server/sanitize';
 import { addComment, deleteComment, editComment, getComment } from '$lib/server/services/comments';
@@ -26,7 +39,7 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { access, ticket } = requireTicket(locals.user, params.key, params.number);
 	const user = locals.user;
-	const detail = getTicketDetail(user, ticket);
+	const detail = getTicketDetail(user, ticket, { internal: canViewInternalNotes(access) });
 	if (user) markTicketRead(user.id, ticket.id);
 	const ref = ticketRef(access.project.key, ticket.number);
 	return {
@@ -40,6 +53,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			title: ticket.title,
 			descriptionHtml: ticket.descriptionHtml,
 			context: ticket.context,
+			source: ticket.source,
+			environment: access.isStaff ? ticket.environment : null,
 			status: ticket.status,
 			priority: ticket.priority,
 			resolutionNote: ticket.resolutionNote,
@@ -69,6 +84,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				})
 			}))
 		},
+		templateResponse: getTemplateResponse(ticket.id),
+		relationships: listRelationships(ticket.id),
+		canWriteInternal: canWriteInternalNotes(access),
 		voters: access.project.votingEnabled ? recentVoters(ticket.id) : [],
 		canEdit: canEditTicket(access, user, ticket),
 		assignable: access.isStaff ? listAssignableUsers(access.project.id) : [],
@@ -85,11 +103,13 @@ function commentBody(form: FormData) {
 export const actions: Actions = {
 	comment: async ({ locals, params, request }) => {
 		const user = requireActionUser(locals);
-		const { access, ticket } = requireTicket(user, params.key, params.number, 'comment');
+		// Permission depends on the kind of comment (public reply vs internal note); addComment checks.
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'view');
 		const form = await request.formData();
 		const body = commentBody(form);
 		if (!body.ok) return body.failure;
 		const ids = form.getAll('attachmentIds').map(String);
+		const internal = form.get('internal') === '1';
 		try {
 			checkWriteLimit(user.id);
 			for (const file of form.getAll('files')) {
@@ -99,7 +119,7 @@ export const actions: Actions = {
 					ids.push((await storeImage(file, { uploaderId: user.id })).id);
 				}
 			}
-			const comment = addComment(user, access, ticket, body.data, ids);
+			const comment = addComment(user, access, ticket, body.data, ids, { internal });
 			return { commented: comment.id };
 		} catch (err) {
 			const result = handleServiceError(err, { body: String(form.get('body') ?? '') });
@@ -210,6 +230,34 @@ export const actions: Actions = {
 		const on = String((await request.formData()).get('on')) === '1';
 		setFollow(user, ticket, on);
 		return { following: on };
+	},
+
+	relate: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		const form = await request.formData();
+		const relation = String(form.get('relation') ?? '');
+		const reference = String(form.get('ticket') ?? '').trim();
+		if (!(relation in RELATION_CHOICES))
+			return fail(400, { errors: { relation: 'Choose a relationship' }, values: { reference } });
+		try {
+			addRelationship(user, access, ticket, relation as RelationChoice, reference);
+		} catch (err) {
+			return handleServiceError(err, { reference });
+		}
+		return { related: true };
+	},
+
+	unrelate: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		const id = intParam(String((await request.formData()).get('relationshipId') ?? ''));
+		try {
+			removeRelationship(user, access, ticket, id ?? 0);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { unrelated: true };
 	},
 
 	removeAttachment: async ({ locals, params, request }) => {

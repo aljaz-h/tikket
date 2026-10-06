@@ -3,6 +3,7 @@ import { accessForProject, findProjectByKey, assertAccess } from '$lib/server/au
 import { handleServiceError, requireActionUser, requireUser } from '$lib/server/http';
 import { listProjects } from '$lib/server/services/projects';
 import { createTicket } from '$lib/server/services/tickets';
+import { activeTemplates } from '$lib/server/services/templates';
 import {
 	checkWriteLimit,
 	parseTicketForm,
@@ -27,7 +28,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				color: p.color,
 				description: p.description,
 				canSubmit: access.canSubmit,
-				canAttach: access.canAttach
+				canAttach: access.canAttach,
+				templates: access.canSubmit ? activeTemplates(project.id) : []
 			};
 		})
 		.filter((p) => p.canSubmit);
@@ -41,7 +43,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			: projects.length === 1
 				? projects[0].key
 				: '',
-		initialType: TICKET_TYPES.includes(type as TicketType) ? (type as TicketType) : null
+		initialType: TICKET_TYPES.includes(type as TicketType) ? (type as TicketType) : null,
+		// Prefill from the widget's "Open in Tikket" fallback (plain text only).
+		prefill: {
+			title: (url.searchParams.get('title') ?? '').slice(0, 160),
+			description: (url.searchParams.get('description') ?? '').slice(0, 2000)
+		}
 	};
 };
 
@@ -63,14 +70,19 @@ export const actions: Actions = {
 
 		try {
 			checkWriteLimit(user.id);
-			const parsed = await parseTicketForm(form, user.id, { allowFiles: access.canAttach });
+			const parsed = await parseTicketForm(form, user.id, {
+				allowFiles: access.canAttach,
+				templatesForProject: project.id
+			});
 			if (!parsed.ok)
 				return fail(400, {
 					errors: parsed.errors,
 					values,
 					attachments: pendingPreview(user.id, form.getAll('attachmentIds').map(String))
 				});
-			const ticket = createTicket(user, access, parsed.data.input, parsed.data.attachmentIds);
+			const ticket = createTicket(user, access, parsed.data.input, parsed.data.attachmentIds, {
+				template: parsed.data.template
+			});
 			redirect(303, `${ticketPath(project.key, ticket.number)}?created=1`);
 		} catch (err) {
 			if (err instanceof UploadError)

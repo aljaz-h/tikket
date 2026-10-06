@@ -11,6 +11,11 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type {
 	EditPolicy,
+	TemplateFieldKind,
+	TicketEnvironment,
+	TemplateAnswer,
+	RelationKind,
+	WidgetPosition,
 	GlobalRole,
 	NotificationPrefs,
 	NotificationType,
@@ -193,6 +198,10 @@ export const tickets = sqliteTable(
 			onDelete: 'set null'
 		}),
 		resolutionNote: text('resolution_note'),
+		/** Where the ticket was submitted: the web app or the embeddable widget. */
+		source: text('source').$type<'web' | 'widget'>().notNull().default('web'),
+		/** Sanitised, user-reviewed page/browser context sent by the widget (untrusted input). */
+		environment: text('environment', { mode: 'json' }).$type<TicketEnvironment>(),
 		voteCount: integer('vote_count').notNull().default(0),
 		commentCount: integer('comment_count').notNull().default(0),
 		createdAt: timestamp('created_at').notNull().default(now),
@@ -228,6 +237,8 @@ export const ticketComments = sqliteTable(
 			.references(() => users.id, { onDelete: 'restrict' }),
 		bodyHtml: text('body_html').notNull(),
 		bodyText: text('body_text').notNull(),
+		/** Internal staff note – visible only to project owners, moderators and admins. Immutable. */
+		internal: integer('internal', { mode: 'boolean' }).notNull().default(false),
 		createdAt: timestamp('created_at').notNull().default(now),
 		updatedAt: timestamp('updated_at').notNull().default(now),
 		editedAt: timestamp('edited_at'),
@@ -417,6 +428,149 @@ export const auditLogs = sqliteTable(
 	]
 );
 
+// ── Phase 2 ─────────────────────────────────────────────────────────────────
+
+export const widgetSettings = sqliteTable('widget_settings', {
+	projectId: integer('project_id')
+		.primaryKey()
+		.references(() => projects.id, { onDelete: 'cascade' }),
+	enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+	buttonLabel: text('button_label').notNull().default('Feedback'),
+	position: text('position').$type<WidgetPosition>().notNull().default('bottom-right'),
+	accentColor: text('accent_color').notNull().default('#6c68ee'),
+	defaultType: text('default_type').$type<TicketType>().notNull().default('bug'),
+	screenshotsEnabled: integer('screenshots_enabled', { mode: 'boolean' }).notNull().default(true),
+	collectContext: integer('collect_context', { mode: 'boolean' }).notNull().default(true),
+	lastSeenOrigin: text('last_seen_origin'),
+	lastSeenAt: timestamp('last_seen_at'),
+	updatedAt: timestamp('updated_at').notNull().default(now)
+});
+
+export const widgetAllowedOrigins = sqliteTable(
+	'widget_allowed_origins',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		/** Normalised origin, e.g. https://spool.example.com (scheme + host + port). */
+		origin: text('origin').notNull(),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [uniqueIndex('widget_allowed_origins_unique').on(t.projectId, t.origin)]
+);
+
+/** Short-lived, project-scoped bearer tokens for the widget iframe (no third-party cookies). */
+export const widgetTokens = sqliteTable(
+	'widget_tokens',
+	{
+		id: text('id').primaryKey(), // sha256 of the token
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		origin: text('origin').notNull(),
+		expiresAt: timestamp('expires_at').notNull(),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [
+		index('widget_tokens_user_idx').on(t.userId),
+		index('widget_tokens_expires_idx').on(t.expiresAt)
+	]
+);
+
+export const ticketTemplates = sqliteTable(
+	'ticket_templates',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		type: text('type').$type<TicketType>().notNull(),
+		name: text('name').notNull(),
+		description: text('description'),
+		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+		isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+		/** Incremented on every change; snapshots on tickets record the version used. */
+		version: integer('version').notNull().default(1),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now),
+		/** Soft delete: historical responses keep their own snapshot either way. */
+		deletedAt: timestamp('deleted_at')
+	},
+	(t) => [
+		index('ticket_templates_project_idx').on(t.projectId, t.type),
+		check(
+			'ticket_templates_type_check',
+			sql`${t.type} in ('bug','feature','improvement','feedback')`
+		)
+	]
+);
+
+export const ticketTemplateFields = sqliteTable(
+	'ticket_template_fields',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		templateId: integer('template_id')
+			.notNull()
+			.references(() => ticketTemplates.id, { onDelete: 'cascade' }),
+		/** Stable identifier used as the form field name (survives label changes). */
+		key: text('key').notNull(),
+		kind: text('kind').$type<TemplateFieldKind>().notNull(),
+		label: text('label').notNull(),
+		help: text('help'),
+		placeholder: text('placeholder'),
+		required: integer('required', { mode: 'boolean' }).notNull().default(false),
+		options: text('options', { mode: 'json' }).$type<string[]>().notNull().default([]),
+		position: integer('position').notNull().default(0)
+	},
+	(t) => [
+		uniqueIndex('ticket_template_fields_key_unique').on(t.templateId, t.key),
+		check(
+			'ticket_template_fields_kind_check',
+			sql`${t.kind} in ('short_text','long_text','select','checkbox','url')`
+		)
+	]
+);
+
+/** Answers to template questions with a full snapshot of the questions as they were asked. */
+export const ticketTemplateResponses = sqliteTable('ticket_template_responses', {
+	ticketId: integer('ticket_id')
+		.primaryKey()
+		.references(() => tickets.id, { onDelete: 'cascade' }),
+	templateId: integer('template_id').references(() => ticketTemplates.id, { onDelete: 'set null' }),
+	templateName: text('template_name').notNull(),
+	templateVersion: integer('template_version').notNull(),
+	answers: text('answers', { mode: 'json' }).$type<TemplateAnswer[]>().notNull().default([]),
+	createdAt: timestamp('created_at').notNull().default(now),
+	updatedAt: timestamp('updated_at').notNull().default(now)
+});
+
+export const ticketRelationships = sqliteTable(
+	'ticket_relationships',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** For 'blocks': source blocks target. For 'relates': stored with source < target. */
+		sourceTicketId: integer('source_ticket_id')
+			.notNull()
+			.references(() => tickets.id, { onDelete: 'cascade' }),
+		targetTicketId: integer('target_ticket_id')
+			.notNull()
+			.references(() => tickets.id, { onDelete: 'cascade' }),
+		kind: text('kind').$type<RelationKind>().notNull(),
+		createdById: integer('created_by_id').references(() => users.id),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [
+		uniqueIndex('ticket_relationships_unique').on(t.sourceTicketId, t.targetTicketId, t.kind),
+		index('ticket_relationships_target_idx').on(t.targetTicketId),
+		check('ticket_relationships_kind_check', sql`${t.kind} in ('relates','blocks')`),
+		check('ticket_relationships_no_self', sql`${t.sourceTicketId} <> ${t.targetTicketId}`)
+	]
+);
+
 export const appSettings = sqliteTable('app_settings', {
 	key: text('key').primaryKey(),
 	value: text('value', { mode: 'json' }).notNull(),
@@ -434,3 +588,7 @@ export type Notification = typeof notifications.$inferSelect;
 export type Invitation = typeof invitations.$inferSelect;
 export type ChangelogEntry = typeof changelogEntries.$inferSelect;
 export type TicketLabel = typeof ticketLabels.$inferSelect;
+export type WidgetSettings = typeof widgetSettings.$inferSelect;
+export type TicketTemplate = typeof ticketTemplates.$inferSelect;
+export type TicketTemplateField = typeof ticketTemplateFields.$inferSelect;
+export type TicketRelationship = typeof ticketRelationships.$inferSelect;

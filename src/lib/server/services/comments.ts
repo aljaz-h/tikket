@@ -1,6 +1,12 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { extractMentions } from '../../shared/text';
-import { canDeleteComment, canEditComment, type Actor, type ProjectAccess } from '../authz';
+import {
+	canDeleteComment,
+	canEditComment,
+	canWriteInternalNotes,
+	type Actor,
+	type ProjectAccess
+} from '../authz';
 import { getDb, schema } from '../db';
 import type { Ticket, TicketComment } from '../db/schema';
 import { getSettings } from '../settings';
@@ -19,6 +25,14 @@ export function getComment(ticketId: number, commentId: number): TicketComment |
 			and(eq(schema.ticketComments.id, commentId), eq(schema.ticketComments.ticketId, ticketId))
 		)
 		.get();
+}
+
+export function isInternalComment(commentId: number): boolean {
+	return !!getDb()
+		.select({ internal: schema.ticketComments.internal })
+		.from(schema.ticketComments)
+		.where(eq(schema.ticketComments.id, commentId))
+		.get()?.internal;
 }
 
 /** Resolves @mentions to active users (access is re-checked when notifying). */
@@ -40,9 +54,13 @@ export function addComment(
 	access: ProjectAccess,
 	ticket: Ticket,
 	body: { html: string; text: string },
-	attachmentIds: string[] = []
+	attachmentIds: string[] = [],
+	opts: { internal?: boolean } = {}
 ): TicketComment {
-	if (!access.canComment)
+	const internal = !!opts.internal;
+	if (internal && !canWriteInternalNotes(access))
+		throw new ServiceError('Only project staff can write internal notes', 'body', 403);
+	if (!internal && !access.canComment)
 		throw new ServiceError('Comments are not available on this ticket', 'body', 403);
 	if (attachmentIds.length && !access.canAttach)
 		throw new ServiceError('Attachments are disabled for this project', 'attachments');
@@ -62,7 +80,8 @@ export function addComment(
 					ticketId: ticket.id,
 					authorId: actor.id,
 					bodyHtml: body.html,
-					bodyText: body.text
+					bodyText: body.text,
+					internal
 				})
 				.returning()
 				.get();
@@ -82,17 +101,23 @@ export function addComment(
 						)
 					)
 					.run();
-			tx.update(schema.tickets)
-				.set({ commentCount: sql`${schema.tickets.commentCount} + 1`, updatedAt: new Date() })
-				.where(eq(schema.tickets.id, ticket.id))
-				.run();
+			// Internal notes leave no public trace: no comment count, no "updated" timestamp.
+			if (!internal)
+				tx.update(schema.tickets)
+					.set({ commentCount: sql`${schema.tickets.commentCount} + 1`, updatedAt: new Date() })
+					.where(eq(schema.tickets.id, ticket.id))
+					.run();
 			const recipients = new Set([...followerIds(ticket.id, tx), ticket.reporterId]);
 			tx.insert(schema.ticketFollowers)
 				.values({ ticketId: ticket.id, userId: actor.id })
 				.onConflictDoNothing()
 				.run();
 
-			const excerpt = body.text.slice(0, 160);
+			// Internal notes: staff recipients only, and no content in the notification itself.
+			const excerpt = internal ? undefined : body.text.slice(0, 160);
+			const data = internal
+				? { commentId: comment.id, internal: true }
+				: { commentId: comment.id, excerpt };
 			const mentioned = mentionedUserIds(body.text).filter((id) => id !== actor.id);
 			notify(
 				mentioned,
@@ -101,7 +126,8 @@ export function addComment(
 					project: access.project,
 					ticketId: ticket.id,
 					actorId: actor.id,
-					data: { commentId: comment.id, excerpt }
+					data,
+					staffOnly: internal
 				},
 				tx
 			);
@@ -112,7 +138,8 @@ export function addComment(
 					project: access.project,
 					ticketId: ticket.id,
 					actorId: actor.id,
-					data: { commentId: comment.id, excerpt }
+					data,
+					staffOnly: internal
 				},
 				tx
 			);
@@ -153,11 +180,15 @@ export function deleteComment(actor: ActiveActor, access: ProjectAccess, comment
 			.set({ deletedAt: new Date() })
 			.where(eq(schema.attachments.commentId, comment.id))
 			.run();
-		tx.update(schema.tickets)
-			.set({ commentCount: sql`max(${schema.tickets.commentCount} - 1, 0)` })
-			.where(eq(schema.tickets.id, comment.ticketId))
-			.run();
+		if (!comment.internal)
+			tx.update(schema.tickets)
+				.set({ commentCount: sql`max(${schema.tickets.commentCount} - 1, 0)` })
+				.where(eq(schema.tickets.id, comment.ticketId))
+				.run();
 		if (moderated)
-			addActivity(tx, comment.ticketId, actor.id, 'comment_removed', { commentId: comment.id });
+			addActivity(tx, comment.ticketId, actor.id, 'comment_removed', {
+				commentId: comment.id,
+				internal: comment.internal || undefined
+			});
 	});
 }

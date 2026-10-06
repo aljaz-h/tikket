@@ -5,6 +5,7 @@
 	let {
 		checked = $bindable(false),
 		group = $bindable(),
+		indeterminate = $bindable(false),
 		class: className,
 		...rest
 	}: Omit<HTMLInputAttributes, 'type'> & { group?: unknown[] } = $props();
@@ -14,6 +15,7 @@
 	<input
 		type="checkbox"
 		bind:group
+		bind:indeterminate
 		class={cn('size-4 shrink-0 rounded border-border-strong accent-[var(--primary)]', className)}
 		{...rest}
 	/>
@@ -21,6 +23,7 @@
 	<input
 		type="checkbox"
 		bind:checked
+		bind:indeterminate
 		class={cn('size-4 shrink-0 rounded border-border-strong accent-[var(--primary)]', className)}
 		{...rest}
 	/>

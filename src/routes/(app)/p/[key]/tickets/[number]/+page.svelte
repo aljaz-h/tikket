@@ -14,6 +14,9 @@
 	import Tag from '@lucide/svelte/icons/tag';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Rocket from '@lucide/svelte/icons/rocket';
+	import Globe from '@lucide/svelte/icons/globe';
+	import X from '@lucide/svelte/icons/x';
+	import Plus from '@lucide/svelte/icons/plus';
 	import { Popover } from 'bits-ui';
 	import { toast } from 'svelte-sonner';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -33,6 +36,7 @@
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import NativeSelect from '$lib/components/ui/native-select.svelte';
+	import Input from '$lib/components/ui/input.svelte';
 	import PopoverContent from '$lib/components/ui/popover-content.svelte';
 	import ConfirmDialog from '$lib/components/ui/confirm-dialog.svelte';
 	import { describeActivity } from '$lib/shared/activity';
@@ -40,7 +44,11 @@
 		CONTEXT_FIELDS,
 		CONTEXT_LABELS,
 		PRIORITY_META,
+		RELATION_CHOICES,
 		STATUS_META,
+		type RelationChoice,
+		type TemplateAnswer,
+		type TicketEnvironment,
 		TICKET_PRIORITIES,
 		type ContextKey
 	} from '$lib/shared/constants';
@@ -52,6 +60,7 @@
 		ticketRef
 	} from '$lib/shared/format';
 	import { cn } from '$lib/utils';
+	import { ENVIRONMENT_LABELS } from '$lib/shared/widget';
 
 	let { data } = $props();
 	const t = $derived(data.ticket);
@@ -99,6 +108,20 @@
 
 	let selectedLabels = $derived(d.labels.map((l) => l.id));
 
+	const answers = $derived(
+		((data.templateResponse?.answers ?? []) as TemplateAnswer[]).filter(
+			(a) => a.value !== '' && a.value !== false
+		)
+	);
+	const environment = $derived(
+		Object.entries((t.environment ?? {}) as TicketEnvironment).filter(([, v]) => v) as [
+			keyof TicketEnvironment,
+			string
+		][]
+	);
+	let relationOpen = $state(false);
+	let relation = $state<RelationChoice>('relates');
+
 	async function copyLink() {
 		try {
 			await navigator.clipboard.writeText(page.url.origin + ticketPath(key, t.number));
@@ -143,6 +166,10 @@
 			<UserAvatar user={d.reporter} size="xs" />
 			<span class="font-medium text-foreground">{d.reporter.displayName}</span> reported
 			<TimeAgo date={t.createdAt} />
+			{#if t.source === 'widget'}<span
+					class="rounded-md border border-border px-1.5 text-xs"
+					title="Submitted through the feedback widget">via widget</span
+				>{/if}
 			{#if new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime() > 60000}· updated <TimeAgo
 					date={t.updatedAt}
 				/>{/if}
@@ -197,6 +224,46 @@
 							</div>
 						{/each}
 					</dl>
+				{/if}
+
+				{#if answers.length}
+					<dl class="mt-5 grid gap-4 border-t border-border pt-5" aria-label="Template answers">
+						{#each answers as a (a.key)}
+							<div>
+								<dt class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+									{a.label}
+								</dt>
+								<dd class="mt-1 text-sm">
+									{#if a.kind === 'checkbox'}Yes{:else}<LinkifiedText text={String(a.value)} />{/if}
+								</dd>
+							</div>
+						{/each}
+						{#if data.templateResponse?.templateName}
+							<p class="text-xs text-subtle-foreground">
+								Answered using “{data.templateResponse.templateName}” (version {data
+									.templateResponse.templateVersion})
+							</p>
+						{/if}
+					</dl>
+				{/if}
+
+				{#if environment.length}
+					<details class="mt-5 border-t border-border pt-5">
+						<summary
+							class="flex cursor-pointer items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+						>
+							<Globe class="size-3.5" /> Environment
+							<span class="font-normal tracking-normal normal-case"
+								>· reported by the reporter’s browser, not verified</span
+							>
+						</summary>
+						<dl class="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)]">
+							{#each environment as [k, v] (k)}
+								<dt class="text-muted-foreground">{ENVIRONMENT_LABELS[k]}</dt>
+								<dd class="[overflow-wrap:anywhere]">{v}</dd>
+							{/each}
+						</dl>
+					</details>
 				{/if}
 
 				{#if d.attachments.length}
@@ -293,9 +360,11 @@
 					{/each}
 				</ol>
 
-				{#if data.user && perms.canComment}
+				{#if data.user && (perms.canComment || data.canWriteInternal)}
 					<CommentForm
 						user={data.user}
+						canWriteInternal={data.canWriteInternal}
+						canComment={perms.canComment}
 						allowAttachments={perms.canAttach}
 						limits={{
 							maxFiles: data.app.maxAttachments,
@@ -569,6 +638,93 @@
 					{/each}
 				</dl>
 			</Card>
+
+			{#if data.relationships.length || (perms.isStaff && !perms.archived)}
+				<Card class="grid gap-3 p-4 text-sm">
+					<div class="flex items-center justify-between gap-2">
+						<h2 class="text-xs font-medium text-muted-foreground">Linked tickets</h2>
+						{#if perms.isStaff && !perms.archived}
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								aria-label="Link a ticket"
+								aria-expanded={relationOpen}
+								onclick={() => (relationOpen = !relationOpen)}><Plus /></Button
+							>
+						{/if}
+					</div>
+					{#if relationOpen}
+						<form
+							method="POST"
+							action="?/relate"
+							class="grid gap-2 rounded-lg border border-border bg-muted/50 p-2.5"
+							use:enhance={quickSubmit({
+								success: 'Tickets linked',
+								onSuccess: () => (relationOpen = false)
+							})}
+						>
+							<NativeSelect name="relation" bind:value={relation} aria-label="Relationship">
+								{#each Object.entries(RELATION_CHOICES) as [value, label] (value)}<option {value}
+										>{label}</option
+									>{/each}
+							</NativeSelect>
+							<Input
+								name="ticket"
+								placeholder="{key}-12"
+								aria-label="Ticket to link"
+								class="h-8 font-mono"
+								required
+							/>
+							<div class="flex justify-end gap-2">
+								<Button size="xs" variant="ghost" onclick={() => (relationOpen = false)}
+									>Cancel</Button
+								>
+								<Button size="xs" type="submit">Link</Button>
+							</div>
+						</form>
+					{/if}
+					{#if data.relationships.length}
+						<ul class="grid gap-2">
+							{#each data.relationships as r (r.id)}
+								<li class="flex items-start gap-2">
+									<div class="min-w-0 flex-1">
+										<p class="text-xs text-muted-foreground">{RELATION_CHOICES[r.relation]}</p>
+										<a
+											href={ticketPath(key, r.ticket.number)}
+											class="flex items-center gap-1.5 hover:underline"
+										>
+											<StatusBadge status={r.ticket.status} iconOnly />
+											<span class="font-mono text-xs text-muted-foreground"
+												>{ticketRef(key, r.ticket.number)}</span
+											>
+											<span class="truncate">{r.ticket.title}</span>
+										</a>
+									</div>
+									{#if perms.isStaff && !perms.archived}
+										<form
+											method="POST"
+											action="?/unrelate"
+											use:enhance={quickSubmit({ success: 'Link removed' })}
+										>
+											<input type="hidden" name="relationshipId" value={r.id} />
+											<Button
+												type="submit"
+												variant="subtle"
+												size="icon-xs"
+												aria-label="Remove link to {ticketRef(key, r.ticket.number)}"><X /></Button
+											>
+										</form>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{:else if !relationOpen}
+						<p class="text-xs text-muted-foreground">
+							Link related tickets or tickets that block this one.
+						</p>
+					{/if}
+				</Card>
+			{/if}
 		</aside>
 	</div>
 </div>

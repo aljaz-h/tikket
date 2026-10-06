@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
-import { accessForProject, findProjectById } from '$lib/server/authz';
+import { accessForProject, canViewInternalNotes, findProjectById } from '$lib/server/authz';
+import { isInternalComment } from '$lib/server/services/comments';
 import { serveAttachment } from '$lib/server/files';
 import { findAttachment } from '$lib/server/uploads';
 import type { RequestHandler } from './$types';
@@ -16,7 +17,11 @@ export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 		if (!locals.user || locals.user.id !== att.uploaderId) error(404, 'Not found');
 	} else {
 		const project = att.projectId ? findProjectById(att.projectId) : undefined;
-		if (!project || !accessForProject(locals.user, project).canView) error(404, 'Not found');
+		const access = project ? accessForProject(locals.user, project) : undefined;
+		if (!access?.canView) error(404, 'Not found');
+		// Images attached to internal staff notes are as private as the note itself.
+		if (att.commentId && isInternalComment(att.commentId) && !canViewInternalNotes(access))
+			error(404, 'Not found');
 	}
 	return serveAttachment(att, {
 		thumb: url.searchParams.has('thumb'),
