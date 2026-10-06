@@ -18,6 +18,7 @@ import { followerIds, notify } from './notifications';
 import { isAssignable, projectStaffIds } from './projects';
 import { ServiceError } from './users';
 import { saveTemplateResponse, type TemplateResponseInput } from './templates';
+import { shippedIn } from './releases';
 
 type ActiveActor = NonNullable<Actor>;
 
@@ -735,24 +736,7 @@ export function getTicketDetail(actor: Actor, ticket: Ticket, opts: { internal: 
 		.orderBy(asc(schema.tickets.number))
 		.all();
 
-	const releases = db
-		.select({
-			id: schema.changelogEntries.id,
-			version: schema.changelogEntries.version,
-			releaseDate: schema.changelogEntries.releaseDate
-		})
-		.from(schema.changelogTicketLinks)
-		.innerJoin(
-			schema.changelogEntries,
-			eq(schema.changelogEntries.id, schema.changelogTicketLinks.entryId)
-		)
-		.where(
-			and(
-				eq(schema.changelogTicketLinks.ticketId, ticket.id),
-				eq(schema.changelogEntries.published, true)
-			)
-		)
-		.all();
+	const releases = shippedIn(ticket);
 
 	let hasVoted = false;
 	let isFollowing = false;

@@ -13,6 +13,12 @@ import {
 	removeRelationship
 } from '$lib/server/services/relationships';
 import { RELATION_CHOICES, type RelationChoice } from '$lib/shared/constants';
+import { getMilestone, setTicketMilestone, listMilestones } from '$lib/server/services/milestones';
+import { getRelease, listReleases, setTicketRelease } from '$lib/server/services/releases';
+import { ticketNeighbors } from '$lib/server/services/search';
+import { parseTicketFilters } from '$lib/shared/filters';
+import { eq } from 'drizzle-orm';
+import { schema } from '$lib/server/db';
 import { handleServiceError, intParam, requireActionUser } from '$lib/server/http';
 import { normaliseRichInput } from '$lib/server/sanitize';
 import { addComment, deleteComment, editComment, getComment } from '$lib/server/services/comments';
@@ -85,6 +91,40 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}))
 		},
 		templateResponse: getTemplateResponse(ticket.id),
+		planning: access.isStaff
+			? {
+					release: ticket.releaseId
+						? (getRelease(access.project.id, ticket.releaseId) ?? null)
+						: null,
+					milestone: ticket.milestoneId
+						? (getMilestone(access.project.id, ticket.milestoneId) ?? null)
+						: null,
+					releases: listReleases(access.project.id, { statuses: ['planned', 'in_progress'] }).map(
+						(r) => ({ id: r.id, version: r.version })
+					),
+					milestones: listMilestones(access.project.id, { statuses: ['open'] }).map((m) => ({
+						id: m.id,
+						name: m.name
+					}))
+				}
+			: null,
+		// Previous/next within the list the ticket was opened from (filters re-applied, so the
+		// list never contains anything the viewer may not see).
+		navigation: (() => {
+			const list = url.searchParams.get('list');
+			if (list === null || list.length > 2000) return null;
+			const neighbors = ticketNeighbors(
+				{
+					scope: eq(schema.tickets.projectId, access.project.id),
+					filters: parseTicketFilters(new URLSearchParams(list)),
+					projectKey: access.project.key,
+					actorId: user?.id,
+					staff: access.isStaff
+				},
+				ticket.id
+			);
+			return neighbors ? { ...neighbors, list } : null;
+		})(),
 		relationships: listRelationships(ticket.id),
 		canWriteInternal: canWriteInternalNotes(access),
 		voters: access.project.votingEnabled ? recentVoters(ticket.id) : [],
@@ -230,6 +270,36 @@ export const actions: Actions = {
 		const on = String((await request.formData()).get('on')) === '1';
 		setFollow(user, ticket, on);
 		return { following: on };
+	},
+
+	release: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		const raw = String((await request.formData()).get('releaseId') ?? '');
+		const releaseId = raw === '' || raw === 'none' ? null : intParam(raw);
+		if (raw && raw !== 'none' && releaseId === null)
+			return fail(400, { errors: { release: 'Invalid release' }, values: {} });
+		try {
+			setTicketRelease(user, access, ticket, releaseId);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { release: releaseId };
+	},
+
+	milestone: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		const raw = String((await request.formData()).get('milestoneId') ?? '');
+		const milestoneId = raw === '' || raw === 'none' ? null : intParam(raw);
+		if (raw && raw !== 'none' && milestoneId === null)
+			return fail(400, { errors: { milestone: 'Invalid milestone' }, values: {} });
+		try {
+			setTicketMilestone(user, access, ticket, milestoneId);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { milestone: milestoneId };
 	},
 
 	relate: async ({ locals, params, request }) => {

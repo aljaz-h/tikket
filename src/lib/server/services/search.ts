@@ -8,6 +8,8 @@ import { getDb, schema } from '../db';
 
 const t = schema.tickets;
 const assignee = alias(schema.users, 'assignee');
+const release = alias(schema.changelogEntries, 'release');
+const milestone = alias(schema.milestones, 'milestone');
 const reporter = alias(schema.users, 'reporter');
 
 const resolvedList = sql.join(
@@ -50,7 +52,14 @@ export interface QueryOptions {
 	actorId?: number;
 	/** Exclude archived projects from cross-project listings. */
 	excludeArchived?: boolean;
+	/** Allow staff-only filters (release, milestone). Ignored otherwise, never trusted from input. */
+	staff?: boolean;
 }
+
+const resolvedSql = sql.join(
+	RESOLVED_STATUSES.map((s) => sql`${s}`),
+	sql`, `
+);
 
 function filterConditions(opts: QueryOptions): (SQL | undefined)[] {
 	const f = opts.filters;
@@ -86,11 +95,38 @@ function filterConditions(opts: QueryOptions): (SQL | undefined)[] {
 	if (f.createdTo) conds.push(lt(t.createdAt, nextDay(f.createdTo)));
 	if (f.updatedFrom) conds.push(gte(t.updatedAt, dayStart(f.updatedFrom)));
 	if (f.updatedTo) conds.push(lt(t.updatedAt, nextDay(f.updatedTo)));
+	if (opts.staff) {
+		if (f.release === 'none') conds.push(isNull(t.releaseId));
+		else if (f.release) conds.push(eq(t.releaseId, Number(f.release)));
+		if (f.milestone === 'none') conds.push(isNull(t.milestoneId));
+		else if (f.milestone) conds.push(eq(t.milestoneId, Number(f.milestone)));
+	}
+	if (f.following)
+		conds.push(
+			opts.actorId
+				? sql`${t.id} in (select ticket_id from ticket_followers where user_id = ${opts.actorId})`
+				: sql`0`
+		);
+	if (f.attachments)
+		// Images on internal staff notes don't count: their existence must not leak.
+		conds.push(sql`exists (select 1 from attachments a where a.ticket_id = ${t.id}
+			and a.deleted_at is null and a.attached_at is not null
+			and (a.comment_id is null or exists (select 1 from ticket_comments c
+				where c.id = a.comment_id and c.internal = 0 and c.deleted_at is null)))`);
+	if (f.blocked)
+		conds.push(sql`exists (select 1 from ticket_relationships r
+			join tickets b on b.id = r.source_ticket_id
+			where r.target_ticket_id = ${t.id} and r.kind = 'blocks' and b.status not in (${resolvedSql}))`);
 	if (opts.excludeArchived) conds.push(isNull(schema.projects.archivedAt));
 	return conds;
 }
 
+/** Sort order; ticket id breaks ties so pages and previous/next navigation are stable. */
 function orderFor(sort: TicketFilters['sort']): SQL[] {
+	return [...baseOrder(sort), desc(t.id)];
+}
+
+function baseOrder(sort: TicketFilters['sort']): SQL[] {
 	switch (sort) {
 		case 'recent':
 			return [desc(t.updatedAt)];
@@ -125,7 +161,9 @@ const listColumns = {
 	projectIcon: schema.projects.icon,
 	projectColor: schema.projects.color,
 	assignee: { id: assignee.id, displayName: assignee.displayName, avatarId: assignee.avatarId },
-	reporter: { id: reporter.id, displayName: reporter.displayName, avatarId: reporter.avatarId }
+	reporter: { id: reporter.id, displayName: reporter.displayName, avatarId: reporter.avatarId },
+	release: { id: release.id, version: release.version, status: release.status },
+	milestone: { id: milestone.id, name: milestone.name }
 };
 
 function attachLabels<T extends { id: number }>(rows: T[]) {
@@ -177,12 +215,20 @@ export function queryTickets(opts: QueryOptions) {
 		.innerJoin(schema.projects, eq(schema.projects.id, t.projectId))
 		.innerJoin(reporter, eq(reporter.id, t.reporterId))
 		.leftJoin(assignee, eq(assignee.id, t.assigneeId))
+		.leftJoin(release, eq(release.id, t.releaseId))
+		.leftJoin(milestone, eq(milestone.id, t.milestoneId))
 		.where(where)
 		.orderBy(...orderFor(opts.filters.sort))
 		.limit(opts.pageSize)
 		.offset((page - 1) * opts.pageSize)
 		.all()
-		.map((r) => ({ ...r, assignee: r.assignee?.id ? r.assignee : null }));
+		.map((r) => ({
+			...r,
+			assignee: r.assignee?.id ? r.assignee : null,
+			// Planning data is for staff only.
+			release: opts.staff && r.release?.id ? r.release : null,
+			milestone: opts.staff && r.milestone?.id ? r.milestone : null
+		}));
 	return { rows: attachLabels(rows), total, page, pages };
 }
 
@@ -214,14 +260,48 @@ export function boardTickets(opts: Omit<QueryOptions, 'pageSize'>, perColumn = 6
 			.innerJoin(schema.projects, eq(schema.projects.id, t.projectId))
 			.innerJoin(reporter, eq(reporter.id, t.reporterId))
 			.leftJoin(assignee, eq(assignee.id, t.assigneeId))
+			.leftJoin(release, eq(release.id, t.releaseId))
+			.leftJoin(milestone, eq(milestone.id, t.milestoneId))
 			.where(where)
 			.orderBy(...orderFor(opts.filters.sort === 'updated' ? 'recent' : opts.filters.sort))
 			.limit(perColumn)
 			.all()
-			.map((r) => ({ ...r, assignee: r.assignee?.id ? r.assignee : null }));
+			.map((r) => ({
+				...r,
+				assignee: r.assignee?.id ? r.assignee : null,
+				release: opts.staff && r.release?.id ? r.release : null,
+				milestone: opts.staff && r.milestone?.id ? r.milestone : null
+			}));
 		columns[status] = attachLabels(rows);
 	}
 	return { columns, totals, statuses };
+}
+
+/**
+ * Previous and next ticket numbers around `ticketId` in the list described by `opts` – the same
+ * filters and sort the user came from. Only ticket numbers are read (capped), never whole rows.
+ */
+export function ticketNeighbors(
+	opts: Omit<QueryOptions, 'pageSize'>,
+	ticketId: number,
+	cap = 5000
+) {
+	const ids = getDb()
+		.select({ id: t.id, number: t.number })
+		.from(t)
+		.innerJoin(schema.projects, eq(schema.projects.id, t.projectId))
+		.where(and(...filterConditions({ ...opts, pageSize: cap })))
+		.orderBy(...orderFor(opts.filters.sort))
+		.limit(cap)
+		.all();
+	const i = ids.findIndex((r) => r.id === ticketId);
+	if (i < 0) return null;
+	return {
+		position: i + 1,
+		total: ids.length,
+		prev: i > 0 ? ids[i - 1].number : null,
+		next: i < ids.length - 1 ? ids[i + 1].number : null
+	};
 }
 
 /**

@@ -1,4 +1,7 @@
 import {
+	DEFAULT_TICKET_COLUMNS,
+	TICKET_COLUMNS,
+	type TicketColumn,
 	TICKET_PRIORITIES,
 	TICKET_STATUSES,
 	TICKET_TYPES,
@@ -29,9 +32,24 @@ export interface TicketFilters {
 	createdTo: string;
 	updatedFrom: string;
 	updatedTo: string;
+	/** Target release: a release id, "none" (no release) or empty. Staff only. */
+	release: string;
+	/** Milestone: a milestone id, "none" or empty. Staff only. */
+	milestone: string;
+	/** Only tickets the signed-in user follows. */
+	following: boolean;
+	/** Only tickets with (public) attachments. */
+	attachments: boolean;
+	/** Only tickets blocked by another unresolved ticket. */
+	blocked: boolean;
 	sort: SortKey;
 	page: number;
 }
+
+/** Filters that only make sense for (or may only be used by) project staff. */
+export const STAFF_ONLY_FILTERS = ['release', 'milestone'] as const;
+
+const REF_RE = /^(none|[1-9]\d{0,9})$/;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -63,6 +81,11 @@ export function parseTicketFilters(params: URLSearchParams): TicketFilters {
 		createdTo: date('createdTo'),
 		updatedFrom: date('updatedFrom'),
 		updatedTo: date('updatedTo'),
+		release: REF_RE.test(params.get('release') ?? '') ? params.get('release')! : '',
+		milestone: REF_RE.test(params.get('milestone') ?? '') ? params.get('milestone')! : '',
+		following: params.get('following') === '1',
+		attachments: params.get('attachments') === '1',
+		blocked: params.get('blocked') === '1',
 		sort: sort in SORTS ? (sort as SortKey) : 'updated',
 		page: Number.isFinite(page) && page > 0 ? Math.min(page, 10_000) : 1
 	};
@@ -78,7 +101,12 @@ export function activeFilterCount(f: TicketFilters): number {
 		(f.reporter ? 1 : 0) +
 		(f.assignee ? 1 : 0) +
 		(f.createdFrom || f.createdTo ? 1 : 0) +
-		(f.updatedFrom || f.updatedTo ? 1 : 0)
+		(f.updatedFrom || f.updatedTo ? 1 : 0) +
+		(f.release ? 1 : 0) +
+		(f.milestone ? 1 : 0) +
+		(f.following ? 1 : 0) +
+		(f.attachments ? 1 : 0) +
+		(f.blocked ? 1 : 0)
 	);
 }
 
@@ -99,10 +127,33 @@ export function filtersToParams(
 	if (f.createdTo) p.set('createdTo', f.createdTo);
 	if (f.updatedFrom) p.set('updatedFrom', f.updatedFrom);
 	if (f.updatedTo) p.set('updatedTo', f.updatedTo);
+	if (f.release) p.set('release', f.release);
+	if (f.milestone) p.set('milestone', f.milestone);
+	if (f.following) p.set('following', '1');
+	if (f.attachments) p.set('attachments', '1');
+	if (f.blocked) p.set('blocked', '1');
 	if (f.sort && f.sort !== 'updated') p.set('sort', f.sort);
 	if (f.page && f.page > 1) p.set('page', String(f.page));
 	for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
 	return p;
+}
+
+/** Visible list columns from `cols=a,b,c` (unknown names dropped); defaults when absent. */
+export function parseColumns(value: string | null | undefined): TicketColumn[] {
+	if (!value) return [...DEFAULT_TICKET_COLUMNS];
+	const cols = value
+		.split(',')
+		.filter((c): c is TicketColumn => (TICKET_COLUMNS as readonly string[]).includes(c));
+	return cols.length ? [...new Set(cols)] : [...DEFAULT_TICKET_COLUMNS];
+}
+
+/**
+ * Canonical query string of a filter set (no page): what saved views store. Anything that
+ * survives parseTicketFilters is a known, validated filter – never raw SQL.
+ */
+export function normaliseViewQuery(query: string): string {
+	const f = parseTicketFilters(new URLSearchParams(query));
+	return filtersToParams({ ...f, page: 1 }).toString();
 }
 
 const STOP_WORDS = new Set(

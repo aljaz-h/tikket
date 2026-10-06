@@ -16,6 +16,13 @@ export interface NotificationLike {
 
 /** Human-readable one-line summary of a notification. */
 export function describeNotification(n: NotificationLike): string {
+	const base = describeOne(n);
+	// Grouped notifications (same ticket and kind while still unread) show how many there were.
+	const count = Number(n.data.groupCount ?? 1);
+	return count > 1 ? `${base} (${count} updates)` : base;
+}
+
+function describeOne(n: NotificationLike): string {
 	const who = n.actorName ?? 'Someone';
 	const d = n.data;
 	switch (n.type) {
@@ -42,6 +49,18 @@ export function describeNotification(n: NotificationLike): string {
 			if (d.kind === 'priority' && TICKET_PRIORITIES.includes(d.to as TicketPriority))
 				return `${who} set the priority to ${PRIORITY_META[d.to as TicketPriority].label}`;
 			return `${who} updated the ticket`;
+		}
+		case 'release':
+			return `${who} published release ${d.version ?? ''}`.trim();
+		case 'milestone': {
+			if (d.kind === 'completed') return `${who} completed the milestone “${d.milestone}”`;
+			if (Number(d.bulkCount) > 1)
+				return d.milestone
+					? `${who} moved ${d.bulkCount} tickets to the milestone “${d.milestone}”`
+					: `${who} removed ${d.bulkCount} tickets from their milestone`;
+			return d.milestone
+				? `${who} moved this to the milestone “${d.milestone}”`
+				: `${who} removed this from its milestone`;
 		}
 		default:
 			return `${who} updated a ticket`;

@@ -42,6 +42,18 @@ export function describeActivity(type: string, data: Record<string, unknown>): s
 			return `linked this ticket: ${RELATION_CHOICES[data.relation as RelationChoice]?.toLowerCase() ?? 'related to'} #${data.number}`;
 		case 'relation_removed':
 			return `removed the link: ${RELATION_CHOICES[data.relation as RelationChoice]?.toLowerCase() ?? 'related to'} #${data.number}`;
+		case 'release':
+			return data.to
+				? data.from
+					? `moved this from release ${data.from} to ${data.to}`
+					: `added this to release ${data.to}`
+				: `removed this from release ${data.from ?? ''}`.trim();
+		case 'milestone':
+			return data.to
+				? data.from
+					? `moved this from milestone “${data.from}” to “${data.to}”`
+					: `added this to milestone “${data.to}”`
+				: `removed this from milestone “${data.from ?? ''}”`;
 		case 'bulk':
 			return 'updated this ticket in a bulk edit';
 		case 'comment_removed':

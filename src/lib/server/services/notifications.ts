@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { NotificationType } from '../../shared/constants';
 import { userCanViewProject } from '../authz';
@@ -60,9 +60,57 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 			actorId: input.actorId,
 			data: input.data
 		}));
-	if (rows.length) tx.insert(schema.notifications).values(rows).run();
+	if (!rows.length) return 0;
+
+	// Group repeated activity: while a user still has an unread notification of the same kind
+	// for the same ticket from the last few hours, update it instead of adding another one.
+	const groupable =
+		GROUPABLE.includes(input.type) && input.ticketId !== null && !input.data.internal;
+	const pending = groupable
+		? new Map(
+				tx
+					.select({
+						id: schema.notifications.id,
+						userId: schema.notifications.userId,
+						data: schema.notifications.data
+					})
+					.from(schema.notifications)
+					.where(
+						and(
+							inArray(
+								schema.notifications.userId,
+								rows.map((r) => r.userId)
+							),
+							eq(schema.notifications.type, input.type),
+							eq(schema.notifications.ticketId, input.ticketId!),
+							isNull(schema.notifications.readAt),
+							gt(schema.notifications.createdAt, new Date(Date.now() - GROUP_WINDOW_MS))
+						)
+					)
+					.all()
+					.map((n) => [n.userId, n])
+			)
+		: new Map<number, { id: number; data: Record<string, unknown> }>();
+	const fresh = rows.filter((r) => !pending.has(r.userId));
+	for (const r of rows) {
+		const prev = pending.get(r.userId);
+		if (!prev) continue;
+		tx.update(schema.notifications)
+			.set({
+				actorId: r.actorId,
+				createdAt: new Date(),
+				data: { ...r.data, groupCount: Number(prev.data.groupCount ?? 1) + 1 }
+			})
+			.where(eq(schema.notifications.id, prev.id))
+			.run();
+	}
+	if (fresh.length) tx.insert(schema.notifications).values(fresh).run();
 	return rows.length;
 }
+
+/** Kinds of notifications that are merged per ticket while unread (never mentions/assignments). */
+const GROUPABLE: NotificationType[] = ['comment', 'status', 'update', 'milestone'];
+const GROUP_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 export function followerIds(ticketId: number, tx: Pick<DB, 'select'> = getDb()): number[] {
 	return tx

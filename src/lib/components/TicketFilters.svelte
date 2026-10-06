@@ -33,6 +33,10 @@
 		showAssignee?: boolean;
 		showReporter?: boolean;
 		extraParams?: Record<string, string>;
+		/** Staff planning filters; omitted for everyone else. */
+		releases?: { id: number; version: string }[];
+		milestones?: { id: number; name: string }[];
+		signedIn?: boolean;
 	}
 	let {
 		filters,
@@ -41,7 +45,10 @@
 		assignable = [],
 		showAssignee = true,
 		showReporter = true,
-		extraParams = {}
+		extraParams = {},
+		releases,
+		milestones,
+		signedIn = false
 	}: Props = $props();
 
 	let formEl: HTMLFormElement | undefined = $state();
@@ -117,6 +124,27 @@
 				label: `Assignee: ${filters.assignee === 'none' ? 'nobody' : filters.assignee}`,
 				href: hrefWith({ assignee: '' })
 			});
+		if (filters.release)
+			out.push({
+				label:
+					filters.release === 'none'
+						? 'No release'
+						: `Release: ${releases?.find((r) => String(r.id) === filters.release)?.version ?? 'unknown'}`,
+				href: hrefWith({ release: '' })
+			});
+		if (filters.milestone)
+			out.push({
+				label:
+					filters.milestone === 'none'
+						? 'No milestone'
+						: `Milestone: ${milestones?.find((m) => String(m.id) === filters.milestone)?.name ?? 'unknown'}`,
+				href: hrefWith({ milestone: '' })
+			});
+		if (filters.following) out.push({ label: 'Following', href: hrefWith({ following: false }) });
+		if (filters.attachments)
+			out.push({ label: 'Has attachments', href: hrefWith({ attachments: false }) });
+		if (filters.blocked)
+			out.push({ label: 'Blocked by open tickets', href: hrefWith({ blocked: false }) });
 		if (filters.createdFrom || filters.createdTo)
 			out.push({
 				label: `Created ${filters.createdFrom || '…'} – ${filters.createdTo || '…'}`,
@@ -180,6 +208,43 @@
 				class="fixed inset-x-4 top-20 z-40 hidden rounded-lg border border-border bg-popover p-4 shadow-pop group-open/filters:block sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-1.5 sm:w-[30rem]"
 			>
 				<div class="grid max-h-[70vh] gap-4 overflow-y-auto pr-1">
+					<fieldset>
+						<legend class="mb-2 text-xs font-semibold text-muted-foreground">Show only</legend>
+						<div class="flex flex-wrap gap-1.5">
+							{#if signedIn}
+								<label
+									class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:checked]:text-link has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+									><input
+										type="checkbox"
+										name="following"
+										value="1"
+										checked={filters.following}
+										class="sr-only"
+									/>Following</label
+								>
+							{/if}
+							<label
+								class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:checked]:text-link has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+								><input
+									type="checkbox"
+									name="attachments"
+									value="1"
+									checked={filters.attachments}
+									class="sr-only"
+								/>Has attachments</label
+							>
+							<label
+								class="cursor-pointer rounded-md border border-border px-2 py-1 text-xs has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:checked]:text-link has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+								><input
+									type="checkbox"
+									name="blocked"
+									value="1"
+									checked={filters.blocked}
+									class="sr-only"
+								/>Blocked by open tickets</label
+							>
+						</div>
+					</fieldset>
 					<fieldset>
 						<legend class="mb-2 text-xs font-semibold text-muted-foreground">Status</legend>
 						<div class="flex flex-wrap gap-1.5">
@@ -283,6 +348,40 @@
 										{ value: 'me', label: 'Me' },
 										{ value: 'none', label: 'Unassigned' },
 										...assignable.map((u) => ({ value: u.username, label: u.displayName }))
+									]}
+								/>
+							</label>
+						{/if}
+						{#if releases}
+							<label class="grid gap-1 text-xs font-semibold text-muted-foreground">
+								Target release
+								<Select
+									name="release"
+									value={filters.release}
+									size="sm"
+									class="font-normal"
+									searchable={releases.length > 8}
+									items={[
+										{ value: '', label: 'Any' },
+										{ value: 'none', label: 'No release' },
+										...releases.map((r) => ({ value: String(r.id), label: r.version }))
+									]}
+								/>
+							</label>
+						{/if}
+						{#if milestones}
+							<label class="grid gap-1 text-xs font-semibold text-muted-foreground">
+								Milestone
+								<Select
+									name="milestone"
+									value={filters.milestone}
+									size="sm"
+									class="font-normal"
+									searchable={milestones.length > 8}
+									items={[
+										{ value: '', label: 'Any' },
+										{ value: 'none', label: 'No milestone' },
+										...milestones.map((m) => ({ value: String(m.id), label: m.name }))
 									]}
 								/>
 							</label>

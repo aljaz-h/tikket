@@ -11,6 +11,9 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type {
 	EditPolicy,
+	MilestoneStatus,
+	ReleaseStatus,
+	TicketColumn,
 	TemplateFieldKind,
 	TicketEnvironment,
 	TemplateAnswer,
@@ -202,6 +205,14 @@ export const tickets = sqliteTable(
 		source: text('source').$type<'web' | 'widget'>().notNull().default('web'),
 		/** Sanitised, user-reviewed page/browser context sent by the widget (untrusted input). */
 		environment: text('environment', { mode: 'json' }).$type<TicketEnvironment>(),
+		/** Target release (at most one); same project enforced by a trigger and the service layer. */
+		releaseId: integer('release_id').references((): AnySQLiteColumn => changelogEntries.id, {
+			onDelete: 'set null'
+		}),
+		/** Milestone (at most one); same project enforced by a trigger and the service layer. */
+		milestoneId: integer('milestone_id').references((): AnySQLiteColumn => milestones.id, {
+			onDelete: 'set null'
+		}),
 		voteCount: integer('vote_count').notNull().default(0),
 		commentCount: integer('comment_count').notNull().default(0),
 		createdAt: timestamp('created_at').notNull().default(now),
@@ -215,6 +226,8 @@ export const tickets = sqliteTable(
 		index('tickets_project_updated_idx').on(t.projectId, t.updatedAt),
 		index('tickets_reporter_idx').on(t.reporterId),
 		index('tickets_assignee_idx').on(t.assigneeId),
+		index('tickets_release_idx').on(t.releaseId, t.status),
+		index('tickets_milestone_idx').on(t.milestoneId, t.status),
 		check(
 			'tickets_status_check',
 			sql`${t.status} in ('open','planned','in_progress','completed','on_hold','declined','duplicate')`
@@ -379,6 +392,11 @@ export const notifications = sqliteTable(
 	(t) => [index('notifications_user_idx').on(t.userId, t.readAt, t.createdAt)]
 );
 
+/**
+ * Releases. Historically "changelog entries": a release is planned, receives tickets through
+ * `tickets.release_id`, and becomes a public changelog entry when it is published (released).
+ * `published` mirrors `status = 'released'` and is what the public changelog reads.
+ */
 export const changelogEntries = sqliteTable(
 	'changelog_entries',
 	{
@@ -387,27 +405,90 @@ export const changelogEntries = sqliteTable(
 			.notNull()
 			.references(() => projects.id, { onDelete: 'restrict' }),
 		version: text('version').notNull(),
+		/** Publication date (YYYY-MM-DD) once released; the target date while planned. */
 		releaseDate: text('release_date').notNull(),
 		summaryHtml: text('summary_html').notNull().default(''),
 		published: integer('published', { mode: 'boolean' }).notNull().default(false),
+		status: text('status').$type<ReleaseStatus>().notNull().default('planned'),
+		targetDate: text('target_date'),
+		releasedAt: timestamp('released_at'),
 		createdById: integer('created_by_id').references(() => users.id),
 		createdAt: timestamp('created_at').notNull().default(now),
 		updatedAt: timestamp('updated_at').notNull().default(now)
 	},
-	(t) => [index('changelog_entries_project_idx').on(t.projectId, t.releaseDate)]
+	(t) => [
+		index('changelog_entries_project_idx').on(t.projectId, t.releaseDate),
+		// Status is validated by the release service (adding a CHECK would require a table rebuild).
+		index('changelog_entries_project_status_idx').on(t.projectId, t.status)
+	]
+);
+export const releases = changelogEntries;
+
+export const milestones = sqliteTable(
+	'milestones',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'restrict' }),
+		name: text('name').notNull(),
+		description: text('description'),
+		targetDate: text('target_date'),
+		status: text('status').$type<MilestoneStatus>().notNull().default('open'),
+		completedAt: timestamp('completed_at'),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now)
+	},
+	(t) => [
+		index('milestones_project_status_idx').on(t.projectId, t.status),
+		check('milestones_status_check', sql`${t.status} in ('open','completed','archived')`)
+	]
 );
 
-export const changelogTicketLinks = sqliteTable(
-	'changelog_ticket_links',
+/** Stored, validated ticket list definition: a normalised query string and visible columns. */
+export interface SavedViewDefinition {
+	query: string;
+	columns: TicketColumn[];
+}
+
+export const savedViews = sqliteTable(
+	'saved_views',
 	{
-		entryId: integer('entry_id')
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
 			.notNull()
-			.references(() => changelogEntries.id, { onDelete: 'cascade' }),
-		ticketId: integer('ticket_id')
-			.notNull()
-			.references(() => tickets.id, { onDelete: 'cascade' })
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		/** Personal views belong to a user; shared project views have no owner. */
+		ownerId: integer('owner_id').references(() => users.id, { onDelete: 'cascade' }),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		name: text('name').notNull(),
+		definition: text('definition', { mode: 'json' }).$type<SavedViewDefinition>().notNull(),
+		position: integer('position').notNull().default(0),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now)
 	},
-	(t) => [primaryKey({ columns: [t.entryId, t.ticketId] })]
+	(t) => [index('saved_views_project_owner_idx').on(t.projectId, t.ownerId, t.position)]
+);
+
+/** History of project-level objects (releases, milestones, shared views). */
+export const projectActivity = sqliteTable(
+	'project_activity',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		actorId: integer('actor_id').references(() => users.id, { onDelete: 'set null' }),
+		subjectType: text('subject_type').$type<'release' | 'milestone' | 'view'>().notNull(),
+		subjectId: integer('subject_id').notNull(),
+		type: text('type').notNull(),
+		data: text('data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [
+		index('project_activity_subject_idx').on(t.projectId, t.subjectType, t.subjectId, t.createdAt)
+	]
 );
 
 export const auditLogs = sqliteTable(
@@ -587,6 +668,9 @@ export type Attachment = typeof attachments.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Invitation = typeof invitations.$inferSelect;
 export type ChangelogEntry = typeof changelogEntries.$inferSelect;
+export type Release = ChangelogEntry;
+export type Milestone = typeof milestones.$inferSelect;
+export type SavedView = typeof savedViews.$inferSelect;
 export type TicketLabel = typeof ticketLabels.$inferSelect;
 export type WidgetSettings = typeof widgetSettings.$inferSelect;
 export type TicketTemplate = typeof ticketTemplates.$inferSelect;

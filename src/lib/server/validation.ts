@@ -6,6 +6,7 @@ import {
 	GLOBAL_ROLES,
 	PROJECT_COLORS,
 	PROJECT_ROLES,
+	RELEASE_STATUSES,
 	SUBMISSION_POLICIES,
 	TICKET_PRIORITIES,
 	TICKET_STATUSES,
@@ -186,12 +187,34 @@ export const prioritySchema = z.object({ priority: z.enum(TICKET_PRIORITIES) });
 export const globalRoleSchema = z.enum(GLOBAL_ROLES);
 export const projectRoleSchema = z.enum(PROJECT_ROLES);
 
-export const changelogSchema = z.object({
+const optionalDate = z
+	.string()
+	.trim()
+	.transform((v) => v || null)
+	.pipe(
+		z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date')
+			.nullable()
+	);
+
+export const releaseSchema = z.object({
 	version: z.string().trim().min(1, 'Version or release name is required').max(60),
-	releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date'),
-	summary: z.string().max(50_000),
-	summaryFormat: z.enum(['html', 'text']).default('text'),
-	published: checkbox
+	targetDate: optionalDate.default(''),
+	status: z.enum(RELEASE_STATUSES).default('planned'),
+	summary: z.string().max(50_000).default(''),
+	summaryFormat: z.enum(['html', 'text']).default('text')
+});
+
+export const milestoneSchema = z.object({
+	name: z.string().trim().min(1, 'Name the milestone').max(80),
+	description: z
+		.string()
+		.trim()
+		.max(2000)
+		.default('')
+		.transform((v) => v || null),
+	targetDate: optionalDate.default('')
 });
 
 /** Collects scalar form entries into a plain object (last value wins). */

@@ -1,32 +1,44 @@
 import { requireProject } from '$lib/server/authz';
-import { listChangelog } from '$lib/server/services/changelog';
-import { projectStats, roadmap } from '$lib/server/services/dashboard';
-import { queryTickets } from '$lib/server/services/search';
-import { parseTicketFilters } from '$lib/shared/filters';
-import { eq } from 'drizzle-orm';
-import { schema } from '$lib/server/db';
+import {
+	mostRequested,
+	projectAttention,
+	projectStats,
+	recentlyCompleted,
+	roadmap
+} from '$lib/server/services/dashboard';
+import { activeMilestones } from '$lib/server/services/milestones';
+import { listChangelog, upcomingReleases } from '$lib/server/services/releases';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const access = requireProject(locals.user, params.key, 'view');
 	const id = access.project.id;
-	const filters = parseTicketFilters(new URLSearchParams());
+	const staff = access.isStaff;
 	const road = roadmap(id);
+	const stats = projectStats(id);
 	return {
 		title: access.project.name,
-		stats: projectStats(id),
-		recent: queryTickets({
-			scope: eq(schema.tickets.projectId, id),
-			filters,
-			pageSize: 8,
-			projectKey: access.project.key
-		}).rows,
-		topVoted: queryTickets({
-			scope: eq(schema.tickets.projectId, id),
-			filters: { ...filters, sort: 'votes', status: ['open', 'planned', 'in_progress', 'on_hold'] },
-			pageSize: 5
-		}).rows,
+		// Everyone: public counts, what's coming, what's done, what people want.
+		stats: {
+			open: stats.open,
+			planned: stats.planned,
+			inProgress: stats.inProgress,
+			completed: stats.completed
+		},
 		upcoming: [...road.in_progress.slice(0, 4), ...road.planned.slice(0, 4)],
-		changelog: listChangelog(id, false).slice(0, 2)
+		recentlyCompleted: recentlyCompleted(id),
+		mostRequested: access.project.votingEnabled ? mostRequested(id) : [],
+		changelog: listChangelog(id, 2),
+		// Staff only: triage counts and planning.
+		management: staff
+			? {
+					unassigned: stats.unassigned,
+					highPriority: stats.highPriority,
+					awaitingReview: stats.awaitingReview,
+					attention: projectAttention(id),
+					releases: upcomingReleases(id, 3),
+					milestones: activeMilestones(id, 3)
+				}
+			: null
 	};
 };

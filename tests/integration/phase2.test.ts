@@ -501,9 +501,10 @@ describe('upgrading an existing database', () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tikket-upgrade-'));
 		const old = path.join(dir, 'migrations');
 		fs.cpSync('drizzle', old, { recursive: true });
-		fs.rmSync(path.join(old, '0002_phase2.sql'));
+		// The database as it was before phase 2: migrations 0000–0001 only.
+		for (const f of fs.readdirSync(old)) if (/^000[2-9]/.test(f)) fs.rmSync(path.join(old, f));
 		const journal = JSON.parse(fs.readFileSync(path.join(old, 'meta/_journal.json'), 'utf8'));
-		journal.entries = journal.entries.filter((e: { tag: string }) => !e.tag.startsWith('0002'));
+		journal.entries = journal.entries.filter((e: { tag: string }) => e.tag < '0002');
 		fs.writeFileSync(path.join(old, 'meta/_journal.json'), JSON.stringify(journal));
 
 		const file = path.join(dir, 'tikket.db');

@@ -218,7 +218,9 @@ export const NOTIFICATION_TYPES = [
 	'status',
 	'mention',
 	'assigned',
-	'update'
+	'update',
+	'release',
+	'milestone'
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const NOTIFICATION_PREF_META: Record<NotificationType, { label: string; hint: string }> = {
@@ -227,7 +229,15 @@ export const NOTIFICATION_PREF_META: Record<NotificationType, { label: string; h
 	status: { label: 'Status changes', hint: 'Including completed and declined tickets' },
 	mention: { label: 'Mentions', hint: 'Someone mentions you with @username' },
 	assigned: { label: 'Assignments', hint: 'A ticket is assigned to you' },
-	update: { label: 'Other updates', hint: 'Priority changes, duplicates and edits' }
+	update: { label: 'Other updates', hint: 'Priority changes, duplicates and edits' },
+	release: {
+		label: 'Releases',
+		hint: 'A release containing a ticket you follow is published'
+	},
+	milestone: {
+		label: 'Milestones',
+		hint: 'A ticket you follow moves to another milestone, or its milestone is completed'
+	}
 };
 export type NotificationPrefs = Record<NotificationType, boolean>;
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
@@ -236,7 +246,9 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
 	status: true,
 	mention: true,
 	assigned: true,
-	update: false
+	update: false,
+	release: true,
+	milestone: false
 };
 
 export const THEMES = ['dark', 'light', 'system'] as const;
@@ -310,3 +322,70 @@ export const RELATION_CHOICES = {
 	blocked_by: 'Blocked by'
 } as const;
 export type RelationChoice = keyof typeof RELATION_CHOICES;
+
+// ── Releases, milestones and saved views (v0.4) ─────────────────────────
+
+export const RELEASE_STATUSES = ['planned', 'in_progress', 'released', 'cancelled'] as const;
+export type ReleaseStatus = (typeof RELEASE_STATUSES)[number];
+export const RELEASE_STATUS_META: Record<ReleaseStatus, { label: string; tone: string }> = {
+	planned: { label: 'Planned', tone: 'tone-planned' },
+	in_progress: { label: 'In Progress', tone: 'tone-progress' },
+	released: { label: 'Released', tone: 'tone-completed' },
+	cancelled: { label: 'Cancelled', tone: 'tone-hold' }
+};
+
+export const MILESTONE_STATUSES = ['open', 'completed', 'archived'] as const;
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
+export const MILESTONE_STATUS_META: Record<MilestoneStatus, { label: string; tone: string }> = {
+	open: { label: 'Open', tone: 'tone-open' },
+	completed: { label: 'Completed', tone: 'tone-completed' },
+	archived: { label: 'Archived', tone: 'tone-hold' }
+};
+
+/** Columns of the ticket list that can be shown or hidden. */
+export const TICKET_COLUMNS = [
+	'ref',
+	'type',
+	'status',
+	'priority',
+	'project',
+	'assignee',
+	'reporter',
+	'labels',
+	'votes',
+	'comments',
+	'release',
+	'milestone',
+	'created',
+	'updated'
+] as const;
+export type TicketColumn = (typeof TICKET_COLUMNS)[number];
+export const TICKET_COLUMN_META: Record<TicketColumn, { label: string }> = {
+	ref: { label: 'Ticket ID' },
+	type: { label: 'Type' },
+	status: { label: 'Status' },
+	priority: { label: 'Priority' },
+	project: { label: 'Project' },
+	assignee: { label: 'Assignee' },
+	reporter: { label: 'Reporter' },
+	labels: { label: 'Labels' },
+	votes: { label: 'Votes' },
+	comments: { label: 'Comments' },
+	release: { label: 'Target release' },
+	milestone: { label: 'Milestone' },
+	created: { label: 'Created' },
+	updated: { label: 'Updated' }
+};
+/** The title is always shown; these are the defaults for the rest. */
+export const DEFAULT_TICKET_COLUMNS: TicketColumn[] = [
+	'ref',
+	'status',
+	'priority',
+	'labels',
+	'votes',
+	'assignee',
+	'updated'
+];
+
+/** Remembers the last chosen ticket list columns (a preference, not a secret). */
+export const COLUMNS_COOKIE = 'tikket_cols';

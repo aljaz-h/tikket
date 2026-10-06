@@ -17,6 +17,8 @@
 	import Globe from '@lucide/svelte/icons/globe';
 	import X from '@lucide/svelte/icons/x';
 	import Plus from '@lucide/svelte/icons/plus';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { Popover } from 'bits-ui';
 	import { toast } from 'svelte-sonner';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -144,6 +146,35 @@
 		</a>
 		<span aria-hidden="true">/</span>
 		<span class="font-mono">{t.ref}</span>
+		{#if data.navigation}
+			{@const nav = data.navigation}
+			{@const q = `?list=${encodeURIComponent(nav.list)}`}
+			<span class="ml-auto flex items-center gap-1">
+				<a
+					href="{projectPath(key, 'tickets')}{nav.list ? `?${nav.list}` : ''}"
+					class="hidden text-xs hover:text-foreground sm:inline">Back to list</a
+				>
+				<span class="px-1 text-xs tabular-nums" aria-label="Ticket {nav.position} of {nav.total}"
+					>{nav.position} / {nav.total}</span
+				>
+				<Button
+					href={nav.prev ? `${ticketPath(key, nav.prev)}${q}` : undefined}
+					disabled={!nav.prev}
+					variant="ghost"
+					size="icon-sm"
+					aria-label="Previous ticket"
+					title="Previous ticket"><ChevronLeft /></Button
+				>
+				<Button
+					href={nav.next ? `${ticketPath(key, nav.next)}${q}` : undefined}
+					disabled={!nav.next}
+					variant="ghost"
+					size="icon-sm"
+					aria-label="Next ticket"
+					title="Next ticket"><ChevronRight /></Button
+				>
+			</span>
+		{/if}
 	</nav>
 
 	<header class="grid gap-3">
@@ -585,6 +616,69 @@
 								</form>
 							</PopoverContent>
 						</Popover.Root>
+					</div>
+				{/if}
+
+				{#if data.planning}
+					{@const plan = data.planning}
+					<div class="grid gap-1.5">
+						<p class="text-xs font-medium text-muted-foreground">Target release</p>
+						<form
+							method="POST"
+							action="?/release"
+							use:enhance={quickSubmit({ success: 'Release updated' })}
+						>
+							<Select
+								name="releaseId"
+								value={plan.release ? String(plan.release.id) : 'none'}
+								aria-label="Target release"
+								autosubmit
+								disabled={perms.archived}
+								items={[
+									{ value: 'none', label: 'No release' },
+									...(plan.release && !plan.releases.some((r) => r.id === plan.release?.id)
+										? [
+												{
+													value: String(plan.release.id),
+													label: `${plan.release.version} (${plan.release.status})`,
+													disabled: true
+												}
+											]
+										: []),
+									...plan.releases.map((r) => ({ value: String(r.id), label: r.version }))
+								]}
+							/>
+						</form>
+					</div>
+					<div class="grid gap-1.5">
+						<p class="text-xs font-medium text-muted-foreground">Milestone</p>
+						<form
+							method="POST"
+							action="?/milestone"
+							use:enhance={quickSubmit({ success: 'Milestone updated' })}
+						>
+							<Select
+								name="milestoneId"
+								value={plan.milestone ? String(plan.milestone.id) : 'none'}
+								aria-label="Milestone"
+								autosubmit
+								searchable={plan.milestones.length > 8}
+								disabled={perms.archived}
+								items={[
+									{ value: 'none', label: 'No milestone' },
+									...(plan.milestone && !plan.milestones.some((m) => m.id === plan.milestone?.id)
+										? [
+												{
+													value: String(plan.milestone.id),
+													label: `${plan.milestone.name} (${plan.milestone.status})`,
+													disabled: true
+												}
+											]
+										: []),
+									...plan.milestones.map((m) => ({ value: String(m.id), label: m.name }))
+								]}
+							/>
+						</form>
 					</div>
 				{/if}
 

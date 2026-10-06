@@ -14,6 +14,8 @@ import type { Ticket } from '../db/schema';
 import { followerIds, notify } from './notifications';
 import { isAssignable } from './projects';
 import { addActivity } from './tickets';
+import { assignableMilestone } from './milestones';
+import { assignableRelease } from './releases';
 import { ServiceError } from './users';
 
 type ActiveActor = NonNullable<Actor>;
@@ -25,7 +27,9 @@ export type BulkOperation =
 	| { kind: 'priority'; priority: TicketPriority }
 	| { kind: 'assign'; assigneeId: number | null }
 	| { kind: 'addLabel'; labelId: number }
-	| { kind: 'removeLabel'; labelId: number };
+	| { kind: 'removeLabel'; labelId: number }
+	| { kind: 'release'; releaseId: number | null }
+	| { kind: 'milestone'; milestoneId: number | null };
 
 export interface BulkResult {
 	updated: number[];
@@ -69,6 +73,14 @@ export function parseBulkForm(form: FormData): { op: BulkOperation; numbers: num
 		case 'removeLabel':
 			if (!(Number.isInteger(id) && id > 0)) throw new ServiceError('Choose a label', 'bulk');
 			return { op: { kind: operation as 'addLabel', labelId: id }, numbers };
+		case 'release':
+			if (value !== 'none' && !(Number.isInteger(id) && id > 0))
+				throw new ServiceError('Choose a release', 'bulk');
+			return { op: { kind: 'release', releaseId: value === 'none' ? null : id }, numbers };
+		case 'milestone':
+			if (value !== 'none' && !(Number.isInteger(id) && id > 0))
+				throw new ServiceError('Choose a milestone', 'bulk');
+			return { op: { kind: 'milestone', milestoneId: value === 'none' ? null : id }, numbers };
 		default:
 			throw new ServiceError('Choose an action', 'bulk');
 	}
@@ -117,6 +129,32 @@ export function bulkUpdate(
 
 	return db.transaction(
 		(tx) => {
+			// Target release / milestone: same project and still open (re-checked in the transaction).
+			const release =
+				op.kind === 'release' && op.releaseId !== null
+					? assignableRelease(tx, projectId, op.releaseId)
+					: null;
+			const milestone =
+				op.kind === 'milestone' && op.milestoneId !== null
+					? assignableMilestone(tx, projectId, op.milestoneId)
+					: null;
+			const names = (column: 'release' | 'milestone', ids: (number | null)[]) => {
+				const wanted = [...new Set(ids.filter((x): x is number => x !== null))];
+				if (!wanted.length) return new Map<number, string>();
+				const rows =
+					column === 'release'
+						? tx
+								.select({ id: schema.changelogEntries.id, name: schema.changelogEntries.version })
+								.from(schema.changelogEntries)
+								.where(inArray(schema.changelogEntries.id, wanted))
+								.all()
+						: tx
+								.select({ id: schema.milestones.id, name: schema.milestones.name })
+								.from(schema.milestones)
+								.where(inArray(schema.milestones.id, wanted))
+								.all();
+				return new Map(rows.map((row) => [row.id, row.name]));
+			};
 			const tickets = tx
 				.select()
 				.from(schema.tickets)
@@ -142,6 +180,18 @@ export function bulkUpdate(
 						.map((r) => r.ticketId)
 				);
 			const now = new Date();
+			const previous =
+				op.kind === 'release'
+					? names(
+							'release',
+							tickets.map((x) => x.releaseId)
+						)
+					: op.kind === 'milestone'
+						? names(
+								'milestone',
+								tickets.map((x) => x.milestoneId)
+							)
+						: new Map<number, string>();
 
 			for (const number of numbers) {
 				const t = byNumber.get(number);
@@ -252,12 +302,52 @@ export function bulkUpdate(
 						});
 						break;
 					}
+					case 'release': {
+						if (t.releaseId === op.releaseId) {
+							result.skipped.push({
+								number,
+								reason: op.releaseId ? 'already in this release' : 'has no release'
+							});
+							continue;
+						}
+						tx.update(schema.tickets)
+							.set({ releaseId: op.releaseId, updatedAt: now })
+							.where(eq(schema.tickets.id, t.id))
+							.run();
+						addActivity(tx, t.id, actor.id, 'release', {
+							from: t.releaseId ? (previous.get(t.releaseId) ?? null) : null,
+							to: release?.version ?? null,
+							bulk: true
+						});
+						break;
+					}
+					case 'milestone': {
+						if (t.milestoneId === op.milestoneId) {
+							result.skipped.push({
+								number,
+								reason: op.milestoneId ? 'already in this milestone' : 'has no milestone'
+							});
+							continue;
+						}
+						tx.update(schema.tickets)
+							.set({ milestoneId: op.milestoneId, updatedAt: now })
+							.where(eq(schema.tickets.id, t.id))
+							.run();
+						addActivity(tx, t.id, actor.id, 'milestone', {
+							from: t.milestoneId ? (previous.get(t.milestoneId) ?? null) : null,
+							to: milestone?.name ?? null,
+							bulk: true
+						});
+						queue(followerIds(t.id, tx), t);
+						break;
+					}
 				}
 				result.updated.push(number);
 			}
 
 			// One notification per recipient, pointing at their first affected ticket.
-			const type: NotificationType = op.kind === 'assign' ? 'assigned' : 'status';
+			const type: NotificationType =
+				op.kind === 'assign' ? 'assigned' : op.kind === 'milestone' ? 'milestone' : 'status';
 			for (const [userId, list] of grouped) {
 				notify(
 					[userId],
@@ -269,7 +359,9 @@ export function bulkUpdate(
 						data:
 							op.kind === 'status'
 								? { to: op.status, bulkCount: list.length }
-								: { bulkCount: list.length }
+								: op.kind === 'milestone'
+									? { kind: 'moved', milestone: milestone?.name ?? null, bulkCount: list.length }
+									: { bulkCount: list.length }
 					},
 					tx
 				);

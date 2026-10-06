@@ -21,7 +21,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Initial administrator setup](#initial-administrator-setup)
 - [Configuration](#configuration)
 - [Reverse proxy](#reverse-proxy) · [Coolify & proxy deployment guide](docs/deployment-coolify.md)
-- [Feedback widget guide](docs/feedback-widget.md)
+- [Feedback widget guide](docs/feedback-widget.md) · [Project management guide](docs/project-management.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
 - [Development](#development)
@@ -52,21 +52,26 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - Comments with images, editing, deletion and moderator removal, `@mentions`.
 - Upvotes (one per user, concurrency-safe), "most requested" sorting.
 - Follow tickets; authors and commenters follow automatically.
-- In-app notifications with bell, unread count, mark (all) as read and per-type preferences.
+- In-app notifications with bell, unread count, mark (all) as read and per-type preferences (including releases and milestones); repeated updates on the same ticket are grouped.
 
 **Managing (for owners and moderators)**
 
 - Statuses Open, Planned, In Progress, Completed, On Hold, Declined, Duplicate — with optional explanations, resolution notes, duplicate linking and reopening.
 - Priorities (Low → Critical), assignment, labels.
-- List view with search, filters (status, type, priority, reporter, assignee, labels, created/updated dates), sorting and pagination — all persisted in the URL.
+- List view with search, filters (status, type, priority, reporter, assignee, labels, created/updated dates, following, attachments, blocked, target release, milestone), sorting, **customisable columns** and pagination — all persisted in the URL.
+- **Saved views**: personal views and shared project views of filters, sort and columns, plus built-in views such as _Assigned to me_ and _High priority_.
+- **Quick actions** on every row and **previous/next** navigation between tickets of the list you came from.
+- **Releases**: plan versions, assign tickets, track progress and publish after a review screen – a published release is the changelog entry.
+- **Milestones**: goals that group related tickets, with progress derived from ticket status.
+- **Project overview** for staff: awaiting review, unassigned and high-priority counts, _Needs attention_, upcoming releases and active milestones. See the [project management guide](docs/project-management.md).
 - Kanban board with drag & drop and an accessible per-card status selector; both use the same server action.
 - Activity history interleaved with the discussion.
 - **Internal notes**: staff can switch the comment box to an internal note, visible only to project owners, moderators and administrators.
-- **Bulk editing** in the ticket list: select tickets (with select-all) and change status, priority, assignee or add/remove a label in one confirmed step.
+- **Bulk editing** in the ticket list: select tickets (with select-all) and change status, priority, assignee, labels, target release or milestone in one confirmed step.
 - **Duplicate merging** and **ticket links** (related to, blocks, blocked by).
 - **Templates** management with live preview, enable/disable, a default per type, reordering and versioning.
 - Dashboards: personal (my submissions, following, recently updated, notifications) and staff (open/planned/in-progress counters, new reports to review, most requested, recent activity).
-- Automatic roadmap (Planned / In Progress / Completed) and a curated changelog (owners pick completed tickets per release; drafts stay private).
+- Automatic roadmap (Planned / In Progress / Completed) and a changelog of published releases.
 
 **Projects, people and administration**
 
@@ -253,6 +258,7 @@ Schema changes: edit `schema.ts`, run `npm run db:generate -- --name <change>`, 
 - **Unit/integration additions for deployment**: start-up environment validation, concurrent migrations from several processes, failed-migration rollback, idempotent restarts.
 - **Deployment** (`tests/deployment/run.sh`, needs Docker): builds the production image, deploys `compose.external-proxy.yml` on an external network and drives it through **nginx (NPM-style), Caddy and Traefik** terminating HTTPS – Secure cookies, CSRF, spoofed forwarded headers, large uploads, links built from `ORIGIN`, persistence across re-creation/upgrade/`down`+`up`, start-up failures for bad configuration, read-only filesystem, loopback-only port override.
 - **Phase 2** (`tests/unit/phase2.test.ts`, `tests/integration/phase2.test.ts`): origin normalisation, environment sanitising, template validation, blocking-cycle detection, bulk form parsing; widget enable/origins/token scoping and revocation, template versioning and snapshots, internal-note isolation (pages, files, notifications, search, editing), bulk edits with skipped tickets and grouped notifications, vote/follower merging, relationships, and upgrading an existing database to the new schema.
+- **v0.4 management** (`tests/integration/v04.test.ts`, `e2e/04-management.spec.ts`): saved views (personal/shared permissions, normalisation, cross-project isolation), releases (unique names, cross-project rejection in the service and the database, progress, review, single publication, changelog, notifications), milestones (progress, completion, reopen, archive, permissions), new filters including internal-note attachment privacy, previous/next, bulk and quick release/milestone changes, grouped notifications, removed members, preferences, and upgrading a pre-v0.4 database with changelog data; in the browser: release planning and publication, milestones, columns, quick and bulk actions, saved views with previous/next, staff vs member overview, and mobile layouts.
 - **Branding** (`e2e/03-branding.spec.ts`): favicon/manifest assets, dark default and switching to light (checked against the token colours), keyboard use of the custom dropdowns, ticket context menu, custom/indeterminate checkboxes, and no console or hydration errors.
 - **End-to-end** (`e2e/`, Playwright against the production build, plus `e2e/host-server.mjs` as a third-party website on another origin). `02-phase2.spec.ts` covers the widget across origins (config/CSP checks, sign-in pop-up, consent, ticket creation, ignored spoofed messages, mobile), annotation with a pixel check that redaction is burned in, templates, internal notes, relationships and bulk editing. `01-core.spec.ts`: setup, login/logout, project creation, invitation & membership, ticket submission with uploaded and pasted screenshots, owner review (priority, assignee, status, comment), notifications, upvote, completion on the board, private-project isolation (pages, files, search APIs, forged posts), mobile submission without horizontal overflow, and no console errors.
 
@@ -297,6 +303,14 @@ Key decisions:
 - **Logo**: `src/lib/components/Logo.svelte` renders the icon and – when the workspace is called "Tikket" – the official wordmark in its original proportions; other workspace names are shown next to the icon. Favicons, touch and manifest icons are in `static/`.
 - **Controls**: `ui/select.svelte` renders a themed native `<select>` on the server and without JavaScript, and swaps to an accessible bits-ui listbox (searchable for long lists such as people) after hydration, submitting through a hidden input. Checkboxes and radios are native inputs drawn by base styles (lime when checked, indeterminate for "select all"). Dialogs, menus, context menus and tooltips are bits-ui (focus trap, Escape, scroll lock); no `alert`/`confirm`/`prompt` is used. Toasts are capped at three, dismissible, with colour only on the icon. Scrollbars are slim and brighten on hover. Animations are disabled under `prefers-reduced-motion`.
 
+### v0.4 design notes
+
+- **One release system**: releases extend the former changelog entries (same table); a ticket's target release is a single `tickets.release_id`. Publishing turns a release into the public changelog entry. See the [project management guide](docs/project-management.md#database-migration) for how existing changelog data is migrated.
+- **Planning data is staff-only**: releases, milestones, their filters and columns are only loaded for project staff; the list query ignores those filters for everyone else.
+- **Saved views** store a normalised query string produced by the same parser as the URL, so a view can never contain anything a URL couldn't – and permissions are re-applied whenever it is opened.
+- **Quick actions reuse bulk editing** (one ticket, same action), so authorisation, transactions, history and notification grouping are identical.
+- **Progress is derived**: release and milestone progress is a grouped count over tickets, computed for all items in one query.
+
 ### Phase 2 design notes
 
 - **Internal notes** are ordinary comments with an immutable `internal` flag. Visibility is decided in one place (`canViewInternalNotes` / `canWriteInternalNotes` in `authz.ts`): only project owners, moderators and administrators can read or write them, in any project they can manage. They are filtered out of ticket pages, attachment downloads (`/api/files` answers 404 for others), activity history and notifications. Notifications about notes go to staff only and never include the note's text. Notes don't change the public comment count or "updated" time, and comments are not part of the search index. A note cannot be turned into a public comment (or vice versa) – write a new one instead.
@@ -340,3 +354,4 @@ Key decisions:
 - The UI is English only.
 - The feedback widget requires reporters to sign in; anonymous widget submissions are not supported.
 - Tickets cannot be archived or deleted (bulk or otherwise); close them with a status.
+- A ticket has at most one target release and one milestone. Published releases cannot be unpublished.

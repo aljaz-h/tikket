@@ -16,6 +16,16 @@
 		{ href: `${base}/tickets`, label: 'Tickets' },
 		{ href: `${base}/roadmap`, label: 'Roadmap' },
 		{ href: `${base}/changelog`, label: 'Changelog' },
+		// Staff keep read-only access to planning pages in archived projects too.
+		...(data.permissions.isStaff ||
+		data.permissions.isAdmin ||
+		data.permissions.role === 'owner' ||
+		data.permissions.role === 'moderator'
+			? [
+					{ href: `${base}/releases`, label: 'Releases' },
+					{ href: `${base}/milestones`, label: 'Milestones' }
+				]
+			: []),
 		...(data.permissions.isOwner ? [{ href: `${base}/settings`, label: 'Settings' }] : [])
 	]);
 	const isActive = (tab: { href: string; exact?: boolean }) =>

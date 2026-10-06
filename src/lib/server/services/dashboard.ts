@@ -184,9 +184,101 @@ export function projectStats(projectId: number) {
 			planned: sql<number>`coalesce(sum(case when ${t.status} = 'planned' then 1 else 0 end), 0)`,
 			inProgress: sql<number>`coalesce(sum(case when ${t.status} = 'in_progress' then 1 else 0 end), 0)`,
 			completed: sql<number>`coalesce(sum(case when ${t.status} = 'completed' then 1 else 0 end), 0)`,
-			total: sql<number>`count(*)`
+			total: sql<number>`count(*)`,
+			unassigned: sql<number>`coalesce(sum(case when ${t.assigneeId} is null and ${t.status} in (${unresolvedList}) then 1 else 0 end), 0)`,
+			highPriority: sql<number>`coalesce(sum(case when ${t.priority} in ('high','critical') and ${t.status} in (${unresolvedList}) then 1 else 0 end), 0)`,
+			awaitingReview: sql<number>`coalesce(sum(case when ${t.status} = 'open' and ${t.assigneeId} is null then 1 else 0 end), 0)`
 		})
 		.from(t)
 		.where(eq(t.projectId, projectId))
 		.get()!;
+}
+
+const unresolvedList = sql.join(
+	UNRESOLVED_STATUSES.map((s) => sql`${s}`),
+	sql`, `
+);
+
+const compactTicket = {
+	id: t.id,
+	number: t.number,
+	title: t.title,
+	type: t.type,
+	status: t.status,
+	priority: t.priority,
+	voteCount: t.voteCount,
+	createdAt: t.createdAt,
+	completedAt: t.completedAt
+};
+
+/**
+ * "Needs attention" lists for project staff: a handful of small, indexed queries – never the
+ * whole ticket collection.
+ */
+export function projectAttention(projectId: number, limit = 5) {
+	const db = getDb();
+	const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+	return {
+		newReports: db
+			.select(compactTicket)
+			.from(t)
+			.where(and(eq(t.projectId, projectId), eq(t.status, 'open'), isNull(t.assigneeId)))
+			.orderBy(desc(t.createdAt))
+			.limit(limit)
+			.all(),
+		unassignedHigh: db
+			.select(compactTicket)
+			.from(t)
+			.where(
+				and(
+					eq(t.projectId, projectId),
+					isNull(t.assigneeId),
+					inArray(t.priority, ['high', 'critical']),
+					inArray(t.status, [...UNRESOLVED_STATUSES])
+				)
+			)
+			.orderBy(sql`case ${t.priority} when 'critical' then 0 else 1 end`, desc(t.updatedAt))
+			.limit(limit)
+			.all(),
+		reopened: db
+			.select(compactTicket)
+			.from(t)
+			.where(
+				and(
+					eq(t.projectId, projectId),
+					inArray(t.status, [...UNRESOLVED_STATUSES]),
+					sql`${t.id} in (select a.ticket_id from ticket_activity a where a.type = 'status'
+						and json_extract(a.data, '$.effect') = 'reopened' and a.created_at >= ${monthAgo.getTime()})`
+				)
+			)
+			.orderBy(desc(t.updatedAt))
+			.limit(limit)
+			.all()
+	};
+}
+
+export function recentlyCompleted(projectId: number, limit = 5) {
+	return getDb()
+		.select(compactTicket)
+		.from(t)
+		.where(and(eq(t.projectId, projectId), eq(t.status, 'completed')))
+		.orderBy(desc(t.completedAt))
+		.limit(limit)
+		.all();
+}
+
+export function mostRequested(projectId: number, limit = 5) {
+	return getDb()
+		.select(compactTicket)
+		.from(t)
+		.where(
+			and(
+				eq(t.projectId, projectId),
+				inArray(t.status, [...UNRESOLVED_STATUSES]),
+				sql`${t.voteCount} > 0`
+			)
+		)
+		.orderBy(desc(t.voteCount), desc(t.updatedAt))
+		.limit(limit)
+		.all();
 }
