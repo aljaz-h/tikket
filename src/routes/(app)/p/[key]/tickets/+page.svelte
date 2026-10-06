@@ -10,6 +10,7 @@
 	import { activeFilterCount, filtersToParams } from '$lib/shared/filters';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import { untrack } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Checkbox from '$lib/components/ui/checkbox.svelte';
 	import NativeSelect from '$lib/components/ui/native-select.svelte';
@@ -37,7 +38,10 @@
 	// Selection never outlives the page of results it was made on.
 	$effect(() => {
 		const keep = visible;
-		selected = selected.filter((n) => keep.includes(n));
+		untrack(() => {
+			if (selected.some((n) => !keep.includes(n)))
+				selected = selected.filter((n) => keep.includes(n));
+		});
 	});
 	const allSelected = $derived(visible.length > 0 && selected.length === visible.length);
 	const someSelected = $derived(selected.length > 0 && !allSelected);

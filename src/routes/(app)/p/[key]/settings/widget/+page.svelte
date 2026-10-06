@@ -47,7 +47,7 @@
 	});
 
 	const snippet = $derived(
-		`<script src="${data.baseUrl}/widget.js" data-project="${data.project.key}" async><\/script>`
+		`<script src="${data.baseUrl}/widget.js" data-project="${data.project.key}" async></${'script'}>`
 	);
 	const checks = $derived([
 		{ ok: data.widget.enabled, label: 'Widget enabled', hint: 'Turn the widget on and save.' },

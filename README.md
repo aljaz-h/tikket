@@ -14,6 +14,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Initial administrator setup](#initial-administrator-setup)
 - [Configuration](#configuration)
 - [Reverse proxy](#reverse-proxy) · [Coolify & proxy deployment guide](docs/deployment-coolify.md)
+- [Feedback widget guide](docs/feedback-widget.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
 - [Development](#development)
@@ -34,6 +35,9 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - Rich-text editor (headings, bold, italic, lists, links, inline code, code blocks, quotes, undo/redo, keyboard shortcuts). Content is sanitised server-side against a strict allow-list.
 - Screenshots via drag & drop, file picker or **pasting from the clipboard**; previews and removal before submitting; full-screen lightbox. Images are validated by content, re-encoded to strip metadata (e.g. GPS EXIF) and thumbnailed.
 - Draft auto-save in the browser (per user and project), live review summary, and **similar-ticket suggestions** while typing the title (SQLite FTS5).
+- **Screenshot annotation**: arrows, rectangles, circles, freehand, text, highlight, pixelate and **redact** (solid black, burned into the pixels – the original is never uploaded). Undo/redo/reset and keyboard shortcuts; works for uploaded, pasted and dropped images, in tickets, comments and the widget.
+- **Ticket templates**: optional extra questions per ticket type (short text, long text, dropdown, checkbox, URL).
+- **Embeddable feedback widget** for your own websites – see the [widget guide](docs/feedback-widget.md).
 - Works without JavaScript (plain textarea and file input fallbacks).
 
 **Collaboration**
@@ -50,6 +54,10 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - List view with search, filters (status, type, priority, reporter, assignee, labels, created/updated dates), sorting and pagination — all persisted in the URL.
 - Kanban board with drag & drop and an accessible per-card status selector; both use the same server action.
 - Activity history interleaved with the discussion.
+- **Internal notes**: staff can switch the comment box to an internal note, visible only to project owners, moderators and administrators.
+- **Bulk editing** in the ticket list: select tickets (with select-all) and change status, priority, assignee or add/remove a label in one confirmed step.
+- **Duplicate merging** and **ticket links** (related to, blocks, blocked by).
+- **Templates** management with live preview, enable/disable, a default per type, reordering and versioning.
 - Dashboards: personal (my submissions, following, recently updated, notifications) and staff (open/planned/in-progress counters, new reports to review, most requested, recent activity).
 - Automatic roadmap (Planned / In Progress / Completed) and a curated changelog (owners pick completed tickets per release; drafts stay private).
 
@@ -236,7 +244,8 @@ Schema changes: edit `schema.ts`, run `npm run db:generate -- --name <change>`, 
 - **Integration** (`tests/integration`, real migrated SQLite per test): first-run setup race, authentication and sessions, password change/reset, invitations, ticket numbering, creation/editing policies, attachments (real images via sharp), status/priority/assignment/labels, duplicates, voting, comments, mentions, notifications and access control in search.
 - **Unit/integration additions for deployment**: start-up environment validation, concurrent migrations from several processes, failed-migration rollback, idempotent restarts.
 - **Deployment** (`tests/deployment/run.sh`, needs Docker): builds the production image, deploys `compose.external-proxy.yml` on an external network and drives it through **nginx (NPM-style), Caddy and Traefik** terminating HTTPS – Secure cookies, CSRF, spoofed forwarded headers, large uploads, links built from `ORIGIN`, persistence across re-creation/upgrade/`down`+`up`, start-up failures for bad configuration, read-only filesystem, loopback-only port override.
-- **End-to-end** (`e2e/`, Playwright against the production build): setup, login/logout, project creation, invitation & membership, ticket submission with uploaded and pasted screenshots, owner review (priority, assignee, status, comment), notifications, upvote, completion on the board, private-project isolation (pages, files, search APIs, forged posts), mobile submission without horizontal overflow, and no console errors.
+- **Phase 2** (`tests/unit/phase2.test.ts`, `tests/integration/phase2.test.ts`): origin normalisation, environment sanitising, template validation, blocking-cycle detection, bulk form parsing; widget enable/origins/token scoping and revocation, template versioning and snapshots, internal-note isolation (pages, files, notifications, search, editing), bulk edits with skipped tickets and grouped notifications, vote/follower merging, relationships, and upgrading an existing database to the new schema.
+- **End-to-end** (`e2e/`, Playwright against the production build, plus `e2e/host-server.mjs` as a third-party website on another origin). `02-phase2.spec.ts` covers the widget across origins (config/CSP checks, sign-in pop-up, consent, ticket creation, ignored spoofed messages, mobile), annotation with a pixel check that redaction is burned in, templates, internal notes, relationships and bulk editing. `01-core.spec.ts`: setup, login/logout, project creation, invitation & membership, ticket submission with uploaded and pasted screenshots, owner review (priority, assignee, status, comment), notifications, upvote, completion on the board, private-project isolation (pages, files, search APIs, forged posts), mobile submission without horizontal overflow, and no console errors.
 
 ```bash
 npm test
@@ -273,16 +282,25 @@ Key decisions:
 - **Progressive enhancement**: every mutation is a SvelteKit form action; the board's drag & drop and status selector post to the ticket page's `?/status` action.
 - **No polling**: the unread count refreshes on navigation; notifications load when the bell opens.
 
+### Phase 2 design notes
+
+- **Internal notes** are ordinary comments with an immutable `internal` flag. Visibility is decided in one place (`canViewInternalNotes` / `canWriteInternalNotes` in `authz.ts`): only project owners, moderators and administrators can read or write them, in any project they can manage. They are filtered out of ticket pages, attachment downloads (`/api/files` answers 404 for others), activity history and notifications. Notifications about notes go to staff only and never include the note's text. Notes don't change the public comment count or "updated" time, and comments are not part of the search index. A note cannot be turned into a public comment (or vice versa) – write a new one instead.
+- **Templates** are versioned. Every ticket stores a snapshot of the template name, version, and each question's label and type together with the answer, so editing, disabling or deleting a template never changes existing tickets. Answers are validated on the server against the active template (required fields, dropdown options, http(s) URLs, length limits).
+- **Merging duplicates**: marking a ticket as _Duplicate of X_ merges it into X. Voters of the duplicate are added to X (each person counted once, the vote count recomputed), followers are added to X, and tickets that were duplicates of the duplicate are re-pointed to X so chains never form. The duplicate keeps its own comments, votes and history. Merging is limited to the same project, a ticket can't duplicate itself, and the target can't itself be a duplicate.
+- **Ticket links** are limited to tickets of the same project. _Blocked by_ is stored as the inverse _blocks_; _related to_ is undirected. Self links, a second link between the same pair and blocking cycles of any length are rejected. Adding and removing links is recorded in the history of both tickets.
+- **Bulk editing** applies one change to up to 100 tickets in a single transaction. Every ticket is looked up inside the project the user manages, so numbers from other projects can't be touched; tickets that already match are skipped and reported. Each changed ticket gets its own history entry (marked as a bulk edit), but notifications are grouped: each person receives at most one notification per bulk operation. Marking duplicates in bulk is not offered (each needs its own original), and tickets cannot be archived or deleted – Tikket keeps history, so close them with a status instead.
+
 ## Security
 
 - Argon2id password hashing (OWASP parameters), constant-time-ish login for unknown accounts, per-account and per-IP login rate limits; rate limits on setup, registration, invitations, uploads and content creation.
 - Sessions: 256-bit random token in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` under HTTPS); only an HMAC of it is stored. Sliding expiry (configurable), revoked on password change/reset, account disabling and on demand.
 - CSRF: SvelteKit origin checking for form posts plus an explicit same-origin check for all mutating `/api` requests, and `SameSite` cookies.
-- Strict Content-Security-Policy (no inline scripts; nonce/hash based), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP/CORP, HSTS under HTTPS.
+- Strict Content-Security-Policy (no inline scripts; nonce/hash based), `X-Frame-Options: DENY` (only the widget form at `/embed/<KEY>` may be framed, by the project's allowed origins), `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP/CORP, HSTS under HTTPS.
 - Input validation with Zod everywhere; rich text sanitised with an allow-list (no images, iframes, styles, event handlers; only http/https/mailto links with `rel="noopener noreferrer nofollow ugc"`); plain-text fields are rendered as text with safe auto-linking.
 - Uploads: size limits, content sniffing (magic bytes) plus full decode by sharp, metadata stripping, random file names, no path input from users, served with `Content-Disposition`, `nosniff` and a sandboxing CSP. Abandoned pending uploads are deleted after 24 h.
 - Invitation and reset tokens are random, stored hashed, single-use, expiring and revocable; the granted role always comes from the stored record.
 - Security-relevant actions are written to the audit log (admins only).
+- The feedback widget never exposes credentials in host pages; see the [widget security model](docs/feedback-widget.md#security-model).
 - Server URLs submitted by users are never fetched.
 - The container runs as the non-root `node` user with a read-only root filesystem in the provided Compose file.
 
@@ -305,3 +323,5 @@ Key decisions:
 - Project icons are emoji or a coloured initial; uploading a custom project logo is not supported.
 - Single-instance design (in-memory rate limiting, SQLite). Run one container per data volume.
 - The UI is English only.
+- The feedback widget requires reporters to sign in; anonymous widget submissions are not supported.
+- Tickets cannot be archived or deleted (bulk or otherwise); close them with a status.

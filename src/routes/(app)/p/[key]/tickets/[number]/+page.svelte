@@ -679,7 +679,7 @@
 								<Button size="xs" variant="ghost" onclick={() => (relationOpen = false)}
 									>Cancel</Button
 								>
-								<Button size="xs" type="submit">Link</Button>
+								<Button size="xs" type="submit">Link ticket</Button>
 							</div>
 						</form>
 					{/if}

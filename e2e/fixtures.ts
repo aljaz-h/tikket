@@ -31,6 +31,8 @@ export async function goto(page: Page, url: string) {
 }
 
 export async function login(page: Page, user: { username: string; password: string }) {
+	// Start from a signed-out state (signed-in users are redirected away from /login).
+	await page.context().clearCookies();
 	await goto(page, '/login');
 	await page.getByLabel('Username or email').fill(user.username);
 	await page.getByLabel('Password').fill(user.password);

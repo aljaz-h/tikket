@@ -28,7 +28,8 @@
 
 	let token = $state<string | null>(null);
 	let me = $state<string | null>(null);
-	let type = $state<TicketType>('bug');
+	// Writable derived: starts at the configured default, then follows the user's choice.
+	let type = $derived<TicketType>(data.config.defaultType as TicketType);
 	let title = $state('');
 	let description = $state('');
 	let attachments = $state<UploadedItem[]>([]);
@@ -44,10 +45,6 @@
 	let pendingSubmit = false;
 	let popup: Window | null = null;
 	let openedAt = Date.now();
-
-	$effect.pre(() => {
-		type = data.config.defaultType as TicketType;
-	});
 
 	const templates = $derived(data.templates.filter((t) => t.type === type));
 	const template = $derived(
