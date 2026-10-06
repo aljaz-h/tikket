@@ -40,13 +40,20 @@
 		editorOpen = true;
 	}
 	const visibleTickets = $derived(
-		data.completed.filter((t) => !filter || t.title.toLowerCase().includes(filter.toLowerCase()) || String(t.number) === filter.replace(/\D/g, ''))
+		data.completed.filter(
+			(t) =>
+				!filter ||
+				t.title.toLowerCase().includes(filter.toLowerCase()) ||
+				String(t.number) === filter.replace(/\D/g, '')
+		)
 	);
 </script>
 
 <div class="grid gap-6">
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<p class="text-sm text-muted-foreground">Release notes and the completed tickets that shipped with them.</p>
+		<p class="text-sm text-muted-foreground">
+			Release notes and the completed tickets that shipped with them.
+		</p>
 		{#if data.canManage}<Button onclick={() => open(null)}><Plus /> New release</Button>{/if}
 	</div>
 
@@ -54,7 +61,9 @@
 		<ol class="relative grid gap-6 border-l border-border pl-6">
 			{#each data.entries as entry (entry.id)}
 				<li class="relative">
-					<span class="absolute top-1.5 -left-[1.95rem] flex size-4 items-center justify-center rounded-full border border-border bg-background">
+					<span
+						class="absolute top-1.5 -left-[1.95rem] flex size-4 items-center justify-center rounded-full border border-border bg-background"
+					>
 						<span class="size-1.5 rounded-full bg-primary"></span>
 					</span>
 					<Card class="p-5">
@@ -68,8 +77,21 @@
 							</div>
 							{#if data.canManage}
 								<div class="flex gap-1">
-									<Button variant="subtle" size="icon-sm" aria-label="Edit {entry.version}" onclick={() => open(entry)}><Pencil /></Button>
-									<Button variant="subtle" size="icon-sm" aria-label="Delete {entry.version}" onclick={() => { deleting = entry; deleteOpen = true; }}><Trash2 /></Button>
+									<Button
+										variant="subtle"
+										size="icon-sm"
+										aria-label="Edit {entry.version}"
+										onclick={() => open(entry)}><Pencil /></Button
+									>
+									<Button
+										variant="subtle"
+										size="icon-sm"
+										aria-label="Delete {entry.version}"
+										onclick={() => {
+											deleting = entry;
+											deleteOpen = true;
+										}}><Trash2 /></Button
+									>
 								</div>
 							{/if}
 						</div>
@@ -79,8 +101,13 @@
 								{#each entry.tickets as t (t.id)}
 									<li class="flex items-center gap-2 text-sm">
 										<TypeBadge type={t.type as TicketType} iconOnly />
-										<a href={ticketPath(data.project.key, t.number)} class="min-w-0 truncate hover:underline">
-											<span class="font-mono text-xs text-muted-foreground">{ticketRef(data.project.key, t.number)}</span>
+										<a
+											href={ticketPath(data.project.key, t.number)}
+											class="min-w-0 truncate hover:underline"
+										>
+											<span class="font-mono text-xs text-muted-foreground"
+												>{ticketRef(data.project.key, t.number)}</span
+											>
 											{t.title}
 										</a>
 									</li>
@@ -92,46 +119,108 @@
 			{/each}
 		</ol>
 	{:else}
-		<EmptyState icon={Rocket} title="No releases yet" description={data.canManage ? 'Publish a release to tell users what changed. Completed tickets are only listed once you include them.' : 'Release notes will appear here.'}>
+		<EmptyState
+			icon={Rocket}
+			title="No releases yet"
+			description={data.canManage
+				? 'Publish a release to tell users what changed. Completed tickets are only listed once you include them.'
+				: 'Release notes will appear here.'}
+		>
 			{#if data.canManage}<Button onclick={() => open(null)}><Plus /> New release</Button>{/if}
 		</EmptyState>
 	{/if}
 </div>
 
 {#if data.canManage}
-	<Dialog bind:open={editorOpen} title={editing ? `Edit ${editing.version}` : 'New release'} size="lg">
-		<form method="POST" action="?/save" class="grid gap-4" use:enhance={quickSubmit({ success: 'Release saved', onSuccess: () => (editorOpen = false) })}>
+	<Dialog
+		bind:open={editorOpen}
+		title={editing ? `Edit ${editing.version}` : 'New release'}
+		size="lg"
+	>
+		<form
+			method="POST"
+			action="?/save"
+			class="grid gap-4"
+			use:enhance={quickSubmit({ success: 'Release saved', onSuccess: () => (editorOpen = false) })}
+		>
 			{#if editing}<input type="hidden" name="entryId" value={editing.id} />{/if}
 			<div class="grid gap-4 sm:grid-cols-2">
 				<Field label="Version or release name" for="version" required error={errors.version}>
-					<Input id="version" name="version" required maxlength={60} placeholder="v1.4.0" value={editing?.version ?? ''} />
+					<Input
+						id="version"
+						name="version"
+						required
+						maxlength={60}
+						placeholder="v1.4.0"
+						value={editing?.version ?? ''}
+					/>
 				</Field>
 				<Field label="Release date" for="releaseDate" required error={errors.releaseDate}>
-					<Input id="releaseDate" name="releaseDate" type="date" required value={editing?.releaseDate ?? today} />
+					<Input
+						id="releaseDate"
+						name="releaseDate"
+						type="date"
+						required
+						value={editing?.releaseDate ?? today}
+					/>
 				</Field>
 			</div>
 			<Field label="Summary" for="summary" optional>
-				<RichTextEditor id="summary" name="summary" label="Summary" value={editing?.summaryHtml ?? ''} compact minHeight="5rem" placeholder="Highlights of this release…" />
+				<RichTextEditor
+					id="summary"
+					name="summary"
+					label="Summary"
+					value={editing?.summaryHtml ?? ''}
+					compact
+					minHeight="5rem"
+					placeholder="Highlights of this release…"
+				/>
 			</Field>
 			<fieldset class="grid gap-2">
-				<legend class="mb-1 text-[0.8125rem] font-medium">Completed tickets in this release <span class="font-normal text-muted-foreground">({selected.length} selected)</span></legend>
-				<Input bind:value={filter} placeholder="Filter completed tickets…" aria-label="Filter completed tickets" class="h-8" />
+				<legend class="mb-1 text-[0.8125rem] font-medium"
+					>Completed tickets in this release <span class="font-normal text-muted-foreground"
+						>({selected.length} selected)</span
+					></legend
+				>
+				<Input
+					bind:value={filter}
+					placeholder="Filter completed tickets…"
+					aria-label="Filter completed tickets"
+					class="h-8"
+				/>
 				<div class="grid max-h-56 gap-0.5 overflow-y-auto rounded-md border border-border p-1">
 					{#each visibleTickets as t (t.id)}
 						<label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-hover">
-							<input type="checkbox" name="ticketId" value={t.id} bind:group={selected} class="size-4 accent-[var(--primary)]" />
-							<span class="font-mono text-xs text-muted-foreground">{ticketRef(data.project.key, t.number)}</span>
+							<input
+								type="checkbox"
+								name="ticketId"
+								value={t.id}
+								bind:group={selected}
+								class="size-4 accent-[var(--primary)]"
+							/>
+							<span class="font-mono text-xs text-muted-foreground"
+								>{ticketRef(data.project.key, t.number)}</span
+							>
 							<span class="min-w-0 flex-1 truncate">{t.title}</span>
 						</label>
 					{:else}
-						<p class="px-2 py-4 text-center text-xs text-muted-foreground">No completed tickets yet.</p>
+						<p class="px-2 py-4 text-center text-xs text-muted-foreground">
+							No completed tickets yet.
+						</p>
 					{/each}
 				</div>
-				{#each selected.filter((id) => !visibleTickets.some((t) => t.id === id)) as id (id)}<input type="hidden" name="ticketId" value={id} />{/each}
+				{#each selected.filter((id) => !visibleTickets.some((t) => t.id === id)) as id (id)}<input
+						type="hidden"
+						name="ticketId"
+						value={id}
+					/>{/each}
 			</fieldset>
 			<label class="flex items-center gap-3 text-sm">
 				<Switch name="published" bind:checked={published} />
-				Published <span class="text-xs text-muted-foreground">— drafts are only visible to project owners</span>
+				Published
+				<span class="text-xs text-muted-foreground"
+					>— drafts are only visible to project owners</span
+				>
 			</label>
 			<div class="flex justify-end gap-2">
 				<Button variant="ghost" onclick={() => (editorOpen = false)}>Cancel</Button>
@@ -140,6 +229,15 @@
 		</form>
 	</Dialog>
 	{#if deleting}
-		<ConfirmDialog bind:open={deleteOpen} title="Delete {deleting.version}?" description="The release note is removed. Tickets are not affected." confirmLabel="Delete" destructive action="?/delete" fields={{ entryId: deleting.id }} successMessage="Release deleted" />
+		<ConfirmDialog
+			bind:open={deleteOpen}
+			title="Delete {deleting.version}?"
+			description="The release note is removed. Tickets are not affected."
+			confirmLabel="Delete"
+			destructive
+			action="?/delete"
+			fields={{ entryId: deleting.id }}
+			successMessage="Release deleted"
+		/>
 	{/if}
 {/if}

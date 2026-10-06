@@ -16,7 +16,10 @@
 </script>
 
 <div class="grid gap-6">
-	<PageHeader title="Projects" description="Every project you can access. Pick one to browse tickets or report something new.">
+	<PageHeader
+		title="Projects"
+		description="Every project you can access. Pick one to browse tickets or report something new."
+	>
 		{#snippet actions()}
 			{#if data.canCreateProjects}<Button href="/projects/new"><Plus /> New project</Button>{/if}
 		{/snippet}
@@ -27,8 +30,12 @@
 			<a
 				href={tab.href}
 				aria-current={tab.active ? 'page' : undefined}
-				class={cn('-mb-px border-b-2 px-3 py-2 text-sm', tab.active ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}
-				>{tab.label}</a
+				class={cn(
+					'-mb-px border-b-2 px-3 py-2 text-sm',
+					tab.active
+						? 'border-primary font-medium text-foreground'
+						: 'border-transparent text-muted-foreground hover:text-foreground'
+				)}>{tab.label}</a
 			>
 		{/each}
 	</nav>
@@ -39,13 +46,17 @@
 				<li class="relative flex items-center gap-4 px-4 py-3.5 hover:bg-hover">
 					<ProjectIcon {project} size="md" />
 					<div class="min-w-0 flex-1">
-						<a href={projectPath(project.key)} class="font-medium after:absolute after:inset-0">{project.name}</a>
+						<a href={projectPath(project.key)} class="font-medium after:absolute after:inset-0"
+							>{project.name}</a
+						>
 						<p class="truncate text-sm text-muted-foreground">{project.description ?? ''}</p>
 					</div>
 					<div class="hidden items-center gap-2 sm:flex">
 						{#if project.role}<Badge>{PROJECT_ROLE_META[project.role].label}</Badge>{/if}
 						<Badge>
-							{#if project.visibility === 'private'}<Lock class="size-3" /> Private{:else}<Globe class="size-3" /> Public{/if}
+							{#if project.visibility === 'private'}<Lock class="size-3" /> Private{:else}<Globe
+									class="size-3"
+								/> Public{/if}
 						</Badge>
 					</div>
 					<div class="w-20 text-right text-sm">
@@ -56,8 +67,14 @@
 			{/each}
 		</ul>
 	{:else}
-		<EmptyState icon={FolderKanban} title={data.showArchived ? 'No archived projects' : 'No projects yet'} description={data.showArchived ? undefined : 'Projects you are invited to will appear here.'}>
-			{#if data.canCreateProjects && !data.showArchived}<Button href="/projects/new"><Plus /> Create project</Button>{/if}
+		<EmptyState
+			icon={FolderKanban}
+			title={data.showArchived ? 'No archived projects' : 'No projects yet'}
+			description={data.showArchived ? undefined : 'Projects you are invited to will appear here.'}
+		>
+			{#if data.canCreateProjects && !data.showArchived}<Button href="/projects/new"
+					><Plus /> Create project</Button
+				>{/if}
 		</EmptyState>
 	{/if}
 </div>

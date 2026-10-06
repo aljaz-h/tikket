@@ -12,7 +12,9 @@ export const actions: Actions = {
 	default: async ({ locals, request }) => {
 		const user = requireActionUser(locals);
 		const form = await request.formData();
-		const prefs = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t, form.get(t) === 'on'])) as NotificationPrefs;
+		const prefs = Object.fromEntries(
+			NOTIFICATION_TYPES.map((t) => [t, form.get(t) === 'on'])
+		) as NotificationPrefs;
 		setNotificationPrefs(user.id, prefs);
 		return { saved: true };
 	}

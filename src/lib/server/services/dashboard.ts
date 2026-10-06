@@ -8,9 +8,20 @@ import { queryTickets, viewableTicketsCondition } from './search';
 
 const t = schema.tickets;
 
-function recent(actor: Actor, scope: ReturnType<typeof and>, limit = 6, sort: 'recent' | 'updated' = 'recent') {
+function recent(
+	actor: Actor,
+	scope: ReturnType<typeof and>,
+	limit = 6,
+	sort: 'recent' | 'updated' = 'recent'
+) {
 	const filters = { ...parseTicketFilters(new URLSearchParams()), sort };
-	return queryTickets({ scope: and(viewableTicketsCondition(actor), scope), filters, pageSize: limit, actorId: actor?.id, excludeArchived: true }).rows;
+	return queryTickets({
+		scope: and(viewableTicketsCondition(actor), scope),
+		filters,
+		pageSize: limit,
+		actorId: actor?.id,
+		excludeArchived: true
+	}).rows;
 }
 
 export function userDashboard(actor: NonNullable<Actor>) {
@@ -33,7 +44,12 @@ export function userDashboard(actor: NonNullable<Actor>) {
 export function managedProjectIds(actor: NonNullable<Actor>): number[] {
 	const db = getDb();
 	if (actor.role === 'admin')
-		return db.select({ id: schema.projects.id }).from(schema.projects).where(isNull(schema.projects.archivedAt)).all().map((r) => r.id);
+		return db
+			.select({ id: schema.projects.id })
+			.from(schema.projects)
+			.where(isNull(schema.projects.archivedAt))
+			.all()
+			.map((r) => r.id);
 	return db
 		.select({ id: schema.projectMembers.projectId })
 		.from(schema.projectMembers)
@@ -68,7 +84,12 @@ export function staffDashboard(actor: NonNullable<Actor>, projectIds: number[]) 
 
 	const filters = parseTicketFilters(new URLSearchParams());
 	const base = { actorId: actor.id, excludeArchived: true };
-	const needsReview = queryTickets({ ...base, scope: and(inScope, eq(t.status, 'open')), filters: { ...filters, sort: 'newest' }, pageSize: 8 }).rows;
+	const needsReview = queryTickets({
+		...base,
+		scope: and(inScope, eq(t.status, 'open')),
+		filters: { ...filters, sort: 'newest' },
+		pageSize: 8
+	}).rows;
 	const mostVoted = queryTickets({
 		...base,
 		scope: and(inScope, inArray(t.status, UNRESOLVED_STATUSES), sql`${t.voteCount} > 0`),
@@ -122,13 +143,34 @@ export function staffDashboard(actor: NonNullable<Actor>, projectIds: number[]) 
 export function roadmap(projectId: number) {
 	const db = getDb();
 	const columns = ['planned', 'in_progress', 'completed'] as const;
-	const result = {} as Record<(typeof columns)[number], { number: number; title: string; type: string; status: string; voteCount: number; completedAt: Date | null; updatedAt: Date }[]>;
+	const result = {} as Record<
+		(typeof columns)[number],
+		{
+			number: number;
+			title: string;
+			type: string;
+			status: string;
+			voteCount: number;
+			completedAt: Date | null;
+			updatedAt: Date;
+		}[]
+	>;
 	for (const status of columns) {
 		result[status] = db
-			.select({ number: t.number, title: t.title, type: t.type, status: t.status, voteCount: t.voteCount, completedAt: t.completedAt, updatedAt: t.updatedAt })
+			.select({
+				number: t.number,
+				title: t.title,
+				type: t.type,
+				status: t.status,
+				voteCount: t.voteCount,
+				completedAt: t.completedAt,
+				updatedAt: t.updatedAt
+			})
 			.from(t)
 			.where(and(eq(t.projectId, projectId), eq(t.status, status)))
-			.orderBy(...(status === 'completed' ? [desc(t.completedAt)] : [desc(t.voteCount), desc(t.updatedAt)]))
+			.orderBy(
+				...(status === 'completed' ? [desc(t.completedAt)] : [desc(t.voteCount), desc(t.updatedAt)])
+			)
 			.limit(status === 'completed' ? 30 : 100)
 			.all();
 	}

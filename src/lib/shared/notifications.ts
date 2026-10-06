@@ -1,4 +1,11 @@
-import { STATUS_META, TICKET_PRIORITIES, PRIORITY_META, type NotificationType, type TicketStatus, type TicketPriority } from './constants';
+import {
+	STATUS_META,
+	TICKET_PRIORITIES,
+	PRIORITY_META,
+	type NotificationType,
+	type TicketStatus,
+	type TicketPriority
+} from './constants';
 
 export interface NotificationLike {
 	type: NotificationType;

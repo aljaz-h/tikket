@@ -50,17 +50,23 @@
 		</div>
 		<MenuSeparator />
 		<MenuItem>
-			{#snippet child({ props })}<a href="/settings/profile" {...props}><UserIcon /> Profile</a>{/snippet}
+			{#snippet child({ props })}<a href="/settings/profile" {...props}><UserIcon /> Profile</a
+				>{/snippet}
 		</MenuItem>
 		<MenuItem>
-			{#snippet child({ props })}<a href="/settings/security" {...props}><KeyRound /> Password & sessions</a>{/snippet}
+			{#snippet child({ props })}<a href="/settings/security" {...props}
+					><KeyRound /> Password & sessions</a
+				>{/snippet}
 		</MenuItem>
 		<MenuItem>
-			{#snippet child({ props })}<a href="/settings/notifications" {...props}><Bell /> Notification settings</a>{/snippet}
+			{#snippet child({ props })}<a href="/settings/notifications" {...props}
+					><Bell /> Notification settings</a
+				>{/snippet}
 		</MenuItem>
 		{#if user.role === 'admin'}
 			<MenuItem>
-				{#snippet child({ props })}<a href="/admin" {...props}><Shield /> Administration</a>{/snippet}
+				{#snippet child({ props })}<a href="/admin" {...props}><Shield /> Administration</a
+					>{/snippet}
 			</MenuItem>
 		{/if}
 		<MenuSeparator />

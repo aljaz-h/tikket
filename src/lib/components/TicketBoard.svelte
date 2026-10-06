@@ -72,12 +72,15 @@
 
 <div class="sr-only" aria-live="polite">{announcement}</div>
 
-<div class="scrollbar-thin -mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+<div class="relative -mx-4 scrollbar-thin overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
 	<div class="flex min-w-max gap-3">
 		{#each statuses as status (status)}
 			<section
 				aria-label="{STATUS_META[status].label} ({totals[status]})"
-				class={cn('flex w-72 shrink-0 flex-col rounded-xl border border-border bg-surface-2/60 transition-colors', over === status && dragging && 'border-primary bg-primary-soft')}
+				class={cn(
+					'flex w-72 shrink-0 flex-col rounded-xl border border-border bg-surface-2/60 transition-colors',
+					over === status && dragging && 'border-primary bg-primary-soft'
+				)}
 				ondragover={(e) => {
 					if (!dragging) return;
 					e.preventDefault();
@@ -96,7 +99,9 @@
 					<h2 class="text-sm font-medium">{STATUS_META[status].label}</h2>
 					<span class="text-xs text-muted-foreground tabular-nums">{totals[status]}</span>
 				</header>
-				<ul class="grid max-h-[calc(100dvh-16rem)] min-h-24 content-start gap-2 overflow-y-auto px-2 pb-2">
+				<ul
+					class="grid max-h-[calc(100dvh-16rem)] min-h-24 content-start gap-2 overflow-y-auto px-2 pb-2"
+				>
 					{#each columns[status] as t (t.id)}
 						<li
 							draggable={canManage}
@@ -108,19 +113,32 @@
 								dragging = null;
 								over = null;
 							}}
-							class={cn('rounded-lg border border-border bg-surface p-2.5 shadow-card transition-opacity', canManage && 'cursor-grab active:cursor-grabbing', busy === t.number && 'opacity-50')}
+							class={cn(
+								'rounded-lg border border-border bg-surface p-2.5 shadow-card transition-opacity',
+								canManage && 'cursor-grab active:cursor-grabbing',
+								busy === t.number && 'opacity-50'
+							)}
 						>
-							<a href={ticketPath(projectKey, t.number)} class="block text-sm font-medium [overflow-wrap:anywhere] hover:underline">{t.title}</a>
+							<a
+								href={ticketPath(projectKey, t.number)}
+								class="block text-sm font-medium [overflow-wrap:anywhere] hover:underline"
+								>{t.title}</a
+							>
 							{#if t.labels.length}
 								<div class="mt-1.5 flex flex-wrap gap-1">
-									{#each t.labels as l (l.id)}<span class="swatch-bg swatch-{l.color} rounded px-1.5 text-[0.6875rem] font-medium">{l.name}</span>{/each}
+									{#each t.labels as l (l.id)}<span
+											class="swatch-bg swatch-{l.color} rounded px-1.5 text-[0.6875rem] font-medium"
+											>{l.name}</span
+										>{/each}
 								</div>
 							{/if}
 							<div class="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
 								<span class="font-mono">{ticketRef(projectKey, t.number)}</span>
 								<TypeBadge type={t.type} iconOnly />
 								<PriorityBadge priority={t.priority} iconOnly />
-								<span class="ml-auto flex items-center gap-0.5 tabular-nums"><ArrowBigUp class="size-3.5" />{t.voteCount}</span>
+								<span class="ml-auto flex items-center gap-0.5 tabular-nums"
+									><ArrowBigUp class="size-3.5" />{t.voteCount}</span
+								>
 								{#if t.assignee}<UserAvatar user={t.assignee} size="xs" />{/if}
 							</div>
 							{#if canManage}
@@ -138,16 +156,23 @@
 											request(t.number, t.status, to);
 										}}
 									>
-										{#each TICKET_STATUSES as s (s)}<option value={s}>{STATUS_META[s].label}</option>{/each}
+										{#each TICKET_STATUSES as s (s)}<option value={s}>{STATUS_META[s].label}</option
+											>{/each}
 									</select>
 								</label>
 							{/if}
 						</li>
 					{:else}
-						<li class="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">No tickets</li>
+						<li
+							class="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground"
+						>
+							No tickets
+						</li>
 					{/each}
 					{#if totals[status] > columns[status].length}
-						<li class="px-1 text-center text-xs text-muted-foreground">+{totals[status] - columns[status].length} more — use the list view</li>
+						<li class="px-1 text-center text-xs text-muted-foreground">
+							+{totals[status] - columns[status].length} more — use the list view
+						</li>
 					{/if}
 				</ul>
 			</section>
@@ -155,7 +180,12 @@
 	</div>
 </div>
 
-<Dialog bind:open={duplicateOpen} title="Mark as duplicate" description="Which ticket does this one duplicate? Followers will be subscribed to the original." size="sm">
+<Dialog
+	bind:open={duplicateOpen}
+	title="Mark as duplicate"
+	description="Which ticket does this one duplicate? Followers will be subscribed to the original."
+	size="sm"
+>
 	<form
 		class="grid gap-3"
 		onsubmit={(e) => {
@@ -166,7 +196,13 @@
 			}
 		}}
 	>
-		<Input bind:value={duplicateTarget} placeholder="{projectKey}-12" aria-label="Original ticket" class="font-mono" required />
+		<Input
+			bind:value={duplicateTarget}
+			placeholder="{projectKey}-12"
+			aria-label="Original ticket"
+			class="font-mono"
+			required
+		/>
 		<div class="flex justify-end gap-2">
 			<Button variant="ghost" onclick={() => (duplicateOpen = false)}>Cancel</Button>
 			<Button type="submit">Mark duplicate</Button>

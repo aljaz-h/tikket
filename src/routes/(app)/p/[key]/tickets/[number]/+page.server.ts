@@ -53,8 +53,20 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			...detail,
 			comments: detail.comments.map((c) => ({
 				...c,
-				canEdit: canEditComment(access, user, { ...c, ticketId: ticket.id, bodyText: '', updatedAt: c.createdAt, deletedById: null }),
-				canDelete: canDeleteComment(access, user, { ...c, ticketId: ticket.id, bodyText: '', updatedAt: c.createdAt, deletedById: null })
+				canEdit: canEditComment(access, user, {
+					...c,
+					ticketId: ticket.id,
+					bodyText: '',
+					updatedAt: c.createdAt,
+					deletedById: null
+				}),
+				canDelete: canDeleteComment(access, user, {
+					...c,
+					ticketId: ticket.id,
+					bodyText: '',
+					updatedAt: c.createdAt,
+					deletedById: null
+				})
 			}))
 		},
 		voters: access.project.votingEnabled ? recentVoters(ticket.id) : [],
@@ -82,7 +94,8 @@ export const actions: Actions = {
 			checkWriteLimit(user.id);
 			for (const file of form.getAll('files')) {
 				if (file instanceof File && file.size > 0) {
-					if (!access.canAttach) return fail(400, { errors: { attachments: 'Attachments are disabled' }, values: {} });
+					if (!access.canAttach)
+						return fail(400, { errors: { attachments: 'Attachments are disabled' }, values: {} });
 					ids.push((await storeImage(file, { uploaderId: user.id })).id);
 				}
 			}
@@ -155,7 +168,8 @@ export const actions: Actions = {
 		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
 		const raw = String((await request.formData()).get('assigneeId') ?? '');
 		const assigneeId = raw === '' || raw === 'none' ? null : intParam(raw);
-		if (raw && raw !== 'none' && assigneeId === null) return fail(400, { errors: { assignee: 'Invalid assignee' }, values: {} });
+		if (raw && raw !== 'none' && assigneeId === null)
+			return fail(400, { errors: { assignee: 'Invalid assignee' }, values: {} });
 		try {
 			assignTicket(user, access, ticket, assigneeId);
 		} catch (err) {
@@ -167,7 +181,10 @@ export const actions: Actions = {
 	labels: async ({ locals, params, request }) => {
 		const user = requireActionUser(locals);
 		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
-		const ids = (await request.formData()).getAll('labelId').map((v) => intParam(String(v))).filter((v): v is number => v !== null);
+		const ids = (await request.formData())
+			.getAll('labelId')
+			.map((v) => intParam(String(v)))
+			.filter((v): v is number => v !== null);
 		try {
 			setTicketLabels(user, access, ticket, ids);
 		} catch (err) {

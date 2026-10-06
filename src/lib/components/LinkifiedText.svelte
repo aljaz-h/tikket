@@ -4,7 +4,7 @@
 	const segments = $derived(linkify(text));
 </script>
 
-<p class={['whitespace-pre-wrap [overflow-wrap:anywhere]', className]}>
+<p class={['[overflow-wrap:anywhere] whitespace-pre-wrap', className]}>
 	{#each segments as seg, i (i)}{#if seg.type === 'link'}<a
 				href={seg.href}
 				target="_blank"

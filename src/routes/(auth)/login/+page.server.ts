@@ -24,7 +24,10 @@ export const actions: Actions = {
 
 		const wait = Math.max(limiters.loginAccount.check(accountKey), limiters.loginIp.check(ipKey));
 		if (wait)
-			return fail(429, { errors: { form: `Too many sign-in attempts. Try again in ${formatWait(wait)}.` }, values });
+			return fail(429, {
+				errors: { form: `Too many sign-in attempts. Try again in ${formatWait(wait)}.` },
+				values
+			});
 		limiters.loginIp.hit(ipKey);
 
 		const user = await authenticate(identifier, password);
@@ -33,7 +36,14 @@ export const actions: Actions = {
 			return fail(400, { errors: { form: 'Incorrect username/email or password.' }, values });
 		}
 		limiters.loginAccount.reset(accountKey);
-		signIn(cookies, user.id, { ip: locals.clientIp, userAgent: request.headers.get('user-agent'), secure: isSecure(event) });
-		redirect(303, safeRedirectTarget(String(form.get('next') ?? '') || url.searchParams.get('next')));
+		signIn(cookies, user.id, {
+			ip: locals.clientIp,
+			userAgent: request.headers.get('user-agent'),
+			secure: isSecure(event)
+		});
+		redirect(
+			303,
+			safeRedirectTarget(String(form.get('next') ?? '') || url.searchParams.get('next'))
+		);
 	}
 };

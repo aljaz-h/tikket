@@ -106,7 +106,12 @@ export function deleteExpiredSessions() {
 		.changes;
 }
 
-export function setSessionCookie(cookies: Cookies, token: string, expiresAt: Date, secure: boolean) {
+export function setSessionCookie(
+	cookies: Cookies,
+	token: string,
+	expiresAt: Date,
+	secure: boolean
+) {
 	cookies.set(SESSION_COOKIE, token, {
 		path: '/',
 		httpOnly: true,

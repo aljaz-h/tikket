@@ -1,10 +1,16 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import NativeSelect from '../ui/native-select.svelte';
 	import Textarea from '../ui/textarea.svelte';
 	import Input from '../ui/input.svelte';
 	import Button from '../ui/button.svelte';
-	import { STATUS_META, STATUSES_WITH_NOTE, TICKET_STATUSES, type TicketStatus } from '$lib/shared/constants';
+	import {
+		STATUS_META,
+		STATUSES_WITH_NOTE,
+		TICKET_STATUSES,
+		type TicketStatus
+	} from '$lib/shared/constants';
 	import { quickSubmit } from './enhance';
 
 	interface Props {
@@ -12,13 +18,10 @@
 		projectKey: string;
 	}
 	let { status, projectKey }: Props = $props();
-	let selected = $state<TicketStatus>('open');
+	let selected = $derived<TicketStatus>(status);
 	let formEl: HTMLFormElement | undefined = $state();
 	let js = $state(false);
-	$effect.pre(() => {
-		selected = status;
-	});
-	$effect(() => {
+	onMount(() => {
 		js = true;
 	});
 
@@ -47,15 +50,30 @@
 			{#if selected === 'duplicate' || !js}
 				<label class="grid gap-1 text-xs font-medium">
 					Duplicate of {#if !js}(only for “Duplicate”){/if}
-					<Input name="duplicateOf" placeholder="{projectKey}-12" required={selected === 'duplicate' && js} class="h-8 font-mono" />
+					<Input
+						name="duplicateOf"
+						placeholder="{projectKey}-12"
+						required={selected === 'duplicate' && js}
+						class="h-8 font-mono"
+					/>
 				</label>
 			{/if}
 			<label class="grid gap-1 text-xs font-medium">
-				{selected === 'completed' ? 'Resolution note' : 'Explanation'} <span class="font-normal text-muted-foreground">(optional, visible to everyone)</span>
-				<Textarea name="note" rows={2} maxlength={2000} class="min-h-14" placeholder={selected === 'completed' ? 'Fixed in version 1.4' : 'Why this decision was made'} />
+				{selected === 'completed' ? 'Resolution note' : 'Explanation'}
+				<span class="font-normal text-muted-foreground">(optional, visible to everyone)</span>
+				<Textarea
+					name="note"
+					rows={2}
+					maxlength={2000}
+					class="min-h-14"
+					placeholder={selected === 'completed'
+						? 'Fixed in version 1.4'
+						: 'Why this decision was made'}
+				/>
 			</label>
 			<div class="flex justify-end gap-2">
-				{#if js}<Button size="xs" variant="ghost" onclick={() => (selected = status)}>Cancel</Button>{/if}
+				{#if js}<Button size="xs" variant="ghost" onclick={() => (selected = status)}>Cancel</Button
+					>{/if}
 				<Button size="xs" type="submit">Update status</Button>
 			</div>
 		</div>

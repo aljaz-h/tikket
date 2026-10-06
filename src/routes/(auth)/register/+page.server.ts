@@ -18,17 +18,31 @@ export const actions: Actions = {
 		const { request, locals, cookies } = event;
 		if (!getSettings().registrationEnabled) error(403, 'Registration is disabled');
 		const wait = limiters.signup.hit(`register:${locals.clientIp}`);
-		if (wait) return fail(429, { errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` }, values: {} });
+		if (wait)
+			return fail(429, {
+				errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` },
+				values: {}
+			});
 		const parsed = parseForm(accountSchema, await request.formData());
 		if (!parsed.ok) return parsed.failure;
 		let userId: number;
 		try {
 			// Public sign-ups always receive the normal user role.
-			userId = (await createUser({ ...parsed.data, role: 'user' }, null, locals.clientIp, 'user.registered')).id;
+			userId = (
+				await createUser({ ...parsed.data, role: 'user' }, null, locals.clientIp, 'user.registered')
+			).id;
 		} catch (err) {
-			return handleServiceError(err, { username: parsed.data.username, email: parsed.data.email, displayName: parsed.data.displayName });
+			return handleServiceError(err, {
+				username: parsed.data.username,
+				email: parsed.data.email,
+				displayName: parsed.data.displayName
+			});
 		}
-		signIn(cookies, userId, { ip: locals.clientIp, userAgent: request.headers.get('user-agent'), secure: isSecure(event) });
+		signIn(cookies, userId, {
+			ip: locals.clientIp,
+			userAgent: request.headers.get('user-agent'),
+			secure: isSecure(event)
+		});
 		redirect(303, '/');
 	}
 };

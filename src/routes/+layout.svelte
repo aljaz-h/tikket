@@ -10,7 +10,9 @@
 	onMount(() => {
 		document.documentElement.dataset.hydrated = 'true';
 	});
-	const toasterTheme = $derived(data.theme === 'light' ? 'light' : data.theme === 'dark' ? 'dark' : 'system');
+	const toasterTheme = $derived(
+		data.theme === 'light' ? 'light' : data.theme === 'dark' ? 'dark' : 'system'
+	);
 </script>
 
 <svelte:head>

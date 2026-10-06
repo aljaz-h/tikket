@@ -19,7 +19,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!(file instanceof File)) error(400, 'No file received');
 	try {
 		const att = await storeImage(file, { uploaderId: user.id });
-		return json({ id: att.id, name: att.originalName, size: att.size, width: att.width, height: att.height }, { status: 201 });
+		return json(
+			{ id: att.id, name: att.originalName, size: att.size, width: att.width, height: att.height },
+			{ status: 201 }
+		);
 	} catch (err) {
 		if (err instanceof UploadError) error(400, err.message);
 		throw err;

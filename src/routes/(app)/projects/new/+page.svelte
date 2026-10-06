@@ -15,7 +15,10 @@
 </script>
 
 <div class="mx-auto grid max-w-2xl gap-6">
-	<PageHeader title="New project" description="Projects keep tickets, members, the roadmap and changelog together." />
+	<PageHeader
+		title="New project"
+		description="Projects keep tickets, members, the roadmap and changelog together."
+	/>
 	<Card class="p-5 sm:p-6">
 		<form
 			method="POST"
@@ -31,7 +34,12 @@
 			<FormMessage message={errors.form} />
 			<ProjectFields {errors} {values} />
 			{#if data.owners.length}
-				<Field label="Owner" for="ownerId" error={errors.ownerId} hint="The owner manages the project, its members and settings.">
+				<Field
+					label="Owner"
+					for="ownerId"
+					error={errors.ownerId}
+					hint="The owner manages the project, its members and settings."
+				>
 					<NativeSelect id="ownerId" name="ownerId" value={values.ownerId ?? String(data.user?.id)}>
 						{#each data.owners as owner (owner.id)}
 							<option value={String(owner.id)}>{owner.displayName} (@{owner.username})</option>

@@ -26,7 +26,8 @@ export function validateStatusChange(
 	if (!(to in STATUS_META)) return 'Unknown status';
 	if (to === 'duplicate') {
 		if (!target) return 'Enter the ticket this one duplicates';
-		if (target.projectId !== ticket.projectId) return 'The original ticket must be in the same project';
+		if (target.projectId !== ticket.projectId)
+			return 'The original ticket must be in the same project';
 		if (target.id === ticket.id) return 'A ticket cannot duplicate itself';
 		if (target.status === 'duplicate' || target.duplicateOfId === ticket.id)
 			return 'The original ticket is itself marked as a duplicate';

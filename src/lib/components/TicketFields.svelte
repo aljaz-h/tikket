@@ -52,7 +52,7 @@
 	let moreOpen = $state(false);
 </script>
 
-<div class="grid gap-5">
+<div class="grid min-w-0 grid-cols-1 gap-5">
 	<Field label="Title" for="title" required error={errors.title}>
 		<Input
 			id="title"
@@ -73,14 +73,18 @@
 	{@render afterTitle?.()}
 
 	<Field label={meta.descriptionLabel} for="description" required error={errors.description}>
-		<p id="description-hint" class="-mt-0.5 text-xs text-muted-foreground">{meta.descriptionHint} You can paste links and formatted text.</p>
+		<p id="description-hint" class="-mt-0.5 text-xs text-muted-foreground">
+			{meta.descriptionHint} You can paste links and formatted text.
+		</p>
 		{#key editorKey}
 			<RichTextEditor
 				id="description"
 				name="description"
 				label={meta.descriptionLabel}
 				value={draft.description}
-				placeholder={type === 'bug' ? 'When I mark an episode as watched, the progress bar still shows the previous percentage…' : 'Describe it in your own words…'}
+				placeholder={type === 'bug'
+					? 'When I mark an episode as watched, the progress bar still shows the previous percentage…'
+					: 'Describe it in your own words…'}
 				invalid={!!errors.description}
 				describedby="description-hint"
 				onchange={(html) => {
@@ -93,7 +97,13 @@
 	</Field>
 
 	{#each urlFields as field (field.key)}
-		<Field label={field.label} for="ctx_{field.key}" optional error={errors[`ctx_${field.key}`]} hint="The page where the problem happens.">
+		<Field
+			label={field.label}
+			for="ctx_{field.key}"
+			optional
+			error={errors[`ctx_${field.key}`]}
+			hint="The page where the problem happens."
+		>
 			<Input
 				id="ctx_{field.key}"
 				name="ctx_{field.key}"
@@ -108,15 +118,30 @@
 	{/each}
 
 	{#if textFields.length}
-		<details class="group rounded-lg border border-border" open={moreOpen || filledContext || type === 'bug' || undefined} ontoggle={(e) => (moreOpen = (e.currentTarget as HTMLDetailsElement).open)}>
-			<summary class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium select-none [&::-webkit-details-marker]:hidden">
-				<ChevronRight class="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
+		<details
+			class="group rounded-lg border border-border"
+			open={moreOpen || filledContext || type === 'bug' || undefined}
+			ontoggle={(e) => (moreOpen = (e.currentTarget as HTMLDetailsElement).open)}
+		>
+			<summary
+				class="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium select-none [&::-webkit-details-marker]:hidden"
+			>
+				<ChevronRight
+					class="size-4 text-muted-foreground transition-transform group-open:rotate-90"
+				/>
 				More details
-				<span class="text-xs font-normal text-subtle-foreground">Optional — helps us understand faster</span>
+				<span class="text-xs font-normal text-subtle-foreground"
+					>Optional — helps us understand faster</span
+				>
 			</summary>
 			<div class="grid gap-4 border-t border-border p-3">
 				{#each textFields as field (field.key)}
-					<Field label={field.label} for="ctx_{field.key}" optional error={errors[`ctx_${field.key}`]}>
+					<Field
+						label={field.label}
+						for="ctx_{field.key}"
+						optional
+						error={errors[`ctx_${field.key}`]}
+					>
 						<Textarea
 							id="ctx_{field.key}"
 							name="ctx_{field.key}"

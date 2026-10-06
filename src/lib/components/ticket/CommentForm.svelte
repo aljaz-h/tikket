@@ -84,7 +84,15 @@
 			/>
 		{/key}
 		{#if allowAttachments}
-			<AttachmentUploader bind:items={attachments} compact label="Comment images" maxFiles={limits.maxFiles} maxSize={limits.maxSize} accept={limits.accept} onchange={(items) => (hasContent = hasContent || items.length > 0)} />
+			<AttachmentUploader
+				bind:items={attachments}
+				compact
+				label="Comment images"
+				maxFiles={limits.maxFiles}
+				maxSize={limits.maxSize}
+				accept={limits.accept}
+				onchange={(items) => (hasContent = hasContent || items.length > 0)}
+			/>
 		{/if}
 		<div class="flex items-center justify-end gap-2">
 			<span class="hidden text-xs text-muted-foreground sm:inline">Ctrl + Enter to post</span>

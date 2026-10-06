@@ -11,7 +11,7 @@
 	let { text, side = 'top', disabled = false, children }: Props = $props();
 </script>
 
-<Tooltip.Root delayDuration={250} disabled={disabled}>
+<Tooltip.Root delayDuration={250} {disabled}>
 	<Tooltip.Trigger>
 		{#snippet child({ props })}
 			{@render children({ props })}

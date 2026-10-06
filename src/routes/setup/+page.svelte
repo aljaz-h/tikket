@@ -33,8 +33,19 @@
 			}}
 		>
 			<FormMessage message={errors.form} />
-			<Field label="Workspace name" for="appName" optional hint="Shown in the sidebar and page titles.">
-				<Input id="appName" name="appName" placeholder="Tikket" maxlength={60} value={values.appName ?? ''} />
+			<Field
+				label="Workspace name"
+				for="appName"
+				optional
+				hint="Shown in the sidebar and page titles."
+			>
+				<Input
+					id="appName"
+					name="appName"
+					placeholder="Tikket"
+					maxlength={60}
+					value={values.appName ?? ''}
+				/>
 			</Field>
 			<AccountFields {errors} {values} />
 			<Button type="submit" class="mt-1 w-full" loading={pending}>Create administrator</Button>

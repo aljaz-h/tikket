@@ -22,11 +22,13 @@ export function serveAttachment(
 		'cache-control': opts.cache ?? 'private, max-age=86400',
 		etag,
 		'x-content-type-options': 'nosniff',
-		'content-security-policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
+		'content-security-policy':
+			"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
 		'cross-origin-resource-policy': 'same-origin',
 		'content-disposition': `${opts.download ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(att.originalName)}`
 	});
-	if (opts.request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
+	if (opts.request.headers.get('if-none-match') === etag)
+		return new Response(null, { status: 304, headers });
 	headers.set('content-length', String(stat.size));
 	const stream = Readable.toWeb(fs.createReadStream(file)) as ReadableStream;
 	return new Response(stream, { headers });

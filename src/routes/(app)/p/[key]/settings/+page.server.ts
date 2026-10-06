@@ -2,7 +2,11 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { requireProject } from '$lib/server/authz';
 import { handleServiceError, intParam, requireActionUser } from '$lib/server/http';
-import { createInvitation, listInvitations, revokeInvitation } from '$lib/server/services/invitations';
+import {
+	createInvitation,
+	listInvitations,
+	revokeInvitation
+} from '$lib/server/services/invitations';
 import {
 	addMember,
 	changeMemberRole,
@@ -17,7 +21,12 @@ import {
 } from '$lib/server/services/projects';
 import { findUserByIdentifier } from '$lib/server/services/users';
 import { getSettings } from '$lib/server/settings';
-import { email as emailSchema, parseForm, projectRoleSchema, projectSettingsSchema } from '$lib/server/validation';
+import {
+	email as emailSchema,
+	parseForm,
+	projectRoleSchema,
+	projectSettingsSchema
+} from '$lib/server/validation';
 import { LABEL_COLORS } from '$lib/shared/constants';
 import { projectPath } from '$lib/shared/format';
 import type { Actions, PageServerLoad } from './$types';
@@ -28,7 +37,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		title: `Settings · ${access.project.name}`,
 		members: listMembers(access.project.id),
 		labels: listLabels(access.project.id),
-		invitations: listInvitations(access.project.id).filter((i) => !i.usedAt && !i.revokedAt && new Date(i.expiresAt) > new Date()),
+		invitations: listInvitations(access.project.id).filter(
+			(i) => !i.usedAt && !i.revokedAt && new Date(i.expiresAt) > new Date()
+		),
 		invitationLifetimeDays: getSettings().invitationLifetimeDays
 	};
 };
@@ -38,7 +49,10 @@ function owner(locals: App.Locals, key: string) {
 	return { user, access: requireProject(user, key, 'owner') };
 }
 
-const labelSchema = z.object({ name: z.string().trim().min(1, 'Name is required').max(40), color: z.enum(LABEL_COLORS) });
+const labelSchema = z.object({
+	name: z.string().trim().min(1, 'Name is required').max(40),
+	color: z.enum(LABEL_COLORS)
+});
 
 export const actions: Actions = {
 	update: async ({ locals, params, request }) => {
@@ -51,7 +65,10 @@ export const actions: Actions = {
 		try {
 			key = updateProject(user.id, access.project, parsed.data, locals.clientIp).key;
 		} catch (err) {
-			return handleServiceError(err, Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)])));
+			return handleServiceError(
+				err,
+				Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]))
+			);
 		}
 		if (key !== access.project.key) redirect(303, projectPath(key, 'settings'));
 		return { updated: true };
@@ -62,9 +79,19 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const identifier = String(form.get('identifier') ?? '').trim();
 		const role = projectRoleSchema.safeParse(form.get('role'));
-		if (!identifier || !role.success) return fail(400, { errors: { member: 'Enter a username or email and a role' }, values: { identifier } });
+		if (!identifier || !role.success)
+			return fail(400, {
+				errors: { member: 'Enter a username or email and a role' },
+				values: { identifier }
+			});
 		const target = findUserByIdentifier(identifier);
-		if (!target || target.status !== 'active') return fail(400, { errors: { member: 'No active user with that username or email. Send an invitation instead.' }, values: { identifier } });
+		if (!target || target.status !== 'active')
+			return fail(400, {
+				errors: {
+					member: 'No active user with that username or email. Send an invitation instead.'
+				},
+				values: { identifier }
+			});
 		try {
 			addMember(user.id, access.project, target.id, role.data, locals.clientIp);
 		} catch (err) {
@@ -78,7 +105,8 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const userId = intParam(String(form.get('userId')));
 		const role = projectRoleSchema.safeParse(form.get('role'));
-		if (!userId || !role.success) return fail(400, { errors: { member: 'Invalid request' }, values: {} });
+		if (!userId || !role.success)
+			return fail(400, { errors: { member: 'Invalid request' }, values: {} });
 		try {
 			changeMemberRole(user.id, access.project, userId, role.data, locals.clientIp);
 		} catch (err) {
@@ -104,11 +132,24 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const rawEmail = String(form.get('email') ?? '').trim();
 		const email = rawEmail ? emailSchema.safeParse(rawEmail) : null;
-		if (email && !email.success) return fail(400, { errors: { inviteEmail: 'Enter a valid email or leave it empty' }, values: { email: rawEmail } });
+		if (email && !email.success)
+			return fail(400, {
+				errors: { inviteEmail: 'Enter a valid email or leave it empty' },
+				values: { email: rawEmail }
+			});
 		const role = projectRoleSchema.safeParse(form.get('role'));
 		if (!role.success) return fail(400, { errors: { inviteEmail: 'Choose a role' }, values: {} });
 		// Project invitations never grant a global administrator role.
-		const token = createInvitation(user.id, { email: email?.success ? email.data : null, role: 'user', projectId: access.project.id, projectRole: role.data }, locals.clientIp);
+		const token = createInvitation(
+			user.id,
+			{
+				email: email?.success ? email.data : null,
+				role: 'user',
+				projectId: access.project.id,
+				projectRole: role.data
+			},
+			locals.clientIp
+		);
 		const base = getSettings().appUrl || url.origin;
 		return { inviteLink: `${base.replace(/\/$/, '')}/invite/${token}` };
 	},
@@ -116,7 +157,8 @@ export const actions: Actions = {
 	revokeInvite: async ({ locals, params, request }) => {
 		const { user, access } = owner(locals, params.key);
 		const id = intParam(String((await request.formData()).get('invitationId')));
-		if (!id || !revokeInvitation(user.id, id, access.project.id, locals.clientIp)) error(404, 'Invitation not found');
+		if (!id || !revokeInvitation(user.id, id, access.project.id, locals.clientIp))
+			error(404, 'Invitation not found');
 		return { revoked: true };
 	},
 
@@ -140,7 +182,8 @@ export const actions: Actions = {
 		if (!parsed.ok) return parsed.failure;
 		if (!id) error(404, 'Label not found');
 		try {
-			if (!updateLabel(access.project.id, id, parsed.data.name, parsed.data.color)) error(404, 'Label not found');
+			if (!updateLabel(access.project.id, id, parsed.data.name, parsed.data.color))
+				error(404, 'Label not found');
 		} catch (err) {
 			return handleServiceError(err);
 		}

@@ -108,7 +108,8 @@
 				Placeholder.configure({ placeholder })
 			],
 			editorProps: {
-				attributes: {
+				// A function so the accessible name/description follow prop changes (e.g. ticket type).
+				attributes: () => ({
 					id,
 					class: 'tiptap rich-text px-3 py-2.5 text-sm',
 					role: 'textbox',
@@ -117,7 +118,7 @@
 					...(describedby ? { 'aria-describedby': describedby } : {}),
 					...(invalid ? { 'aria-invalid': 'true' } : {}),
 					style: `min-height:${minHeight}`
-				},
+				}),
 				handleKeyDown: (_view, event) => {
 					if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && onsubmitshortcut) {
 						onsubmitshortcut();
@@ -141,6 +142,13 @@
 	});
 
 	onDestroy(() => editor?.destroy());
+
+	$effect(() => {
+		// Re-apply attributes when the label or validation state changes.
+		void label;
+		void invalid;
+		if (editor && !editor.isDestroyed) editor.view.setProps({});
+	});
 
 	const isActive = (nameOrAttrs: string, attrs?: Record<string, unknown>) => {
 		void version;
@@ -181,21 +189,90 @@
 		run: () => void;
 	};
 	const tools: (Tool | 'sep')[] = [
-		{ label: 'Bold', icon: Bold, shortcut: 'Ctrl+B', active: () => isActive('bold'), run: () => editor?.chain().focus().toggleBold().run() },
-		{ label: 'Italic', icon: Italic, shortcut: 'Ctrl+I', active: () => isActive('italic'), run: () => editor?.chain().focus().toggleItalic().run() },
-		{ label: 'Strikethrough', icon: Strikethrough, active: () => isActive('strike'), run: () => editor?.chain().focus().toggleStrike().run() },
-		{ label: 'Inline code', icon: Code, shortcut: 'Ctrl+E', active: () => isActive('code'), run: () => editor?.chain().focus().toggleCode().run() },
+		{
+			label: 'Bold',
+			icon: Bold,
+			shortcut: 'Ctrl+B',
+			active: () => isActive('bold'),
+			run: () => editor?.chain().focus().toggleBold().run()
+		},
+		{
+			label: 'Italic',
+			icon: Italic,
+			shortcut: 'Ctrl+I',
+			active: () => isActive('italic'),
+			run: () => editor?.chain().focus().toggleItalic().run()
+		},
+		{
+			label: 'Strikethrough',
+			icon: Strikethrough,
+			active: () => isActive('strike'),
+			run: () => editor?.chain().focus().toggleStrike().run()
+		},
+		{
+			label: 'Inline code',
+			icon: Code,
+			shortcut: 'Ctrl+E',
+			active: () => isActive('code'),
+			run: () => editor?.chain().focus().toggleCode().run()
+		},
 		'sep',
-		{ label: 'Heading', icon: Heading2, active: () => isActive('heading', { level: 2 }), run: () => editor?.chain().focus().toggleHeading({ level: 2 }).run() },
-		{ label: 'Subheading', icon: Heading3, active: () => isActive('heading', { level: 3 }), run: () => editor?.chain().focus().toggleHeading({ level: 3 }).run() },
-		{ label: 'Bulleted list', icon: List, active: () => isActive('bulletList'), run: () => editor?.chain().focus().toggleBulletList().run() },
-		{ label: 'Numbered list', icon: ListOrdered, active: () => isActive('orderedList'), run: () => editor?.chain().focus().toggleOrderedList().run() },
-		{ label: 'Quote', icon: Quote, active: () => isActive('blockquote'), run: () => editor?.chain().focus().toggleBlockquote().run() },
-		{ label: 'Code block', icon: SquareCode, active: () => isActive('codeBlock'), run: () => editor?.chain().focus().toggleCodeBlock().run() },
-		{ label: 'Link', icon: LinkIcon, shortcut: 'Ctrl+K', active: () => isActive('link'), run: openLink },
+		{
+			label: 'Heading',
+			icon: Heading2,
+			active: () => isActive('heading', { level: 2 }),
+			run: () => editor?.chain().focus().toggleHeading({ level: 2 }).run()
+		},
+		{
+			label: 'Subheading',
+			icon: Heading3,
+			active: () => isActive('heading', { level: 3 }),
+			run: () => editor?.chain().focus().toggleHeading({ level: 3 }).run()
+		},
+		{
+			label: 'Bulleted list',
+			icon: List,
+			active: () => isActive('bulletList'),
+			run: () => editor?.chain().focus().toggleBulletList().run()
+		},
+		{
+			label: 'Numbered list',
+			icon: ListOrdered,
+			active: () => isActive('orderedList'),
+			run: () => editor?.chain().focus().toggleOrderedList().run()
+		},
+		{
+			label: 'Quote',
+			icon: Quote,
+			active: () => isActive('blockquote'),
+			run: () => editor?.chain().focus().toggleBlockquote().run()
+		},
+		{
+			label: 'Code block',
+			icon: SquareCode,
+			active: () => isActive('codeBlock'),
+			run: () => editor?.chain().focus().toggleCodeBlock().run()
+		},
+		{
+			label: 'Link',
+			icon: LinkIcon,
+			shortcut: 'Ctrl+K',
+			active: () => isActive('link'),
+			run: openLink
+		},
 		'sep',
-		{ label: 'Undo', icon: Undo2, shortcut: 'Ctrl+Z', run: () => editor?.chain().focus().undo().run() },
-		{ label: 'Redo', icon: Redo2, shortcut: 'Ctrl+Shift+Z', run: () => editor?.chain().focus().redo().run() }
+		{
+			label: 'Undo',
+			icon: Undo2,
+			shortcut: 'Ctrl+Z',
+			run: () => editor?.chain().focus().undo().run()
+		},
+		{
+			label: 'Redo',
+			icon: Redo2,
+			shortcut: 'Ctrl+Shift+Z',
+			run: () => editor?.chain().focus().redo().run()
+		}
 	];
 
 	function onToolbarKey(e: KeyboardEvent) {
@@ -203,7 +280,8 @@
 		if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
 		const buttons = [...(e.currentTarget as HTMLElement).querySelectorAll('button')];
 		const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-		const next = buttons[(index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length];
+		const next =
+			buttons[(index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length];
 		next?.focus();
 		e.preventDefault();
 	}
@@ -223,7 +301,7 @@
 			tabindex="-1"
 			onkeydown={onToolbarKey}
 			class={cn(
-				'scrollbar-thin flex items-center gap-0.5 overflow-x-auto border-b border-border px-1.5 py-1',
+				'flex scrollbar-thin items-center gap-0.5 overflow-x-auto border-b border-border px-1.5 py-1',
 				compact && 'py-0.5'
 			)}
 		>
@@ -271,7 +349,11 @@
 						}
 					}}
 				/>
-				<button type="button" class="rounded px-2 py-1 text-xs font-medium text-primary hover:bg-hover" onclick={applyLink}>
+				<button
+					type="button"
+					class="rounded px-2 py-1 text-xs font-medium text-primary hover:bg-hover"
+					onclick={applyLink}
+				>
 					Apply
 				</button>
 				<button

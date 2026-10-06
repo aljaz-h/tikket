@@ -8,7 +8,9 @@
 
 <main id="main" class="flex min-h-dvh items-center justify-center px-4">
 	<div class="max-w-md text-center">
-		<div class="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+		<div
+			class="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground"
+		>
 			<CircleAlert class="size-6" />
 		</div>
 		<p class="text-sm font-medium text-muted-foreground">Error {page.status}</p>

@@ -45,7 +45,9 @@
 			<div class="grid gap-1 pr-8">
 				<Dialog.Title class="text-base font-semibold tracking-tight">{title}</Dialog.Title>
 				{#if description}
-					<Dialog.Description class="text-sm text-muted-foreground">{description}</Dialog.Description>
+					<Dialog.Description class="text-sm text-muted-foreground"
+						>{description}</Dialog.Description
+					>
 				{/if}
 			</div>
 			{@render children?.()}

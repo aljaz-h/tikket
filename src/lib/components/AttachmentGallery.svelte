@@ -73,7 +73,9 @@
 
 	<Dialog.Root bind:open>
 		<Dialog.Portal>
-			<Dialog.Overlay class="fixed inset-0 z-50 bg-black/90 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+			<Dialog.Overlay
+				class="fixed inset-0 z-50 bg-black/90 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+			/>
 			<Dialog.Content
 				class="fixed inset-0 z-50 flex flex-col outline-none"
 				onkeydown={(e) => {
@@ -84,10 +86,14 @@
 				{#if current}
 					<div class="flex items-center justify-between gap-3 px-4 py-3 text-white">
 						<div class="min-w-0">
-							<Dialog.Title class="truncate text-sm font-medium">{current.originalName}</Dialog.Title>
+							<Dialog.Title class="truncate text-sm font-medium"
+								>{current.originalName}</Dialog.Title
+							>
 							<Dialog.Description class="text-xs text-white/60">
 								{index + 1} of {items.length}
-								{#if current.width}· {current.width}×{current.height}{/if} · {formatBytes(current.size)}
+								{#if current.width}· {current.width}×{current.height}{/if} · {formatBytes(
+									current.size
+								)}
 							</Dialog.Description>
 						</div>
 						<div class="flex items-center gap-1">
@@ -106,7 +112,11 @@
 						</div>
 					</div>
 					<div class="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4 sm:px-16">
-						<img src="/api/files/{current.id}" alt={current.originalName} class="max-h-full max-w-full rounded object-contain" />
+						<img
+							src="/api/files/{current.id}"
+							alt={current.originalName}
+							class="max-h-full max-w-full rounded object-contain"
+						/>
 						{#if items.length > 1}
 							<button
 								type="button"

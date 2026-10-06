@@ -1,7 +1,11 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { canEditTicket } from '$lib/server/authz';
 import { handleServiceError, requireActionUser, requireUser } from '$lib/server/http';
-import { getTicketDetail, ticketAttachmentCount, updateTicketContent } from '$lib/server/services/tickets';
+import {
+	getTicketDetail,
+	ticketAttachmentCount,
+	updateTicketContent
+} from '$lib/server/services/tickets';
 import { requireTicket } from '$lib/server/ticket-context';
 import { checkWriteLimit, parseTicketForm, ticketFormValues } from '$lib/server/ticket-form';
 import { getSettings } from '$lib/server/settings';
@@ -23,7 +27,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			context: ticket.context
 		},
 		attachments: getTicketDetail(user, ticket).attachments,
-		remainingAttachments: Math.max(0, getSettings().maxAttachmentsPerTicket - ticketAttachmentCount(ticket.id))
+		remainingAttachments: Math.max(
+			0,
+			getSettings().maxAttachmentsPerTicket - ticketAttachmentCount(ticket.id)
+		)
 	};
 };
 

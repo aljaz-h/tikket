@@ -16,7 +16,12 @@ export function listChangelog(projectId: number, includeDrafts: boolean) {
 	const entries = db
 		.select()
 		.from(schema.changelogEntries)
-		.where(and(eq(schema.changelogEntries.projectId, projectId), includeDrafts ? undefined : eq(schema.changelogEntries.published, true)))
+		.where(
+			and(
+				eq(schema.changelogEntries.projectId, projectId),
+				includeDrafts ? undefined : eq(schema.changelogEntries.published, true)
+			)
+		)
 		.orderBy(desc(schema.changelogEntries.releaseDate), desc(schema.changelogEntries.id))
 		.all();
 	if (!entries.length) return [];
@@ -31,14 +36,25 @@ export function listChangelog(projectId: number, includeDrafts: boolean) {
 		})
 		.from(schema.changelogTicketLinks)
 		.innerJoin(schema.tickets, eq(schema.tickets.id, schema.changelogTicketLinks.ticketId))
-		.where(inArray(schema.changelogTicketLinks.entryId, entries.map((e) => e.id)))
+		.where(
+			inArray(
+				schema.changelogTicketLinks.entryId,
+				entries.map((e) => e.id)
+			)
+		)
 		.all();
 	return entries.map((e) => ({ ...e, tickets: links.filter((l) => l.entryId === e.id) }));
 }
 
 export function completedTickets(projectId: number) {
 	return getDb()
-		.select({ id: schema.tickets.id, number: schema.tickets.number, title: schema.tickets.title, type: schema.tickets.type, completedAt: schema.tickets.completedAt })
+		.select({
+			id: schema.tickets.id,
+			number: schema.tickets.number,
+			title: schema.tickets.title,
+			type: schema.tickets.type,
+			completedAt: schema.tickets.completedAt
+		})
 		.from(schema.tickets)
 		.where(and(eq(schema.tickets.projectId, projectId), eq(schema.tickets.status, 'completed')))
 		.orderBy(desc(schema.tickets.completedAt))
@@ -51,12 +67,23 @@ function validTicketIds(projectId: number, ids: number[]) {
 	return getDb()
 		.select({ id: schema.tickets.id })
 		.from(schema.tickets)
-		.where(and(eq(schema.tickets.projectId, projectId), eq(schema.tickets.status, 'completed'), inArray(schema.tickets.id, ids)))
+		.where(
+			and(
+				eq(schema.tickets.projectId, projectId),
+				eq(schema.tickets.status, 'completed'),
+				inArray(schema.tickets.id, ids)
+			)
+		)
 		.all()
 		.map((r) => r.id);
 }
 
-export function saveChangelogEntry(projectId: number, actorId: number, input: ChangelogInput, entryId?: number) {
+export function saveChangelogEntry(
+	projectId: number,
+	actorId: number,
+	input: ChangelogInput,
+	entryId?: number
+) {
 	const ticketIds = validTicketIds(projectId, input.ticketIds);
 	return getDb().transaction((tx) => {
 		let id = entryId;
@@ -71,14 +98,25 @@ export function saveChangelogEntry(projectId: number, actorId: number, input: Ch
 			const res = tx
 				.update(schema.changelogEntries)
 				.set(values)
-				.where(and(eq(schema.changelogEntries.id, id), eq(schema.changelogEntries.projectId, projectId)))
+				.where(
+					and(eq(schema.changelogEntries.id, id), eq(schema.changelogEntries.projectId, projectId))
+				)
 				.run();
 			if (!res.changes) throw new ServiceError('Changelog entry not found', 'form', 404);
-			tx.delete(schema.changelogTicketLinks).where(eq(schema.changelogTicketLinks.entryId, id)).run();
+			tx.delete(schema.changelogTicketLinks)
+				.where(eq(schema.changelogTicketLinks.entryId, id))
+				.run();
 		} else {
-			id = tx.insert(schema.changelogEntries).values({ ...values, projectId, createdById: actorId }).returning().get().id;
+			id = tx
+				.insert(schema.changelogEntries)
+				.values({ ...values, projectId, createdById: actorId })
+				.returning()
+				.get().id;
 		}
-		if (ticketIds.length) tx.insert(schema.changelogTicketLinks).values(ticketIds.map((ticketId) => ({ entryId: id!, ticketId }))).run();
+		if (ticketIds.length)
+			tx.insert(schema.changelogTicketLinks)
+				.values(ticketIds.map((ticketId) => ({ entryId: id!, ticketId })))
+				.run();
 		return id!;
 	});
 }
@@ -86,6 +124,8 @@ export function saveChangelogEntry(projectId: number, actorId: number, input: Ch
 export function deleteChangelogEntry(projectId: number, entryId: number) {
 	return getDb()
 		.delete(schema.changelogEntries)
-		.where(and(eq(schema.changelogEntries.id, entryId), eq(schema.changelogEntries.projectId, projectId)))
+		.where(
+			and(eq(schema.changelogEntries.id, entryId), eq(schema.changelogEntries.projectId, projectId))
+		)
 		.run().changes;
 }

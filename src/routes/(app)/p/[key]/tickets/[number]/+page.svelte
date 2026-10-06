@@ -44,7 +44,13 @@
 		TICKET_PRIORITIES,
 		type ContextKey
 	} from '$lib/shared/constants';
-	import { formatDate, formatDateTime, projectPath, ticketPath, ticketRef } from '$lib/shared/format';
+	import {
+		formatDate,
+		formatDateTime,
+		projectPath,
+		ticketPath,
+		ticketRef
+	} from '$lib/shared/format';
 	import { cn } from '$lib/utils';
 
 	let { data } = $props();
@@ -68,22 +74,30 @@
 	// Timeline: comments interleaved with significant activity, chronologically.
 	const timeline = $derived(
 		[
-			...d.comments.map((c) => ({ kind: 'comment' as const, at: new Date(c.createdAt).getTime(), comment: c })),
+			...d.comments.map((c) => ({
+				kind: 'comment' as const,
+				at: new Date(c.createdAt).getTime(),
+				comment: c
+			})),
 			...d.activity
 				.filter((a) => a.type !== 'created')
-				.map((a) => ({ kind: 'activity' as const, at: new Date(a.createdAt).getTime(), activity: a }))
+				.map((a) => ({
+					kind: 'activity' as const,
+					at: new Date(a.createdAt).getTime(),
+					activity: a
+				}))
 		].sort((a, b) => a.at - b.at)
 	);
 
 	const contextEntries = $derived(
-		(Object.entries(t.context) as [ContextKey, string][]).filter(([k, v]) => v && k !== 'affectedUrl')
+		(Object.entries(t.context) as [ContextKey, string][]).filter(
+			([k, v]) => v && k !== 'affectedUrl'
+		)
 	);
-	const fieldLabel = (k: ContextKey) => CONTEXT_FIELDS[t.type].find((f) => f.key === k)?.label ?? CONTEXT_LABELS[k];
+	const fieldLabel = (k: ContextKey) =>
+		CONTEXT_FIELDS[t.type].find((f) => f.key === k)?.label ?? CONTEXT_LABELS[k];
 
-	let selectedLabels = $state<number[]>([]);
-	$effect.pre(() => {
-		selectedLabels = d.labels.map((l) => l.id);
-	});
+	let selectedLabels = $derived(d.labels.map((l) => l.id));
 
 	async function copyLink() {
 		try {
@@ -97,7 +111,10 @@
 
 <div class="grid gap-6">
 	<nav aria-label="Breadcrumb" class="flex items-center gap-2 text-sm text-muted-foreground">
-		<a href={projectPath(key, 'tickets')} class="inline-flex items-center gap-1.5 hover:text-foreground">
+		<a
+			href={projectPath(key, 'tickets')}
+			class="inline-flex items-center gap-1.5 hover:text-foreground"
+		>
 			<ArrowLeft class="size-4" />
 			<ProjectIcon project={data.project} size="xs" />
 			{data.project.name}
@@ -112,22 +129,32 @@
 			<TypeBadge type={t.type} short={false} />
 			{#if perms.isStaff || t.priority !== 'medium'}<PriorityBadge priority={t.priority} />{/if}
 			{#each d.labels as label (label.id)}
-				<span class="swatch-bg swatch-{label.color} rounded-md px-1.5 py-0.5 text-xs font-medium">{label.name}</span>
+				<span class="swatch-bg swatch-{label.color} rounded-md px-1.5 py-0.5 text-xs font-medium"
+					>{label.name}</span
+				>
 			{/each}
 		</div>
-		<h1 class="text-xl font-semibold tracking-tight text-balance [overflow-wrap:anywhere] sm:text-2xl">
+		<h1
+			class="text-xl font-semibold tracking-tight text-balance [overflow-wrap:anywhere] sm:text-2xl"
+		>
 			<span class="mr-1.5 font-mono font-normal text-muted-foreground">{t.ref}</span>{t.title}
 		</h1>
 		<p class="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
 			<UserAvatar user={d.reporter} size="xs" />
 			<span class="font-medium text-foreground">{d.reporter.displayName}</span> reported
 			<TimeAgo date={t.createdAt} />
-			{#if new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime() > 60000}· updated <TimeAgo date={t.updatedAt} />{/if}
+			{#if new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime() > 60000}· updated <TimeAgo
+					date={t.updatedAt}
+				/>{/if}
 		</p>
 	</header>
 
 	{#if t.status === 'duplicate' && d.duplicateOf}
-		<FormMessage variant="info" message="This ticket is a duplicate of {ticketRef(key, d.duplicateOf.number)} — {d.duplicateOf.title}. Please follow and vote on the original." />
+		<FormMessage
+			variant="info"
+			message="This ticket is a duplicate of {ticketRef(key, d.duplicateOf.number)} — {d.duplicateOf
+				.title}. Please follow and vote on the original."
+		/>
 	{/if}
 
 	<div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -136,7 +163,11 @@
 			<Card class="p-5">
 				{#if t.status !== 'open' && t.resolutionNote}
 					<div class={cn('tone mb-4 rounded-lg border p-3 text-sm', STATUS_META[t.status].tone)}>
-						<p class="text-xs font-semibold">{t.status === 'completed' ? 'Resolution' : `${STATUS_META[t.status].label} — note from the team`}</p>
+						<p class="text-xs font-semibold">
+							{t.status === 'completed'
+								? 'Resolution'
+								: `${STATUS_META[t.status].label} — note from the team`}
+						</p>
 						<LinkifiedText text={t.resolutionNote} class="mt-1 text-foreground" />
 					</div>
 				{/if}
@@ -146,7 +177,12 @@
 					<div class="mt-5 flex items-center gap-2 text-sm">
 						<Link2 class="size-4 shrink-0 text-muted-foreground" />
 						<span class="text-muted-foreground">Affected URL:</span>
-						<a href={t.context.affectedUrl} target="_blank" rel="noopener noreferrer nofollow ugc" class="truncate text-primary hover:underline">{t.context.affectedUrl}</a>
+						<a
+							href={t.context.affectedUrl}
+							target="_blank"
+							rel="noopener noreferrer nofollow ugc"
+							class="truncate text-primary hover:underline">{t.context.affectedUrl}</a
+						>
 					</div>
 				{/if}
 
@@ -154,7 +190,9 @@
 					<dl class="mt-5 grid gap-4 border-t border-border pt-5">
 						{#each contextEntries as [k, v] (k)}
 							<div>
-								<dt class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{fieldLabel(k)}</dt>
+								<dt class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+									{fieldLabel(k)}
+								</dt>
 								<dd class="mt-1 text-sm"><LinkifiedText text={v} /></dd>
 							</div>
 						{/each}
@@ -163,7 +201,9 @@
 
 				{#if d.attachments.length}
 					<div class="mt-5 border-t border-border pt-5">
-						<h2 class="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Screenshots</h2>
+						<h2 class="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+							Screenshots
+						</h2>
 						<AttachmentGallery items={d.attachments}>
 							{#snippet removeControl(item)}
 								{#if data.canEdit}
@@ -184,10 +224,19 @@
 
 				{#if d.duplicates.length}
 					<div class="mt-5 border-t border-border pt-5">
-						<h2 class="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Duplicates of this ticket</h2>
+						<h2 class="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+							Duplicates of this ticket
+						</h2>
 						<ul class="grid gap-1">
 							{#each d.duplicates as dup (dup.number)}
-								<li><a href={ticketPath(key, dup.number)} class="text-sm hover:underline"><span class="font-mono text-muted-foreground">{ticketRef(key, dup.number)}</span> {dup.title}</a></li>
+								<li>
+									<a href={ticketPath(key, dup.number)} class="text-sm hover:underline"
+										><span class="font-mono text-muted-foreground"
+											>{ticketRef(key, dup.number)}</span
+										>
+										{dup.title}</a
+									>
+								</li>
 							{/each}
 						</ul>
 					</div>
@@ -201,7 +250,11 @@
 					{#each timeline as item (item.kind === 'comment' ? `c${item.comment.id}` : `a${item.activity.id}`)}
 						<li>
 							{#if item.kind === 'comment'}
-								<CommentItem comment={item.comment} isReporter={item.comment.author.id === d.reporter.id} currentUserId={data.user?.id ?? null} />
+								<CommentItem
+									comment={item.comment}
+									isReporter={item.comment.author.id === d.reporter.id}
+									currentUserId={data.user?.id ?? null}
+								/>
 							{:else}
 								{@const a = item.activity}
 								<div class="flex items-start gap-3 pl-1.5 text-sm text-muted-foreground">
@@ -213,15 +266,23 @@
 										{/if}
 									</span>
 									<div class="min-w-0">
-										<span class="font-medium text-foreground">{a.actor?.displayName ?? 'Someone'}</span>
+										<span class="font-medium text-foreground"
+											>{a.actor?.displayName ?? 'Someone'}</span
+										>
 										{describeActivity(a.type, a.data)}
 										{#if a.type === 'status' && a.data.duplicateOf}
 											{@const dup = a.data.duplicateOf as { number: number; title: string }}
-											of <a href={ticketPath(key, dup.number)} class="text-primary hover:underline">{ticketRef(key, dup.number)}</a>
+											of
+											<a href={ticketPath(key, dup.number)} class="text-primary hover:underline"
+												>{ticketRef(key, dup.number)}</a
+											>
 										{/if}
 										· <TimeAgo date={a.createdAt} />
 										{#if a.type === 'status' && a.data.note}
-											<LinkifiedText text={String(a.data.note)} class="mt-1 rounded-lg border border-border bg-surface px-3 py-2 text-foreground" />
+											<LinkifiedText
+												text={String(a.data.note)}
+												class="mt-1 rounded-lg border border-border bg-surface px-3 py-2 text-foreground"
+											/>
 										{/if}
 									</div>
 								</div>
@@ -236,16 +297,24 @@
 					<CommentForm
 						user={data.user}
 						allowAttachments={perms.canAttach}
-						limits={{ maxFiles: data.app.maxAttachments, maxSize: data.app.maxAttachmentSize, accept: data.app.allowedImageTypes }}
+						limits={{
+							maxFiles: data.app.maxAttachments,
+							maxSize: data.app.maxAttachmentSize,
+							accept: data.app.allowedImageTypes
+						}}
 						draftKey="tikket:comment:{data.user.id}:{t.id}"
 					/>
 				{:else if !data.user}
 					<Card class="flex items-center justify-between gap-3 p-4 text-sm">
 						<span class="text-muted-foreground">Sign in to join the discussion.</span>
-						<Button href="/login?next={encodeURIComponent(page.url.pathname)}" size="sm">Sign in</Button>
+						<Button href="/login?next={encodeURIComponent(page.url.pathname)}" size="sm"
+							>Sign in</Button
+						>
 					</Card>
 				{:else if perms.archived}
-					<p class="text-sm text-muted-foreground">This project is archived; new comments are disabled.</p>
+					<p class="text-sm text-muted-foreground">
+						This project is archived; new comments are disabled.
+					</p>
 				{:else if !data.project.commentsEnabled}
 					<p class="text-sm text-muted-foreground">Comments are disabled for this project.</p>
 				{/if}
@@ -265,7 +334,11 @@
 								class="w-full"
 								disabled={!perms.canVote}
 								aria-pressed={d.hasVoted}
-								title={perms.canVote ? undefined : data.user ? 'Voting is not available' : 'Sign in to vote'}
+								title={perms.canVote
+									? undefined
+									: data.user
+										? 'Voting is not available'
+										: 'Sign in to vote'}
 							>
 								<ArrowBigUp class={cn('size-5', d.hasVoted && 'fill-current')} />
 								<span class="tabular-nums">{t.voteCount}</span>
@@ -274,7 +347,14 @@
 						</form>
 					{/if}
 					{#if data.user}
-						<form method="POST" action="?/follow" class={data.project.votingEnabled ? '' : 'flex-1'} use:enhance={quickSubmit({ success: d.isFollowing ? 'Unfollowed' : 'You will be notified about updates' })}>
+						<form
+							method="POST"
+							action="?/follow"
+							class={data.project.votingEnabled ? '' : 'flex-1'}
+							use:enhance={quickSubmit({
+								success: d.isFollowing ? 'Unfollowed' : 'You will be notified about updates'
+							})}
+						>
 							<input type="hidden" name="on" value={d.isFollowing ? '0' : '1'} />
 							<Button type="submit" variant="secondary" class="w-full" aria-pressed={d.isFollowing}>
 								{#if d.isFollowing}<BellOff /> Unfollow{:else}<Bell /> Follow{/if}
@@ -284,14 +364,25 @@
 				</div>
 				<div class="flex gap-2">
 					{#if data.canEdit}
-						<Button href="{ticketPath(key, t.number)}/edit" variant="outline" size="sm" class="flex-1"><Pencil /> Edit</Button>
+						<Button
+							href="{ticketPath(key, t.number)}/edit"
+							variant="outline"
+							size="sm"
+							class="flex-1"><Pencil /> Edit</Button
+						>
 					{/if}
-					<Button variant="outline" size="sm" class="flex-1" onclick={copyLink}><Copy /> Copy link</Button>
+					<Button variant="outline" size="sm" class="flex-1" onclick={copyLink}
+						><Copy /> Copy link</Button
+					>
 				</div>
 				{#if data.voters.length}
 					<div class="flex items-center gap-2">
 						<div class="flex -space-x-1.5">
-							{#each data.voters as v (v.id)}<UserAvatar user={v} size="xs" class="ring-2 ring-surface" />{/each}
+							{#each data.voters as v (v.id)}<UserAvatar
+									user={v}
+									size="xs"
+									class="ring-2 ring-surface"
+								/>{/each}
 						</div>
 						<span class="text-xs text-muted-foreground">{d.followerCount} following</span>
 					</div>
@@ -314,11 +405,25 @@
 				<div class="grid gap-1.5">
 					<p class="text-xs font-medium text-muted-foreground">Priority</p>
 					{#if perms.isStaff}
-						<form method="POST" action="?/priority" use:enhance={quickSubmit({ success: 'Priority updated' })}>
-							<NativeSelect name="priority" value={t.priority} aria-label="Priority" onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}>
-								{#each TICKET_PRIORITIES as p (p)}<option value={p}>{PRIORITY_META[p].label}</option>{/each}
+						<form
+							method="POST"
+							action="?/priority"
+							use:enhance={quickSubmit({ success: 'Priority updated' })}
+						>
+							<NativeSelect
+								name="priority"
+								value={t.priority}
+								aria-label="Priority"
+								onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
+							>
+								{#each TICKET_PRIORITIES as p (p)}<option value={p}>{PRIORITY_META[p].label}</option
+									>{/each}
 							</NativeSelect>
-							<noscript><Button type="submit" size="xs" variant="outline" class="mt-1.5">Save priority</Button></noscript>
+							<noscript
+								><Button type="submit" size="xs" variant="outline" class="mt-1.5"
+									>Save priority</Button
+								></noscript
+							>
 						</form>
 					{:else}
 						<PriorityBadge priority={t.priority} />
@@ -328,21 +433,44 @@
 				<div class="grid gap-1.5">
 					<p class="text-xs font-medium text-muted-foreground">Assignee</p>
 					{#if perms.isStaff}
-						<form method="POST" action="?/assign" use:enhance={quickSubmit({ success: 'Assignee updated' })}>
-							<NativeSelect name="assigneeId" value={t.assigneeId ? String(t.assigneeId) : 'none'} aria-label="Assignee" onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}>
+						<form
+							method="POST"
+							action="?/assign"
+							use:enhance={quickSubmit({ success: 'Assignee updated' })}
+						>
+							<NativeSelect
+								name="assigneeId"
+								value={t.assigneeId ? String(t.assigneeId) : 'none'}
+								aria-label="Assignee"
+								onchange={(e) => (e.currentTarget as HTMLSelectElement).form?.requestSubmit()}
+							>
 								<option value="none">Unassigned</option>
-								{#each data.assignable as u (u.id)}<option value={String(u.id)}>{u.displayName}</option>{/each}
+								{#each data.assignable as u (u.id)}<option value={String(u.id)}
+										>{u.displayName}</option
+									>{/each}
 							</NativeSelect>
-							<noscript><Button type="submit" size="xs" variant="outline" class="mt-1.5">Save assignee</Button></noscript>
+							<noscript
+								><Button type="submit" size="xs" variant="outline" class="mt-1.5"
+									>Save assignee</Button
+								></noscript
+							>
 						</form>
 						{#if data.user && t.assigneeId !== data.user.id && data.assignable.some((u) => u.id === data.user?.id)}
-							<form method="POST" action="?/assign" use:enhance={quickSubmit({ success: 'Assigned to you' })}>
+							<form
+								method="POST"
+								action="?/assign"
+								use:enhance={quickSubmit({ success: 'Assigned to you' })}
+							>
 								<input type="hidden" name="assigneeId" value={data.user.id} />
-								<button type="submit" class="text-xs text-primary hover:underline">Assign to me</button>
+								<button type="submit" class="text-xs text-primary hover:underline"
+									>Assign to me</button
+								>
 							</form>
 						{/if}
 					{:else if d.assignee}
-						<span class="flex items-center gap-2"><UserAvatar user={d.assignee} size="sm" />{d.assignee.displayName}</span>
+						<span class="flex items-center gap-2"
+							><UserAvatar user={d.assignee} size="sm" />{d.assignee.displayName}</span
+						>
 					{:else}
 						<span class="text-muted-foreground">Unassigned</span>
 					{/if}
@@ -352,19 +480,38 @@
 					<div class="grid gap-1.5">
 						<p class="text-xs font-medium text-muted-foreground">Labels</p>
 						<Popover.Root>
-							<Popover.Trigger class="flex min-h-8 flex-wrap items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-left text-xs text-muted-foreground hover:border-border-strong">
+							<Popover.Trigger
+								class="flex min-h-8 flex-wrap items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-left text-xs text-muted-foreground hover:border-border-strong"
+							>
 								{#if d.labels.length}
-									{#each d.labels as label (label.id)}<span class="swatch-bg swatch-{label.color} rounded px-1.5 py-0.5 font-medium">{label.name}</span>{/each}
+									{#each d.labels as label (label.id)}<span
+											class="swatch-bg swatch-{label.color} rounded px-1.5 py-0.5 font-medium"
+											>{label.name}</span
+										>{/each}
 								{:else}<Tag class="size-3.5" /> Add labels{/if}
 							</Popover.Trigger>
 							<PopoverContent class="w-60">
-								<form method="POST" action="?/labels" class="grid gap-2" use:enhance={quickSubmit({ success: 'Labels updated' })}>
+								<form
+									method="POST"
+									action="?/labels"
+									class="grid gap-2"
+									use:enhance={quickSubmit({ success: 'Labels updated' })}
+								>
 									<fieldset class="grid max-h-60 gap-1 overflow-y-auto">
 										<legend class="sr-only">Labels</legend>
 										{#each data.labels as label (label.id)}
-											<label class="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-hover">
-												<input type="checkbox" name="labelId" value={label.id} bind:group={selectedLabels} class="size-4 accent-[var(--primary)]" />
-												<span class="swatch-{label.color} swatch-solid size-2.5 rounded-full"></span>{label.name}
+											<label
+												class="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-hover"
+											>
+												<input
+													type="checkbox"
+													name="labelId"
+													value={label.id}
+													bind:group={selectedLabels}
+													class="size-4 accent-[var(--primary)]"
+												/>
+												<span class="swatch-{label.color} swatch-solid size-2.5 rounded-full"
+												></span>{label.name}
 											</label>
 										{/each}
 									</fieldset>
@@ -376,23 +523,48 @@
 				{/if}
 
 				<dl class="grid gap-2.5 border-t border-border pt-4 text-sm">
-					<div class="flex justify-between gap-2"><dt class="text-muted-foreground">Type</dt><dd><TypeBadge type={t.type} short={false} /></dd></div>
+					<div class="flex justify-between gap-2">
+						<dt class="text-muted-foreground">Type</dt>
+						<dd><TypeBadge type={t.type} short={false} /></dd>
+					</div>
 					<div class="flex justify-between gap-2">
 						<dt class="text-muted-foreground">Reporter</dt>
-						<dd class="flex items-center gap-1.5 truncate"><UserAvatar user={d.reporter} size="xs" />{d.reporter.displayName}</dd>
+						<dd class="flex items-center gap-1.5 truncate">
+							<UserAvatar user={d.reporter} size="xs" />{d.reporter.displayName}
+						</dd>
 					</div>
-					<div class="flex justify-between gap-2"><dt class="text-muted-foreground">Created</dt><dd title={formatDateTime(t.createdAt)}>{formatDate(t.createdAt)}</dd></div>
-					<div class="flex justify-between gap-2"><dt class="text-muted-foreground">Updated</dt><dd><TimeAgo date={t.updatedAt} /></dd></div>
+					<div class="flex justify-between gap-2">
+						<dt class="text-muted-foreground">Created</dt>
+						<dd title={formatDateTime(t.createdAt)}>{formatDate(t.createdAt)}</dd>
+					</div>
+					<div class="flex justify-between gap-2">
+						<dt class="text-muted-foreground">Updated</dt>
+						<dd><TimeAgo date={t.updatedAt} /></dd>
+					</div>
 					{#if t.completedAt && t.status === 'completed'}
-						<div class="flex justify-between gap-2"><dt class="text-muted-foreground">Completed</dt><dd class="flex items-center gap-1"><CircleCheck class="tone-completed tone-text size-3.5" />{formatDate(t.completedAt)}</dd></div>
+						<div class="flex justify-between gap-2">
+							<dt class="text-muted-foreground">Completed</dt>
+							<dd class="flex items-center gap-1">
+								<CircleCheck class="tone-completed tone-text size-3.5" />{formatDate(t.completedAt)}
+							</dd>
+						</div>
 					{/if}
 					{#if data.project.votingEnabled}
-						<div class="flex justify-between gap-2"><dt class="text-muted-foreground">Votes</dt><dd class="tabular-nums">{t.voteCount}</dd></div>
+						<div class="flex justify-between gap-2">
+							<dt class="text-muted-foreground">Votes</dt>
+							<dd class="tabular-nums">{t.voteCount}</dd>
+						</div>
 					{/if}
 					{#each d.releases as release (release.id)}
 						<div class="flex justify-between gap-2">
 							<dt class="text-muted-foreground">Released in</dt>
-							<dd><a href={projectPath(key, 'changelog')} class="inline-flex items-center gap-1 text-primary hover:underline"><Rocket class="size-3.5" />{release.version}</a></dd>
+							<dd>
+								<a
+									href={projectPath(key, 'changelog')}
+									class="inline-flex items-center gap-1 text-primary hover:underline"
+									><Rocket class="size-3.5" />{release.version}</a
+								>
+							</dd>
 						</div>
 					{/each}
 				</dl>

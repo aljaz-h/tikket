@@ -13,7 +13,11 @@
 </script>
 
 <span
-	class={cn('tone-text inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap', meta.tone, className)}
+	class={cn(
+		'tone-text inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap',
+		meta.tone,
+		className
+	)}
 	title={iconOnly ? `${meta.label} priority` : undefined}
 >
 	<Icon class="size-3.5" aria-hidden="true" />

@@ -42,14 +42,14 @@ const OPTIONS: sanitizeHtml.IOptions = {
 		div: 'p',
 		a: (_tagName, attribs): sanitizeHtml.Tag => {
 			const href = attribs.href?.startsWith('mailto:') ? attribs.href : safeHttpUrl(attribs.href);
-			if (!href) return { tagName: 'span', attribs: {} as sanitizeHtml.Attributes };
+			// Unsafe targets keep their text but lose the link.
+			if (!href) return { tagName: 'a', attribs: {} as sanitizeHtml.Attributes };
 			return {
 				tagName: 'a',
 				attribs: { href, rel: 'noopener noreferrer nofollow ugc', target: '_blank' }
 			};
 		}
-	},
-	exclusiveFilter: (frame) => frame.tag === 'span' && !frame.text.trim()
+	}
 };
 
 export function sanitizeRichText(html: string): string {
@@ -114,7 +114,10 @@ export function plainTextToHtml(text: string): string {
  * Normalises editor input. Rich HTML comes from the editor; the textarea fallback (no JS)
  * submits plain text.
  */
-export function normaliseRichInput(value: string, format: string | null): { html: string; text: string } {
+export function normaliseRichInput(
+	value: string,
+	format: string | null
+): { html: string; text: string } {
 	const html = format === 'html' ? sanitizeRichText(value) : plainTextToHtml(value);
 	return { html, text: htmlToText(html) };
 }

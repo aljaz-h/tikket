@@ -35,11 +35,15 @@
 		</div>
 		{#if data.signedInAs && data.projectName}
 			<form method="POST" action="?/accept" class="mt-4 grid gap-3" use:enhance>
-				<p class="text-sm">Signed in as <strong>{data.signedInAs.displayName}</strong> ({data.signedInAs.email}).</p>
+				<p class="text-sm">
+					Signed in as <strong>{data.signedInAs.displayName}</strong> ({data.signedInAs.email}).
+				</p>
 				<Button type="submit" class="w-full">Join {data.projectName}</Button>
 			</form>
 		{:else if data.signedInAs}
-			<p class="mt-4 text-sm text-muted-foreground">You already have an account. Sign out to use this invitation for a new account.</p>
+			<p class="mt-4 text-sm text-muted-foreground">
+				You already have an account. Sign out to use this invitation for a new account.
+			</p>
 		{:else}
 			<form
 				method="POST"
@@ -59,7 +63,10 @@
 			{#if data.projectName}
 				<p class="mt-4 text-center text-sm text-muted-foreground">
 					Already have an account?
-					<a href="/login?next=/invite/{encodeURIComponent(page.params.token ?? '')}" class="font-medium text-primary hover:underline">Sign in to accept</a>
+					<a
+						href="/login?next=/invite/{encodeURIComponent(page.params.token ?? '')}"
+						class="font-medium text-primary hover:underline">Sign in to accept</a
+					>
 				</p>
 			{/if}
 		{/if}

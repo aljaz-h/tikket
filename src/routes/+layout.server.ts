@@ -22,6 +22,13 @@ export const load: LayoutServerLoad = async ({ locals, depends, url }) => {
 		},
 		unreadCount: user ? unreadCount(user.id) : 0,
 		canCreateProjects: canCreateProjects(user, settings.allowUserProjectCreation),
-		sidebarProjects: listProjects(user).map((p) => ({ key: p.key, name: p.name, icon: p.icon, color: p.color, role: p.role, openCount: p.openCount }))
+		sidebarProjects: listProjects(user).map((p) => ({
+			key: p.key,
+			name: p.name,
+			icon: p.icon,
+			color: p.color,
+			role: p.role,
+			openCount: p.openCount
+		}))
 	};
 };

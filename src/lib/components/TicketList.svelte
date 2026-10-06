@@ -13,7 +13,13 @@
 	let { tickets, showProject = false, label = 'Tickets', class: className }: Props = $props();
 </script>
 
-<ul class={cn('divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface', className)} aria-label={label}>
+<ul
+	class={cn(
+		'divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface',
+		className
+	)}
+	aria-label={label}
+>
 	{#each tickets as ticket (`${ticket.projectKey}-${ticket.number}`)}
 		<TicketRow {ticket} {showProject} />
 	{/each}

@@ -14,11 +14,19 @@
 		children: Snippet;
 	}
 
-	let { label, for: htmlFor, hint, error, optional, required, class: className, children }: Props =
-		$props();
+	let {
+		label,
+		for: htmlFor,
+		hint,
+		error,
+		optional,
+		required,
+		class: className,
+		children
+	}: Props = $props();
 </script>
 
-<div class={cn('grid gap-1.5', className)}>
+<div class={cn('grid min-w-0 grid-cols-1 gap-1.5', className)}>
 	{#if label}
 		<Label for={htmlFor} class="flex items-center gap-1.5">
 			{label}

@@ -1,4 +1,10 @@
-import { error, redirect, type Handle, type HandleServerError, type ServerInit } from '@sveltejs/kit';
+import {
+	error,
+	redirect,
+	type Handle,
+	type HandleServerError,
+	type ServerInit
+} from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
 import {
 	SESSION_COOKIE,
@@ -6,7 +12,7 @@ import {
 	deleteExpiredSessions,
 	validateSessionToken
 } from '$lib/server/auth/session';
-import { getInstance } from '$lib/server/db';
+import { closeDatabase, getInstance } from '$lib/server/db';
 import { getSettings } from '$lib/server/settings';
 import { pruneOldNotifications } from '$lib/server/services/notifications';
 import { needsSetup } from '$lib/server/services/users';
@@ -18,7 +24,10 @@ function maintenance() {
 		const uploads = cleanupAbandonedUploads();
 		const sessions = deleteExpiredSessions();
 		pruneOldNotifications();
-		if (uploads || sessions) console.info(`[tikket] maintenance: removed ${uploads} abandoned uploads, ${sessions} expired sessions`);
+		if (uploads || sessions)
+			console.info(
+				`[tikket] maintenance: removed ${uploads} abandoned uploads, ${sessions} expired sessions`
+			);
 	} catch (err) {
 		console.error('[tikket] maintenance failed', err);
 	}
@@ -29,6 +38,8 @@ export const init: ServerInit = async () => {
 	getInstance();
 	maintenance();
 	setInterval(maintenance, 60 * 60 * 1000).unref();
+	// adapter-node emits this after draining connections on SIGTERM/SIGINT.
+	process.once('sveltekit:shutdown' as 'exit', () => closeDatabase());
 };
 
 let setupDone = false;
@@ -80,7 +91,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const response = await resolve(event, {
 		transformPageChunk: ({ html }) =>
-			html.replace('%tikket.theme%', theme === 'system' ? 'theme-system' : theme === 'dark' ? 'dark' : 'light')
+			html.replace(
+				'%tikket.theme%',
+				theme === 'system' ? 'theme-system' : theme === 'dark' ? 'dark' : 'light'
+			)
 	});
 
 	response.headers.set('X-Content-Type-Options', 'nosniff');
@@ -88,8 +102,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 	response.headers.set('X-Frame-Options', 'DENY');
 	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
 	response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
-	response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
-	if (secure) response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+	response.headers.set(
+		'Permissions-Policy',
+		'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+	);
+	if (secure)
+		response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 	if (event.locals.user && !response.headers.has('Cache-Control'))
 		response.headers.set('Cache-Control', 'private, no-store');
 	return response;

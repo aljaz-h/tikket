@@ -8,10 +8,7 @@
 	import { cn } from '$lib/utils';
 
 	let { current }: { current: Theme } = $props();
-	let theme = $state<Theme>('dark');
-	$effect.pre(() => {
-		theme = current;
-	});
+	let theme = $derived<Theme>(current);
 
 	const options: { value: Theme; label: string; icon: typeof Moon }[] = [
 		{ value: 'dark', label: 'Dark', icon: Moon },

@@ -7,7 +7,9 @@
 		variant = 'outline',
 		children,
 		...rest
-	}: HTMLAttributes<HTMLSpanElement> & { variant?: 'outline' | 'tone' | 'solid' | 'muted' } = $props();
+	}: HTMLAttributes<HTMLSpanElement> & {
+		variant?: 'outline' | 'tone' | 'solid' | 'muted';
+	} = $props();
 </script>
 
 <span

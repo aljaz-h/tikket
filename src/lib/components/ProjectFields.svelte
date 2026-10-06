@@ -35,9 +35,16 @@
 	});
 
 	function suggestKey(source: string) {
-		const words = source.toUpperCase().replace(/[^A-Z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+		const words = source
+			.toUpperCase()
+			.replace(/[^A-Z0-9 ]/g, '')
+			.split(/\s+/)
+			.filter(Boolean);
 		if (!words.length) return '';
-		const candidate = words.length > 1 ? words.map((w) => w[0]).join('') : words[0].replace(/[AEIOU]/g, (m, i) => (i === 0 ? m : '')).slice(0, 3);
+		const candidate =
+			words.length > 1
+				? words.map((w) => w[0]).join('')
+				: words[0].replace(/[AEIOU]/g, (m, i) => (i === 0 ? m : '')).slice(0, 3);
 		const cleaned = candidate.replace(/^[0-9]+/, '').slice(0, 5);
 		return cleaned.length >= 2 ? cleaned : words[0].slice(0, 3);
 	}
@@ -59,7 +66,13 @@
 				aria-invalid={!!errors.name}
 			/>
 		</Field>
-		<Field label="Key" for="key" error={errors.key} required hint={keyLocked ? undefined : 'Prefix for ticket numbers'}>
+		<Field
+			label="Key"
+			for="key"
+			error={errors.key}
+			required
+			hint={keyLocked ? undefined : 'Prefix for ticket numbers'}
+		>
 			<Input
 				id="key"
 				name="key"
@@ -78,19 +91,35 @@
 	{#if keyLocked}
 		<p class="-mt-3 text-xs text-muted-foreground">
 			Tickets will be numbered <span class="font-mono">{(key || 'KEY').toUpperCase()}-1</span>,
-			<span class="font-mono">{(key || 'KEY').toUpperCase()}-2</span>… Changing the key renames every ticket reference and changes ticket URLs.
+			<span class="font-mono">{(key || 'KEY').toUpperCase()}-2</span>… Changing the key renames
+			every ticket reference and changes ticket URLs.
 		</p>
 	{/if}
 
 	<Field label="Description" for="description" error={errors.description} optional>
-		<Textarea id="description" name="description" maxlength={500} rows={2} placeholder="What is this project about?" value={String(values.description ?? '')} />
+		<Textarea
+			id="description"
+			name="description"
+			maxlength={500}
+			rows={2}
+			placeholder="What is this project about?"
+			value={String(values.description ?? '')}
+		/>
 	</Field>
 
 	<div class="grid gap-4 sm:grid-cols-[7rem_1fr]">
 		<Field label="Icon" for="icon" optional error={errors.icon}>
 			<div class="flex items-center gap-2">
 				<ProjectIcon project={{ name: name || '?', icon, color }} size="md" />
-				<Input id="icon" name="icon" maxlength={4} placeholder="🎬" bind:value={icon} class="w-14 text-center" aria-describedby="icon-hint" />
+				<Input
+					id="icon"
+					name="icon"
+					maxlength={4}
+					placeholder="🎬"
+					bind:value={icon}
+					class="w-14 text-center"
+					aria-describedby="icon-hint"
+				/>
 			</div>
 		</Field>
 		<fieldset class="grid gap-1.5">
@@ -110,10 +139,20 @@
 			</div>
 		</fieldset>
 	</div>
-	<p id="icon-hint" class="-mt-3 text-xs text-muted-foreground">Use an emoji or leave empty to show the first letter.</p>
+	<p id="icon-hint" class="-mt-3 text-xs text-muted-foreground">
+		Use an emoji or leave empty to show the first letter.
+	</p>
 
 	<Field label="Project website" for="url" error={errors.url} optional>
-		<Input id="url" name="url" type="url" inputmode="url" placeholder="https://spool.example.com" value={String(values.url ?? '')} aria-invalid={!!errors.url} />
+		<Input
+			id="url"
+			name="url"
+			type="url"
+			inputmode="url"
+			placeholder="https://spool.example.com"
+			value={String(values.url ?? '')}
+			aria-invalid={!!errors.url}
+		/>
 	</Field>
 
 	<fieldset class="grid gap-2">
@@ -126,7 +165,13 @@
 						'flex cursor-pointer gap-3 rounded-lg border border-border p-3 transition-colors hover:border-border-strong has-[:checked]:border-primary has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring'
 					)}
 				>
-					<input type="radio" name="visibility" value={option.value} bind:group={visibility} class="sr-only" />
+					<input
+						type="radio"
+						name="visibility"
+						value={option.value}
+						bind:group={visibility}
+						class="sr-only"
+					/>
 					<Icon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
 					<span>
 						<span class="block text-sm font-medium">{option.label}</span>
@@ -141,7 +186,10 @@
 			<Switch name="allowAnonymousRead" bind:checked={anonymous} class="mt-0.5" />
 			<span>
 				<span class="block text-sm font-medium">Allow read-only access without signing in</span>
-				<span class="block text-xs text-muted-foreground">Visitors can browse tickets, the roadmap and changelog. Contributing still requires an account.</span>
+				<span class="block text-xs text-muted-foreground"
+					>Visitors can browse tickets, the roadmap and changelog. Contributing still requires an
+					account.</span
+				>
 			</span>
 		</label>
 	{/if}

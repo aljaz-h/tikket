@@ -31,12 +31,20 @@
 				<div class="min-w-0">
 					<h1 class="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
 						<span class="truncate">{data.project.name}</span>
-						{#if data.project.visibility === 'private'}<Lock class="size-4 shrink-0 text-muted-foreground" aria-label="Private project" />{/if}
+						{#if data.project.visibility === 'private'}<Lock
+								class="size-4 shrink-0 text-muted-foreground"
+								aria-label="Private project"
+							/>{/if}
 					</h1>
 					<p class="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
 						<span class="font-mono">{data.project.key}</span>
 						{#if data.project.url}
-							<a href={data.project.url} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 hover:text-foreground">
+							<a
+								href={data.project.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="inline-flex items-center gap-1 hover:text-foreground"
+							>
 								{new URL(data.project.url).host}<ExternalLink class="size-3" />
 							</a>
 						{/if}
@@ -48,18 +56,25 @@
 			{/if}
 		</div>
 		{#if data.permissions.archived}
-			<div class="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+			<div
+				class="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
+			>
 				<Archive class="size-4" /> This project is archived. Its history is preserved and read-only.
 			</div>
 		{/if}
-		<nav class="scrollbar-thin -mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0" aria-label="Project">
+		<nav
+			class="-mx-4 flex scrollbar-thin gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0"
+			aria-label="Project"
+		>
 			{#each tabs as tab (tab.href)}
 				<a
 					href={tab.href}
 					aria-current={isActive(tab) ? 'page' : undefined}
 					class={cn(
 						'-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors',
-						isActive(tab) ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+						isActive(tab)
+							? 'border-primary font-medium text-foreground'
+							: 'border-transparent text-muted-foreground hover:text-foreground'
 					)}>{tab.label}</a
 				>
 			{/each}

@@ -13,7 +13,13 @@
 	let { open = $bindable(false) }: { open?: boolean } = $props();
 
 	interface Result {
-		tickets: { number: number; title: string; status: TicketStatus; projectKey: string; projectName: string }[];
+		tickets: {
+			number: number;
+			title: string;
+			status: TicketStatus;
+			projectKey: string;
+			projectName: string;
+		}[];
 		projects: { key: string; name: string; icon: string | null; color: string }[];
 	}
 	let q = $state('');
@@ -25,7 +31,10 @@
 
 	const flat = $derived([
 		...results.projects.map((p) => ({ href: projectPath(p.key), key: `p-${p.key}` })),
-		...results.tickets.map((t) => ({ href: ticketPath(t.projectKey, t.number), key: `t-${t.projectKey}-${t.number}` }))
+		...results.tickets.map((t) => ({
+			href: ticketPath(t.projectKey, t.number),
+			key: `t-${t.projectKey}-${t.number}`
+		}))
 	]);
 
 	function search(value: string) {
@@ -40,7 +49,9 @@
 			controller?.abort();
 			controller = new AbortController();
 			try {
-				const res = await fetch(`/api/search?q=${encodeURIComponent(value)}`, { signal: controller.signal });
+				const res = await fetch(`/api/search?q=${encodeURIComponent(value)}`, {
+					signal: controller.signal
+				});
 				if (res.ok) {
 					results = await res.json();
 					active = 0;
@@ -83,7 +94,9 @@
 
 <Dialog.Root bind:open>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-50 bg-black/55 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+		<Dialog.Overlay
+			class="fixed inset-0 z-50 bg-black/55 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+		/>
 		<Dialog.Content
 			class="fixed top-[12vh] left-1/2 z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-popover shadow-pop outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98]"
 		>
@@ -106,7 +119,9 @@
 			</div>
 			<div id="search-results" role="listbox" class="max-h-[60vh] overflow-y-auto p-1.5">
 				{#if q.trim().length < 2}
-					<p class="px-3 py-6 text-center text-sm text-muted-foreground">Type at least two characters to search.</p>
+					<p class="px-3 py-6 text-center text-sm text-muted-foreground">
+						Type at least two characters to search.
+					</p>
 				{:else if !loading && !flat.length}
 					<p class="px-3 py-6 text-center text-sm text-muted-foreground">No results for “{q}”.</p>
 				{/if}
@@ -120,7 +135,10 @@
 							href={projectPath(p.key)}
 							onclick={() => (open = false)}
 							onmouseenter={() => (active = i)}
-							class={cn('flex items-center gap-2 rounded-md px-2 py-2 text-sm', active === i && 'bg-hover')}
+							class={cn(
+								'flex items-center gap-2 rounded-md px-2 py-2 text-sm',
+								active === i && 'bg-hover'
+							)}
 						>
 							<ProjectIcon project={p} />
 							<span class="flex-1 truncate">{p.name}</span>
@@ -139,10 +157,15 @@
 							href={ticketPath(t.projectKey, t.number)}
 							onclick={() => (open = false)}
 							onmouseenter={() => (active = i)}
-							class={cn('flex items-center gap-2 rounded-md px-2 py-2 text-sm', active === i && 'bg-hover')}
+							class={cn(
+								'flex items-center gap-2 rounded-md px-2 py-2 text-sm',
+								active === i && 'bg-hover'
+							)}
 						>
 							<StatusBadge status={t.status} iconOnly />
-							<span class="w-16 shrink-0 font-mono text-xs text-muted-foreground">{ticketRef(t.projectKey, t.number)}</span>
+							<span class="w-16 shrink-0 font-mono text-xs text-muted-foreground"
+								>{ticketRef(t.projectKey, t.number)}</span
+							>
 							<span class="flex-1 truncate">{t.title}</span>
 							{#if active === i}<CornerDownLeft class="size-3.5 text-muted-foreground" />{/if}
 						</a>

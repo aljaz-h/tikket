@@ -18,9 +18,15 @@ export interface InvitationInput {
 }
 
 /** Creates an invitation and returns the raw token (only its hash is stored). */
-export function createInvitation(actorId: number, input: InvitationInput, ip: string | null): string {
+export function createInvitation(
+	actorId: number,
+	input: InvitationInput,
+	ip: string | null
+): string {
 	const token = randomToken(32);
-	const expiresAt = new Date(Date.now() + getSettings().invitationLifetimeDays * 24 * 60 * 60 * 1000);
+	const expiresAt = new Date(
+		Date.now() + getSettings().invitationLifetimeDays * 24 * 60 * 60 * 1000
+	);
 	getDb().transaction((tx) => {
 		const row = tx
 			.insert(schema.invitations)
@@ -41,7 +47,12 @@ export function createInvitation(actorId: number, input: InvitationInput, ip: st
 				action: 'invitation.created',
 				targetType: 'invitation',
 				targetId: row.id,
-				data: { email: input.email, role: input.role, projectId: input.projectId, projectRole: row.projectRole },
+				data: {
+					email: input.email,
+					role: input.role,
+					projectId: input.projectId,
+					projectRole: row.projectRole
+				},
 				ip
 			},
 			tx
@@ -73,8 +84,6 @@ export function findValidInvitation(token: string) {
 		.get();
 }
 
-
-
 /** Atomically claims an invitation; the role and project always come from the stored record. */
 function claim(tx: DB, token: string, userId: number) {
 	const inv = tx
@@ -89,19 +98,26 @@ function claim(tx: DB, token: string, userId: number) {
 			)
 		)
 		.get();
-	if (!inv) throw new ServiceError('This invitation is invalid, already used or expired', 'form', 410);
+	if (!inv)
+		throw new ServiceError('This invitation is invalid, already used or expired', 'form', 410);
 	const res = tx
 		.update(schema.invitations)
 		.set({ usedAt: new Date(), usedById: userId })
 		.where(and(eq(schema.invitations.id, inv.id), isNull(schema.invitations.usedAt)))
 		.run();
-	if (res.changes !== 1) throw new ServiceError('This invitation has already been used', 'form', 410);
+	if (res.changes !== 1)
+		throw new ServiceError('This invitation has already been used', 'form', 410);
 	return inv;
 }
 
-export async function acceptInvitationAsNewUser(token: string, input: NewUser, ip: string | null): Promise<User> {
+export async function acceptInvitationAsNewUser(
+	token: string,
+	input: NewUser,
+	ip: string | null
+): Promise<User> {
 	const found = findValidInvitation(token);
-	if (!found) throw new ServiceError('This invitation is invalid, already used or expired', 'form', 410);
+	if (!found)
+		throw new ServiceError('This invitation is invalid, already used or expired', 'form', 410);
 	if (found.invitation.email && found.invitation.email.toLowerCase() !== input.email.toLowerCase())
 		throw new ServiceError('Use the email address this invitation was sent to', 'email');
 	const passwordHash = await hashPassword(input.password);
@@ -110,12 +126,17 @@ export async function acceptInvitationAsNewUser(token: string, input: NewUser, i
 			const clash = tx
 				.select({ username: schema.users.username })
 				.from(schema.users)
-				.where(sql`lower(${schema.users.username}) = ${input.username.toLowerCase()} or lower(${schema.users.email}) = ${input.email.toLowerCase()}`)
+				.where(
+					sql`lower(${schema.users.username}) = ${input.username.toLowerCase()} or lower(${schema.users.email}) = ${input.email.toLowerCase()}`
+				)
 				.get();
 			if (clash)
 				throw clash.username.toLowerCase() === input.username.toLowerCase()
 					? new ServiceError('That username is already taken', 'username')
-					: new ServiceError('An account with that email already exists – sign in instead', 'email');
+					: new ServiceError(
+							'An account with that email already exists – sign in instead',
+							'email'
+						);
 			const user = tx
 				.insert(schema.users)
 				.values({
@@ -130,8 +151,28 @@ export async function acceptInvitationAsNewUser(token: string, input: NewUser, i
 				.get();
 			const inv = claim(tx, token, user.id);
 			if (inv.projectId) ensureMember(inv.projectId, user.id, inv.projectRole ?? 'member', tx);
-			audit({ actorId: user.id, action: 'invitation.accepted', targetType: 'invitation', targetId: inv.id, data: { newAccount: true }, ip }, tx);
-			audit({ actorId: inv.createdById, action: 'user.created', targetType: 'user', targetId: user.id, data: { username: user.username, role: user.role, via: 'invitation' }, ip }, tx);
+			audit(
+				{
+					actorId: user.id,
+					action: 'invitation.accepted',
+					targetType: 'invitation',
+					targetId: inv.id,
+					data: { newAccount: true },
+					ip
+				},
+				tx
+			);
+			audit(
+				{
+					actorId: inv.createdById,
+					action: 'user.created',
+					targetType: 'user',
+					targetId: user.id,
+					data: { username: user.username, role: user.role, via: 'invitation' },
+					ip
+				},
+				tx
+			);
 			return user;
 		},
 		{ behavior: 'immediate' }
@@ -139,15 +180,33 @@ export async function acceptInvitationAsNewUser(token: string, input: NewUser, i
 }
 
 /** Existing accounts can accept project invitations; global roles are never changed this way. */
-export function acceptInvitationAsExistingUser(token: string, user: { id: number; email: string }, ip: string | null) {
+export function acceptInvitationAsExistingUser(
+	token: string,
+	user: { id: number; email: string },
+	ip: string | null
+) {
 	return getDb().transaction(
 		(tx) => {
 			const inv = claim(tx, token, user.id);
 			if (inv.email && inv.email.toLowerCase() !== user.email.toLowerCase())
-				throw new ServiceError('This invitation was sent to a different email address', 'form', 403);
+				throw new ServiceError(
+					'This invitation was sent to a different email address',
+					'form',
+					403
+				);
 			if (!inv.projectId) throw new ServiceError('You already have an account', 'form', 409);
 			ensureMember(inv.projectId, user.id, inv.projectRole ?? 'member', tx);
-			audit({ actorId: user.id, action: 'invitation.accepted', targetType: 'invitation', targetId: inv.id, data: { projectId: inv.projectId }, ip }, tx);
+			audit(
+				{
+					actorId: user.id,
+					action: 'invitation.accepted',
+					targetType: 'invitation',
+					targetId: inv.id,
+					data: { projectId: inv.projectId },
+					ip
+				},
+				tx
+			);
 			return inv.projectId;
 		},
 		{ behavior: 'immediate' }
@@ -182,7 +241,12 @@ export function listInvitations(projectId?: number) {
 		.all();
 }
 
-export function revokeInvitation(actorId: number, invitationId: number, projectId: number | null, ip: string | null) {
+export function revokeInvitation(
+	actorId: number,
+	invitationId: number,
+	projectId: number | null,
+	ip: string | null
+) {
 	return getDb().transaction((tx) => {
 		const res = tx
 			.update(schema.invitations)
@@ -196,7 +260,17 @@ export function revokeInvitation(actorId: number, invitationId: number, projectI
 				)
 			)
 			.run();
-		if (res.changes) audit({ actorId, action: 'invitation.revoked', targetType: 'invitation', targetId: invitationId, ip }, tx);
+		if (res.changes)
+			audit(
+				{
+					actorId,
+					action: 'invitation.revoked',
+					targetType: 'invitation',
+					targetId: invitationId,
+					ip
+				},
+				tx
+			);
 		return res.changes;
 	});
 }

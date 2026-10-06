@@ -26,13 +26,29 @@
 		user: { displayName: string; username: string; avatarId: string | null; role: string } | null;
 		theme: Theme;
 		unreadCount: number;
-		projects: { key: string; name: string; icon: string | null; color: string; openCount: number }[];
+		projects: {
+			key: string;
+			name: string;
+			icon: string | null;
+			color: string;
+			openCount: number;
+		}[];
 		collapsed?: boolean;
 		mobile?: boolean;
 		onsearch: () => void;
 		ontogglecollapse?: () => void;
 	}
-	let { appName, user, theme, unreadCount, projects, collapsed = false, mobile = false, onsearch, ontogglecollapse }: Props = $props();
+	let {
+		appName,
+		user,
+		theme,
+		unreadCount,
+		projects,
+		collapsed = false,
+		mobile = false,
+		onsearch,
+		ontogglecollapse
+	}: Props = $props();
 
 	const currentProjectKey = $derived(page.params.key?.toUpperCase());
 	const newTicketHref = $derived(currentProjectKey ? `/new?project=${currentProjectKey}` : '/new');
@@ -40,7 +56,13 @@
 	const nav = $derived([
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard, show: true },
 		{ href: '/my-tickets', label: 'My tickets', icon: Ticket, show: !!user },
-		{ href: '/notifications', label: 'Notifications', icon: Bell, show: !!user, badge: unreadCount },
+		{
+			href: '/notifications',
+			label: 'Notifications',
+			icon: Bell,
+			show: !!user,
+			badge: unreadCount
+		},
 		{ href: '/projects', label: 'Projects', icon: FolderKanban, show: true },
 		{ href: '/admin', label: 'Administration', icon: Shield, show: user?.role === 'admin' }
 	]);
@@ -66,7 +88,9 @@
 					aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 					aria-expanded={!collapsed}
 				>
-					{#if collapsed}<PanelLeftOpen class="size-4" />{:else}<PanelLeftClose class="size-4" />{/if}
+					{#if collapsed}<PanelLeftOpen class="size-4" />{:else}<PanelLeftClose
+							class="size-4"
+						/>{/if}
 				</button>
 			{/if}
 		</div>
@@ -121,7 +145,10 @@
 						<Icon class="size-4 shrink-0" />
 						{#if !collapsed}
 							<span class="flex-1 truncate">{item.label}</span>
-							{#if item.badge}<span class="rounded-full bg-primary-soft px-1.5 text-xs font-medium text-primary">{item.badge}</span>{/if}
+							{#if item.badge}<span
+									class="rounded-full bg-primary-soft px-1.5 text-xs font-medium text-primary"
+									>{item.badge}</span
+								>{/if}
 						{:else}<span class="sr-only">{item.label}</span>{/if}
 					</a>
 				{/snippet}
@@ -131,7 +158,9 @@
 
 	<div class="min-h-0 flex-1 overflow-y-auto">
 		{#if projects.length}
-			{#if !collapsed}<p class="px-2 pt-2 pb-1.5 text-xs font-medium text-subtle-foreground">Projects</p>{/if}
+			{#if !collapsed}<p class="px-2 pt-2 pb-1.5 text-xs font-medium text-subtle-foreground">
+					Projects
+				</p>{/if}
 			<ul class="grid gap-0.5" aria-label="Projects">
 				{#each projects as project (project.key)}
 					{@const active = currentProjectKey === project.key}
@@ -151,7 +180,9 @@
 									<ProjectIcon {project} />
 									{#if !collapsed}
 										<span class="flex-1 truncate">{project.name}</span>
-										{#if project.openCount}<span class="text-xs text-subtle-foreground tabular-nums">{project.openCount}</span>{/if}
+										{#if project.openCount}<span class="text-xs text-subtle-foreground tabular-nums"
+												>{project.openCount}</span
+											>{/if}
 									{:else}<span class="sr-only">{project.name}</span>{/if}
 								</a>
 							{/snippet}

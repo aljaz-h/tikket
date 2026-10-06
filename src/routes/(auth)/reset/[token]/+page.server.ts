@@ -13,7 +13,11 @@ export const load: PageServerLoad = async ({ params }) => {
 export const actions: Actions = {
 	default: async ({ request, params, locals }) => {
 		const wait = limiters.signup.hit(`reset:${locals.clientIp}`);
-		if (wait) return fail(429, { errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` }, values: {} });
+		if (wait)
+			return fail(429, {
+				errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` },
+				values: {}
+			});
 		const parsed = parseForm(resetPasswordSchema, await request.formData());
 		if (!parsed.ok) return parsed.failure;
 		try {

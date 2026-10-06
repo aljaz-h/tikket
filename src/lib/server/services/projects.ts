@@ -30,12 +30,19 @@ function assertKeyAvailable(key: string, exceptId?: number) {
 	const clash = getDb()
 		.select({ id: schema.projects.id })
 		.from(schema.projects)
-		.where(and(eq(schema.projects.key, key), exceptId ? ne(schema.projects.id, exceptId) : undefined))
+		.where(
+			and(eq(schema.projects.key, key), exceptId ? ne(schema.projects.id, exceptId) : undefined)
+		)
 		.get();
 	if (clash) throw new ServiceError('Another project already uses this key', 'key');
 }
 
-export function createProject(actorId: number, input: ProjectInput, ownerId: number, ip: string | null): Project {
+export function createProject(
+	actorId: number,
+	input: ProjectInput,
+	ownerId: number,
+	ip: string | null
+): Project {
 	const db = getDb();
 	return db.transaction(
 		(tx) => {
@@ -45,13 +52,20 @@ export function createProject(actorId: number, input: ProjectInput, ownerId: num
 				.from(schema.users)
 				.where(eq(schema.users.id, ownerId))
 				.get();
-			if (!owner || owner.status !== 'active') throw new ServiceError('Choose an active owner', 'ownerId');
+			if (!owner || owner.status !== 'active')
+				throw new ServiceError('Choose an active owner', 'ownerId');
 			const project = tx
 				.insert(schema.projects)
-				.values({ ...input, allowAnonymousRead: input.visibility === 'public' && input.allowAnonymousRead, createdById: actorId })
+				.values({
+					...input,
+					allowAnonymousRead: input.visibility === 'public' && input.allowAnonymousRead,
+					createdById: actorId
+				})
 				.returning()
 				.get();
-			tx.insert(schema.projectMembers).values({ projectId: project.id, userId: ownerId, role: 'owner' }).run();
+			tx.insert(schema.projectMembers)
+				.values({ projectId: project.id, userId: ownerId, role: 'owner' })
+				.run();
 			audit(
 				{
 					actorId,
@@ -69,7 +83,12 @@ export function createProject(actorId: number, input: ProjectInput, ownerId: num
 	);
 }
 
-export function updateProject(actorId: number, project: Project, input: ProjectSettingsInput, ip: string | null): Project {
+export function updateProject(
+	actorId: number,
+	project: Project,
+	input: ProjectSettingsInput,
+	ip: string | null
+): Project {
 	return getDb().transaction(
 		(tx) => {
 			if (input.key !== project.key) assertKeyAvailable(input.key, project.id);
@@ -84,33 +103,75 @@ export function updateProject(actorId: number, project: Project, input: ProjectS
 				.returning()
 				.get();
 			if (input.key !== project.key)
-				audit({ actorId, action: 'project.key_changed', targetType: 'project', targetId: project.id, data: { from: project.key, to: input.key }, ip }, tx);
-			if (input.visibility !== project.visibility || updated.allowAnonymousRead !== project.allowAnonymousRead)
+				audit(
+					{
+						actorId,
+						action: 'project.key_changed',
+						targetType: 'project',
+						targetId: project.id,
+						data: { from: project.key, to: input.key },
+						ip
+					},
+					tx
+				);
+			if (
+				input.visibility !== project.visibility ||
+				updated.allowAnonymousRead !== project.allowAnonymousRead
+			)
 				audit(
 					{
 						actorId,
 						action: 'project.visibility_changed',
 						targetType: 'project',
 						targetId: project.id,
-						data: { from: project.visibility, to: input.visibility, anonymousRead: updated.allowAnonymousRead },
+						data: {
+							from: project.visibility,
+							to: input.visibility,
+							anonymousRead: updated.allowAnonymousRead
+						},
 						ip
 					},
 					tx
 				);
-			audit({ actorId, action: 'project.updated', targetType: 'project', targetId: project.id, data: { key: updated.key }, ip }, tx);
+			audit(
+				{
+					actorId,
+					action: 'project.updated',
+					targetType: 'project',
+					targetId: project.id,
+					data: { key: updated.key },
+					ip
+				},
+				tx
+			);
 			return updated;
 		},
 		{ behavior: 'immediate' }
 	);
 }
 
-export function setArchived(actorId: number, project: Project, archived: boolean, ip: string | null) {
+export function setArchived(
+	actorId: number,
+	project: Project,
+	archived: boolean,
+	ip: string | null
+) {
 	getDb().transaction((tx) => {
 		tx.update(schema.projects)
 			.set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
 			.where(eq(schema.projects.id, project.id))
 			.run();
-		audit({ actorId, action: archived ? 'project.archived' : 'project.unarchived', targetType: 'project', targetId: project.id, data: { key: project.key }, ip }, tx);
+		audit(
+			{
+				actorId,
+				action: archived ? 'project.archived' : 'project.unarchived',
+				targetType: 'project',
+				targetId: project.id,
+				data: { key: project.key },
+				ip
+			},
+			tx
+		);
 	});
 }
 
@@ -124,7 +185,11 @@ const totalCount = sql<number>`(select count(*) from ${schema.tickets} t where t
 export function listProjects(actor: Actor, opts: { archived?: boolean | 'all' } = {}) {
 	const db = getDb();
 	const archivedCond =
-		opts.archived === 'all' ? undefined : opts.archived ? isNotNull(schema.projects.archivedAt) : isNull(schema.projects.archivedAt);
+		opts.archived === 'all'
+			? undefined
+			: opts.archived
+				? isNotNull(schema.projects.archivedAt)
+				: isNull(schema.projects.archivedAt);
 	return db
 		.select({
 			id: schema.projects.id,
@@ -144,7 +209,10 @@ export function listProjects(actor: Actor, opts: { archived?: boolean | 'all' } 
 		.from(schema.projects)
 		.leftJoin(
 			schema.projectMembers,
-			and(eq(schema.projectMembers.projectId, schema.projects.id), eq(schema.projectMembers.userId, actor?.id ?? -1))
+			and(
+				eq(schema.projectMembers.projectId, schema.projects.id),
+				eq(schema.projectMembers.userId, actor?.id ?? -1)
+			)
 		)
 		.where(and(viewableProjectsCondition(actor), archivedCond))
 		.orderBy(asc(sql`lower(${schema.projects.name})`))
@@ -188,7 +256,10 @@ export function listAssignableUsers(projectId: number) {
 		.from(schema.users)
 		.leftJoin(
 			schema.projectMembers,
-			and(eq(schema.projectMembers.userId, schema.users.id), eq(schema.projectMembers.projectId, projectId))
+			and(
+				eq(schema.projectMembers.userId, schema.users.id),
+				eq(schema.projectMembers.projectId, projectId)
+			)
 		)
 		.where(
 			and(
@@ -209,59 +280,117 @@ function ownerCount(projectId: number) {
 		getDb()
 			.select({ n: sql<number>`count(*)` })
 			.from(schema.projectMembers)
-			.where(and(eq(schema.projectMembers.projectId, projectId), eq(schema.projectMembers.role, 'owner')))
+			.where(
+				and(eq(schema.projectMembers.projectId, projectId), eq(schema.projectMembers.role, 'owner'))
+			)
 			.get()?.n ?? 0
 	);
 }
 
-export function addMember(actorId: number, project: Project, userId: number, role: ProjectRole, ip: string | null) {
+export function addMember(
+	actorId: number,
+	project: Project,
+	userId: number,
+	role: ProjectRole,
+	ip: string | null
+) {
 	getDb().transaction(
 		(tx) => {
-			const user = tx.select({ id: schema.users.id, status: schema.users.status }).from(schema.users).where(eq(schema.users.id, userId)).get();
+			const user = tx
+				.select({ id: schema.users.id, status: schema.users.status })
+				.from(schema.users)
+				.where(eq(schema.users.id, userId))
+				.get();
 			if (!user || user.status !== 'active') throw new ServiceError('User not found', 'user');
 			const existing = tx
 				.select()
 				.from(schema.projectMembers)
-				.where(and(eq(schema.projectMembers.projectId, project.id), eq(schema.projectMembers.userId, userId)))
+				.where(
+					and(
+						eq(schema.projectMembers.projectId, project.id),
+						eq(schema.projectMembers.userId, userId)
+					)
+				)
 				.get();
 			if (existing) throw new ServiceError('This user is already a member', 'user');
 			tx.insert(schema.projectMembers).values({ projectId: project.id, userId, role }).run();
-			audit({ actorId, action: 'project.member_added', targetType: 'project', targetId: project.id, data: { userId, role }, ip }, tx);
+			audit(
+				{
+					actorId,
+					action: 'project.member_added',
+					targetType: 'project',
+					targetId: project.id,
+					data: { userId, role },
+					ip
+				},
+				tx
+			);
 		},
 		{ behavior: 'immediate' }
 	);
 }
 
 /** Adds or upgrades a membership (used by invitations); never downgrades an existing role. */
-export function ensureMember(projectId: number, userId: number, role: ProjectRole, tx: DB = getDb()) {
+export function ensureMember(
+	projectId: number,
+	userId: number,
+	role: ProjectRole,
+	tx: DB = getDb()
+) {
 	const rank = { member: 0, moderator: 1, owner: 2 } as const;
 	const existing = tx
 		.select()
 		.from(schema.projectMembers)
-		.where(and(eq(schema.projectMembers.projectId, projectId), eq(schema.projectMembers.userId, userId)))
+		.where(
+			and(eq(schema.projectMembers.projectId, projectId), eq(schema.projectMembers.userId, userId))
+		)
 		.get();
 	if (!existing) {
 		tx.insert(schema.projectMembers).values({ projectId, userId, role }).run();
 	} else if (rank[role] > rank[existing.role]) {
-		tx.update(schema.projectMembers).set({ role }).where(eq(schema.projectMembers.id, existing.id)).run();
+		tx.update(schema.projectMembers)
+			.set({ role })
+			.where(eq(schema.projectMembers.id, existing.id))
+			.run();
 	}
 }
 
-export function changeMemberRole(actorId: number, project: Project, userId: number, role: ProjectRole, ip: string | null) {
+export function changeMemberRole(
+	actorId: number,
+	project: Project,
+	userId: number,
+	role: ProjectRole,
+	ip: string | null
+) {
 	getDb().transaction(
 		(tx) => {
 			const existing = tx
 				.select()
 				.from(schema.projectMembers)
-				.where(and(eq(schema.projectMembers.projectId, project.id), eq(schema.projectMembers.userId, userId)))
+				.where(
+					and(
+						eq(schema.projectMembers.projectId, project.id),
+						eq(schema.projectMembers.userId, userId)
+					)
+				)
 				.get();
 			if (!existing) throw new ServiceError('Member not found', 'form', 404);
 			if (existing.role === role) return;
 			if (existing.role === 'owner' && ownerCount(project.id) <= 1)
 				throw new ServiceError('A project needs at least one owner');
-			tx.update(schema.projectMembers).set({ role }).where(eq(schema.projectMembers.id, existing.id)).run();
+			tx.update(schema.projectMembers)
+				.set({ role })
+				.where(eq(schema.projectMembers.id, existing.id))
+				.run();
 			audit(
-				{ actorId, action: 'project.member_role_changed', targetType: 'project', targetId: project.id, data: { userId, from: existing.role, to: role }, ip },
+				{
+					actorId,
+					action: 'project.member_role_changed',
+					targetType: 'project',
+					targetId: project.id,
+					data: { userId, from: existing.role, to: role },
+					ip
+				},
 				tx
 			);
 		},
@@ -275,13 +404,28 @@ export function removeMember(actorId: number, project: Project, userId: number, 
 			const existing = tx
 				.select()
 				.from(schema.projectMembers)
-				.where(and(eq(schema.projectMembers.projectId, project.id), eq(schema.projectMembers.userId, userId)))
+				.where(
+					and(
+						eq(schema.projectMembers.projectId, project.id),
+						eq(schema.projectMembers.userId, userId)
+					)
+				)
 				.get();
 			if (!existing) throw new ServiceError('Member not found', 'form', 404);
 			if (existing.role === 'owner' && ownerCount(project.id) <= 1)
 				throw new ServiceError('A project needs at least one owner');
 			tx.delete(schema.projectMembers).where(eq(schema.projectMembers.id, existing.id)).run();
-			audit({ actorId, action: 'project.member_removed', targetType: 'project', targetId: project.id, data: { userId, role: existing.role }, ip }, tx);
+			audit(
+				{
+					actorId,
+					action: 'project.member_removed',
+					targetType: 'project',
+					targetId: project.id,
+					data: { userId, role: existing.role },
+					ip
+				},
+				tx
+			);
 		},
 		{ behavior: 'immediate' }
 	);
@@ -292,7 +436,12 @@ export function projectStaffIds(projectId: number): number[] {
 	return getDb()
 		.select({ id: schema.projectMembers.userId })
 		.from(schema.projectMembers)
-		.where(and(eq(schema.projectMembers.projectId, projectId), inArray(schema.projectMembers.role, ['owner', 'moderator'])))
+		.where(
+			and(
+				eq(schema.projectMembers.projectId, projectId),
+				inArray(schema.projectMembers.role, ['owner', 'moderator'])
+			)
+		)
 		.all()
 		.map((r) => r.id);
 }
@@ -317,7 +466,12 @@ export function createLabel(projectId: number, name: string, color: string) {
 	const clash = getDb()
 		.select({ id: schema.ticketLabels.id })
 		.from(schema.ticketLabels)
-		.where(and(eq(schema.ticketLabels.projectId, projectId), sql`lower(${schema.ticketLabels.name}) = ${name.toLowerCase()}`))
+		.where(
+			and(
+				eq(schema.ticketLabels.projectId, projectId),
+				sql`lower(${schema.ticketLabels.name}) = ${name.toLowerCase()}`
+			)
+		)
 		.get();
 	if (clash) throw new ServiceError('A label with this name already exists', 'name');
 	return getDb().insert(schema.ticketLabels).values({ projectId, name, color }).returning().get();

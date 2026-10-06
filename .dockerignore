@@ -1,0 +1,17 @@
+node_modules
+build
+.svelte-kit
+data
+e2e/.data
+test-results
+playwright-report
+.git
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+Dockerfile
+compose.yml
+README.md

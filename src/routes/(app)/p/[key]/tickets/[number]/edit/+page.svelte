@@ -26,7 +26,11 @@
 			title: v?.title ?? data.ticket.title,
 			description: v?.description ?? data.ticket.descriptionHtml,
 			context: v
-				? Object.fromEntries(Object.entries(v).filter(([k]) => k.startsWith('ctx_')).map(([k, val]) => [k.slice(4), val]))
+				? Object.fromEntries(
+						Object.entries(v)
+							.filter(([k]) => k.startsWith('ctx_'))
+							.map(([k, val]) => [k.slice(4), val])
+					)
 				: { ...(data.ticket.context as Record<string, string>) },
 			attachments: []
 		};
@@ -36,7 +40,11 @@
 
 <div class="mx-auto grid max-w-3xl gap-6">
 	<div>
-		<a href={back} class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft class="size-4" /> Back to {data.ticket.ref}</a>
+		<a
+			href={back}
+			class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+			><ArrowLeft class="size-4" /> Back to {data.ticket.ref}</a
+		>
 		<h1 class="mt-2 text-xl font-semibold tracking-tight">Edit {data.ticket.ref}</h1>
 	</div>
 	<Card class="p-5">
@@ -66,7 +74,11 @@
 				{errors}
 				{editorKey}
 				allowAttachments={data.permissions.canAttach && data.remainingAttachments > 0}
-				limits={{ maxFiles: data.remainingAttachments, maxSize: data.app.maxAttachmentSize, accept: data.app.allowedImageTypes }}
+				limits={{
+					maxFiles: data.remainingAttachments,
+					maxSize: data.app.maxAttachmentSize,
+					accept: data.app.allowedImageTypes
+				}}
 			/>
 			{#if data.attachments.length}
 				<div class="grid gap-2">

@@ -4,7 +4,12 @@ import { intParam } from './http';
 import { getTicket } from './services/tickets';
 
 /** Loads a ticket by project key and number, enforcing project access first. */
-export function requireTicket(actor: Actor, key: string, numberParam: string, need: ProjectNeed = 'view') {
+export function requireTicket(
+	actor: Actor,
+	key: string,
+	numberParam: string,
+	need: ProjectNeed = 'view'
+) {
 	const access = requireProject(actor, key, need);
 	const number = intParam(numberParam);
 	const ticket = number ? getTicket(access.project.id, number) : undefined;

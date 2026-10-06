@@ -81,7 +81,10 @@
 			const res = await fetch('/api/uploads', { method: 'POST', body });
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(data.message ?? 'Upload failed');
-			items = [...items, { id: data.id, name: data.name, size: data.size, preview: pending.preview }];
+			items = [
+				...items,
+				{ id: data.id, name: data.name, size: data.size, preview: pending.preview }
+			];
 			announcement = `${data.name} uploaded`;
 			emit();
 		} catch (err) {
@@ -103,15 +106,22 @@
 		const accepted: File[] = [];
 		for (const file of files.slice(0, room)) {
 			if (!accept.includes(file.type)) errors.push(`“${file.name}” is not a supported image type.`);
-			else if (file.size > maxSize) errors.push(`“${file.name}” is larger than ${formatBytes(maxSize)}.`);
+			else if (file.size > maxSize)
+				errors.push(`“${file.name}” is larger than ${formatBytes(maxSize)}.`);
 			else accepted.push(file);
 		}
 		if (files.length > room) errors.push(`Only ${maxFiles} images can be attached.`);
 		errors = [...errors];
-		announcement = accepted.length ? `${accepted.length} image${accepted.length > 1 ? 's' : ''} ${verb}, uploading` : announcement;
+		announcement = accepted.length
+			? `${accepted.length} image${accepted.length > 1 ? 's' : ''} ${verb}, uploading`
+			: announcement;
 		await Promise.all(
 			accepted.map((file) => {
-				const pending: Pending = { key: crypto.randomUUID(), name: file.name || 'Screenshot', preview: URL.createObjectURL(file) };
+				const pending: Pending = {
+					key: crypto.randomUUID(),
+					name: file.name || 'Screenshot',
+					preview: URL.createObjectURL(file)
+				};
 				uploading = [...uploading, pending];
 				return upload(file, pending);
 			})
@@ -161,9 +171,14 @@
 			ondrop={onDrop}
 		>
 			{#if items.length || uploading.length}
-				<ul class="mb-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5" aria-label="Attached images">
+				<ul
+					class="mb-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5"
+					aria-label="Attached images"
+				>
 					{#each items as item (item.id)}
-						<li class="group relative aspect-[4/3] overflow-hidden rounded-md border border-border bg-muted">
+						<li
+							class="group relative aspect-[4/3] overflow-hidden rounded-md border border-border bg-muted"
+						>
 							<img src={item.preview} alt={item.name} class="size-full object-cover" />
 							<div
 								class="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1.5 py-0.5 text-[0.6875rem] text-white"
@@ -182,7 +197,9 @@
 						</li>
 					{/each}
 					{#each uploading as pending (pending.key)}
-						<li class="relative aspect-[4/3] overflow-hidden rounded-md border border-border bg-muted">
+						<li
+							class="relative aspect-[4/3] overflow-hidden rounded-md border border-border bg-muted"
+						>
 							<img src={pending.preview} alt="" class="size-full object-cover opacity-40" />
 							<div class="absolute inset-0 flex items-center justify-center">
 								<LoaderCircle class="size-5 animate-spin text-foreground" />
@@ -206,8 +223,13 @@
 					{#if compact}
 						Drop or paste images
 					{:else}
-						Drag & drop, or paste with <kbd class="rounded border border-border px-1 text-xs">Ctrl</kbd> +
-						<kbd class="rounded border border-border px-1 text-xs">V</kbd>. Up to {maxFiles}, {formatBytes(maxSize)} each.
+						Drag & drop, or paste with <kbd class="rounded border border-border px-1 text-xs"
+							>Ctrl</kbd
+						>
+						+
+						<kbd class="rounded border border-border px-1 text-xs">V</kbd>. Up to {maxFiles}, {formatBytes(
+							maxSize
+						)} each.
 					{/if}
 				</p>
 			</div>

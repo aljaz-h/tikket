@@ -135,10 +135,9 @@ export const projectSettingsSchema = projectSchema.extend({
 
 export const ticketContextSchema = z
 	.object(
-		Object.fromEntries(CONTEXT_KEYS.map((k) => [k, z.string().trim().max(5000).optional()])) as Record<
-			(typeof CONTEXT_KEYS)[number],
-			z.ZodOptional<z.ZodString>
-		>
+		Object.fromEntries(
+			CONTEXT_KEYS.map((k) => [k, z.string().trim().max(5000).optional()])
+		) as Record<(typeof CONTEXT_KEYS)[number], z.ZodOptional<z.ZodString>>
 	)
 	.transform((ctx, issueCtx) => {
 		const out: Record<string, string> = {};
@@ -147,7 +146,11 @@ export const ticketContextSchema = z
 			if (key === 'affectedUrl') {
 				const url = safeHttpUrl(/^https?:\/\//i.test(value) ? value : `https://${value}`);
 				if (!url) {
-					issueCtx.addIssue({ code: 'custom', path: ['affectedUrl'], message: 'Enter a valid http(s) URL' });
+					issueCtx.addIssue({
+						code: 'custom',
+						path: ['affectedUrl'],
+						message: 'Enter a valid http(s) URL'
+					});
 					continue;
 				}
 				out[key] = url;
@@ -207,7 +210,9 @@ export function zodErrors(error: z.ZodError): FieldErrors {
 	return errors;
 }
 
-type Parsed<T> = { ok: true; data: T } | { ok: false; failure: ActionFailure<{ errors: FieldErrors; values: Record<string, string> }> };
+type Parsed<T> =
+	| { ok: true; data: T }
+	| { ok: false; failure: ActionFailure<{ errors: FieldErrors; values: Record<string, string> }> };
 
 /** Parses form data with a schema, producing an ActionFailure that keeps the user's input. */
 export function parseForm<S extends z.ZodType>(

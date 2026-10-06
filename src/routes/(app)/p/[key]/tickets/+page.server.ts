@@ -11,7 +11,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const access = requireProject(locals.user, params.key, 'view');
 	const filters = parseTicketFilters(url.searchParams);
 	const view: 'board' | 'list' = url.searchParams.get('view') === 'board' ? 'board' : 'list';
-	const base = { scope: eq(schema.tickets.projectId, access.project.id), filters, projectKey: access.project.key, actorId: locals.user?.id };
+	const base = {
+		scope: eq(schema.tickets.projectId, access.project.id),
+		filters,
+		projectKey: access.project.key,
+		actorId: locals.user?.id
+	};
 	return {
 		title: `Tickets · ${access.project.name}`,
 		view,

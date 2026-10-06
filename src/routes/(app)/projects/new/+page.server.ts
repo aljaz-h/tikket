@@ -10,17 +10,22 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals, url);
-	if (!canCreateProjects(user, getSettings().allowUserProjectCreation)) error(403, 'You cannot create projects');
+	if (!canCreateProjects(user, getSettings().allowUserProjectCreation))
+		error(403, 'You cannot create projects');
 	return {
 		title: 'New project',
-		owners: user.role === 'admin' ? listUsers({ page: 1, pageSize: 500 }).rows.filter((u) => u.status === 'active') : []
+		owners:
+			user.role === 'admin'
+				? listUsers({ page: 1, pageSize: 500 }).rows.filter((u) => u.status === 'active')
+				: []
 	};
 };
 
 export const actions: Actions = {
 	default: async ({ locals, request }) => {
 		const user = requireActionUser(locals);
-		if (!canCreateProjects(user, getSettings().allowUserProjectCreation)) error(403, 'You cannot create projects');
+		if (!canCreateProjects(user, getSettings().allowUserProjectCreation))
+			error(403, 'You cannot create projects');
 		const form = await request.formData();
 		const parsed = parseForm(projectSchema, form);
 		if (!parsed.ok) return parsed.failure;
@@ -31,7 +36,10 @@ export const actions: Actions = {
 		try {
 			key = createProject(user.id, parsed.data, ownerId, locals.clientIp).key;
 		} catch (err) {
-			return handleServiceError(err, Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)])));
+			return handleServiceError(
+				err,
+				Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]))
+			);
 		}
 		redirect(303, projectPath(key));
 	}

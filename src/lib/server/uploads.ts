@@ -60,6 +60,7 @@ export function thumbnailPath(att: Pick<Attachment, 'id'>): string {
 export function cleanDisplayName(name: string, ext: string): string {
 	const base = path
 		.basename(name || 'image')
+		// eslint-disable-next-line no-control-regex
 		.replace(/[\u0000-\u001f\u007f<>:"/\\|?*]+/g, '_')
 		.trim()
 		.slice(0, 120);
@@ -85,7 +86,8 @@ export async function storeImage(file: File, opts: StoreOptions): Promise<Attach
 
 	const input = Buffer.from(await file.arrayBuffer());
 	const mime = detectImageType(input);
-	if (!mime) throw new UploadError(`“${file.name}” is not a supported image (PNG, JPEG, WebP or GIF).`);
+	if (!mime)
+		throw new UploadError(`“${file.name}” is not a supported image (PNG, JPEG, WebP or GIF).`);
 	if (!settings.allowedImageTypes.includes(mime))
 		throw new UploadError(`${EXTENSIONS[mime].toUpperCase()} images are not allowed.`);
 
@@ -126,15 +128,16 @@ export async function storeImage(file: File, opts: StoreOptions): Promise<Attach
 	try {
 		const thumbWidth = opts.kind === 'avatar' ? 256 : THUMB_WIDTH;
 		const pipeline = sharp(output, { limitInputPixels: MAX_PIXELS }).rotate();
-		await (opts.kind === 'avatar'
-			? pipeline.resize(thumbWidth, thumbWidth, { fit: 'cover' })
-			: pipeline.resize({ width: thumbWidth, withoutEnlargement: true })
+		await (
+			opts.kind === 'avatar'
+				? pipeline.resize(thumbWidth, thumbWidth, { fit: 'cover' })
+				: pipeline.resize({ width: thumbWidth, withoutEnlargement: true })
 		)
 			.webp({ quality: 80 })
 			.toFile(thumbnailPath(record));
 		hasThumbnail = true;
 	} catch {
-		hasThumbnail = false;
+		// Thumbnails are optional; the original is served instead.
 	}
 
 	const row = getDb()

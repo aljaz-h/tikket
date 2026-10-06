@@ -8,7 +8,11 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	adminActor(locals);
-	return { title: 'System settings', settings: getSettings(), hardUploadLimitMb: Math.floor(config.maxUploadSize / 1024 / 1024) };
+	return {
+		title: 'System settings',
+		settings: getSettings(),
+		hardUploadLimitMb: Math.floor(config.maxUploadSize / 1024 / 1024)
+	};
 };
 
 export const actions: Actions = {
@@ -17,7 +21,9 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const candidate = {
 			appName: String(form.get('appName') ?? ''),
-			appUrl: String(form.get('appUrl') ?? '').trim().replace(/\/$/, ''),
+			appUrl: String(form.get('appUrl') ?? '')
+				.trim()
+				.replace(/\/$/, ''),
 			registrationEnabled: form.get('registrationEnabled') === 'on',
 			allowUserProjectCreation: form.get('allowUserProjectCreation') === 'on',
 			defaultTheme: String(form.get('defaultTheme') ?? 'dark'),
@@ -31,9 +37,19 @@ export const actions: Actions = {
 		if (!parsed.success) return fail(400, { errors: zodErrors(parsed.error), values: {} });
 		const before = getSettings();
 		const next = updateSettings(parsed.data);
-		const changed = Object.keys(next).filter((k) => JSON.stringify(next[k as keyof typeof next]) !== JSON.stringify(before[k as keyof typeof before]));
+		const changed = Object.keys(next).filter(
+			(k) =>
+				JSON.stringify(next[k as keyof typeof next]) !==
+				JSON.stringify(before[k as keyof typeof before])
+		);
 		if (changed.length)
-			audit({ actorId: admin.id, action: 'settings.updated', targetType: 'settings', data: Object.fromEntries(changed.map((k) => [k, next[k as keyof typeof next]])), ip: locals.clientIp });
+			audit({
+				actorId: admin.id,
+				action: 'settings.updated',
+				targetType: 'settings',
+				data: Object.fromEntries(changed.map((k) => [k, next[k as keyof typeof next]])),
+				ip: locals.clientIp
+			});
 		return { saved: true };
 	}
 };

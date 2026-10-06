@@ -27,14 +27,19 @@
 	<section class="grid gap-3">
 		<div class="flex items-center justify-between">
 			<h2 class="text-sm font-semibold">Recent security events</h2>
-			<a href="/admin/audit" class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">Audit log <ArrowRight class="size-3.5" /></a>
+			<a
+				href="/admin/audit"
+				class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+				>Audit log <ArrowRight class="size-3.5" /></a
+			>
 		</div>
 		<Card class="divide-y divide-border">
 			{#each data.recentAudit as log (log.id)}
 				<div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
 					<span class="font-mono text-xs">{log.action}</span>
 					<span class="text-muted-foreground">by {log.actorName ?? 'system'}</span>
-					<span class="ml-auto text-xs text-muted-foreground"><TimeAgo date={log.createdAt} /></span>
+					<span class="ml-auto text-xs text-muted-foreground"><TimeAgo date={log.createdAt} /></span
+					>
 				</div>
 			{:else}
 				<p class="px-4 py-6 text-center text-sm text-muted-foreground">No events yet.</p>

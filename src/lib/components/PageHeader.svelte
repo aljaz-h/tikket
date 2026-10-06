@@ -18,5 +18,7 @@
 		<h1 class="text-xl font-semibold tracking-tight text-balance sm:text-2xl">{title}</h1>
 		{#if description}<p class="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>{/if}
 	</div>
-	{#if actions}<div class="flex shrink-0 flex-wrap items-center gap-2">{@render actions()}</div>{/if}
+	{#if actions}<div class="flex shrink-0 flex-wrap items-center gap-2">
+			{@render actions()}
+		</div>{/if}
 </header>

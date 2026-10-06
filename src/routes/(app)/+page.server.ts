@@ -10,7 +10,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!user) {
 		// Anonymous visitors only see projects that allow public read access.
 		if (!projects.length) redirect(303, '/login');
-		return { title: 'Dashboard', projects, personal: null, staff: null, notifications: [], welcome: false };
+		return {
+			title: 'Dashboard',
+			projects,
+			personal: null,
+			staff: null,
+			notifications: [],
+			welcome: false
+		};
 	}
 	const managed = managedProjectIds(user);
 	return {

@@ -34,7 +34,10 @@ export function ftsCondition(q: string, mode: 'all' | 'any' = 'all'): SQL | unde
 export function viewableTicketsCondition(actor: Actor): SQL | undefined {
 	const cond = viewableProjectsCondition(actor);
 	if (!cond) return undefined;
-	return inArray(t.projectId, getDb().select({ id: schema.projects.id }).from(schema.projects).where(cond));
+	return inArray(
+		t.projectId,
+		getDb().select({ id: schema.projects.id }).from(schema.projects).where(cond)
+	);
 }
 
 export interface QueryOptions {
@@ -62,15 +65,23 @@ function filterConditions(opts: QueryOptions): (SQL | undefined)[] {
 	if (f.priority.length) conds.push(inArray(t.priority, f.priority));
 	if (f.reporter) {
 		if (f.reporter === 'me' && opts.actorId) conds.push(eq(t.reporterId, opts.actorId));
-		else conds.push(sql`${t.reporterId} = (select id from users where lower(username) = ${f.reporter.toLowerCase()})`);
+		else
+			conds.push(
+				sql`${t.reporterId} = (select id from users where lower(username) = ${f.reporter.toLowerCase()})`
+			);
 	}
 	if (f.assignee) {
 		if (f.assignee === 'none') conds.push(isNull(t.assigneeId));
 		else if (f.assignee === 'me' && opts.actorId) conds.push(eq(t.assigneeId, opts.actorId));
-		else conds.push(sql`${t.assigneeId} = (select id from users where lower(username) = ${f.assignee.toLowerCase()})`);
+		else
+			conds.push(
+				sql`${t.assigneeId} = (select id from users where lower(username) = ${f.assignee.toLowerCase()})`
+			);
 	}
 	for (const labelId of f.labels)
-		conds.push(sql`exists (select 1 from ticket_label_assignments a where a.ticket_id = ${t.id} and a.label_id = ${labelId})`);
+		conds.push(
+			sql`exists (select 1 from ticket_label_assignments a where a.ticket_id = ${t.id} and a.label_id = ${labelId})`
+		);
 	if (f.createdFrom) conds.push(gte(t.createdAt, dayStart(f.createdFrom)));
 	if (f.createdTo) conds.push(lt(t.createdAt, nextDay(f.createdTo)));
 	if (f.updatedFrom) conds.push(gte(t.updatedAt, dayStart(f.updatedFrom)));
@@ -118,7 +129,8 @@ const listColumns = {
 };
 
 function attachLabels<T extends { id: number }>(rows: T[]) {
-	if (!rows.length) return rows.map((r) => ({ ...r, labels: [] as { id: number; name: string; color: string }[] }));
+	if (!rows.length)
+		return rows.map((r) => ({ ...r, labels: [] as { id: number; name: string; color: string }[] }));
 	const labels = getDb()
 		.select({
 			ticketId: schema.ticketLabelAssignments.ticketId,
@@ -127,12 +139,22 @@ function attachLabels<T extends { id: number }>(rows: T[]) {
 			color: schema.ticketLabels.color
 		})
 		.from(schema.ticketLabelAssignments)
-		.innerJoin(schema.ticketLabels, eq(schema.ticketLabels.id, schema.ticketLabelAssignments.labelId))
-		.where(inArray(schema.ticketLabelAssignments.ticketId, rows.map((r) => r.id)))
+		.innerJoin(
+			schema.ticketLabels,
+			eq(schema.ticketLabels.id, schema.ticketLabelAssignments.labelId)
+		)
+		.where(
+			inArray(
+				schema.ticketLabelAssignments.ticketId,
+				rows.map((r) => r.id)
+			)
+		)
 		.all();
 	return rows.map((r) => ({
 		...r,
-		labels: labels.filter((l) => l.ticketId === r.id).map(({ id, name, color }) => ({ id, name, color }))
+		labels: labels
+			.filter((l) => l.ticketId === r.id)
+			.map(({ id, name, color }) => ({ id, name, color }))
 	}));
 }
 
@@ -180,7 +202,12 @@ export function boardTickets(opts: Omit<QueryOptions, 'pageSize'>, perColumn = 6
 		const filters = { ...opts.filters, status: [status] };
 		const where = and(...filterConditions({ ...opts, filters, pageSize: perColumn }));
 		totals[status] =
-			db.select({ n: sql<number>`count(*)` }).from(t).innerJoin(schema.projects, eq(schema.projects.id, t.projectId)).where(where).get()?.n ?? 0;
+			db
+				.select({ n: sql<number>`count(*)` })
+				.from(t)
+				.innerJoin(schema.projects, eq(schema.projects.id, t.projectId))
+				.where(where)
+				.get()?.n ?? 0;
 		const rows = db
 			.select(listColumns)
 			.from(t)
@@ -201,7 +228,13 @@ export function boardTickets(opts: Omit<QueryOptions, 'pageSize'>, perColumn = 6
 export function similarTickets(projectId: number, text: string, limit = 5) {
 	const match = toFtsQuery(text, 'any');
 	if (!match) return [];
-	return getDb().all<{ number: number; title: string; status: TicketStatus; type: string; voteCount: number }>(sql`
+	return getDb().all<{
+		number: number;
+		title: string;
+		status: TicketStatus;
+		type: string;
+		voteCount: number;
+	}>(sql`
 		select t.number as number, t.title as title, t.status as status, t.type as type, t.vote_count as voteCount
 		from tickets_fts f
 		join tickets t on t.id = f.rowid
@@ -240,12 +273,20 @@ export function globalSearch(actor: Actor, q: string, limit = 8) {
 		: [];
 	const term = `%${q.trim().toLowerCase()}%`;
 	const projects = db
-		.select({ key: schema.projects.key, name: schema.projects.name, icon: schema.projects.icon, color: schema.projects.color })
+		.select({
+			key: schema.projects.key,
+			name: schema.projects.name,
+			icon: schema.projects.icon,
+			color: schema.projects.color
+		})
 		.from(schema.projects)
 		.where(
 			and(
 				viewableProjectsCondition(actor),
-				or(sql`lower(${schema.projects.name}) like ${term}`, sql`lower(${schema.projects.key}) like ${term}`)
+				or(
+					sql`lower(${schema.projects.name}) like ${term}`,
+					sql`lower(${schema.projects.key}) like ${term}`
+				)
 			)
 		)
 		.limit(5)

@@ -9,12 +9,16 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	return json({ items: listNotifications(locals.user.id, { limit }) });
 };
 
-const body = z.union([z.object({ all: z.literal(true) }), z.object({ ids: z.array(z.number().int().positive()).max(200) })]);
+const body = z.union([
+	z.object({ all: z.literal(true) }),
+	z.object({ ids: z.array(z.number().int().positive()).max(200) })
+]);
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!locals.user) error(401, 'Please sign in');
 	const parsed = body.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) error(400, 'Invalid request');
-	const changed = 'all' in parsed.data ? markAllRead(locals.user.id) : markRead(locals.user.id, parsed.data.ids);
+	const changed =
+		'all' in parsed.data ? markAllRead(locals.user.id) : markRead(locals.user.id, parsed.data.ids);
 	return json({ changed });
 };

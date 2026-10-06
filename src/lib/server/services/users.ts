@@ -101,9 +101,13 @@ export async function setupFirstAdmin(input: NewUser, ip: string | null): Promis
 				.from(schema.users)
 				.where(eq(schema.users.role, 'admin'))
 				.get();
-			if ((admins?.n ?? 0) > 0) throw new ServiceError('Tikket has already been set up', 'form', 409);
+			if ((admins?.n ?? 0) > 0)
+				throw new ServiceError('Tikket has already been set up', 'form', 409);
 			const user = insertUser(tx, { ...input, role: 'admin' }, passwordHash);
-			audit({ actorId: user.id, action: 'setup.completed', targetType: 'user', targetId: user.id, ip }, tx);
+			audit(
+				{ actorId: user.id, action: 'setup.completed', targetType: 'user', targetId: user.id, ip },
+				tx
+			);
 			return user;
 		},
 		{ behavior: 'immediate' }
@@ -142,7 +146,12 @@ export function findUserByIdentifier(identifier: string): User | undefined {
 	return getDb()
 		.select()
 		.from(schema.users)
-		.where(or(sql`lower(${schema.users.username}) = ${value}`, sql`lower(${schema.users.email}) = ${value}`))
+		.where(
+			or(
+				sql`lower(${schema.users.username}) = ${value}`,
+				sql`lower(${schema.users.email}) = ${value}`
+			)
+		)
 		.get();
 }
 
@@ -227,7 +236,16 @@ export async function changePassword(
 			.set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date() })
 			.where(eq(schema.users.id, userId))
 			.run();
-		audit({ actorId: userId, action: 'user.password_changed', targetType: 'user', targetId: userId, ip }, tx);
+		audit(
+			{
+				actorId: userId,
+				action: 'user.password_changed',
+				targetType: 'user',
+				targetId: userId,
+				ip
+			},
+			tx
+		);
 	});
 	invalidateUserSessions(userId, currentSessionId);
 }
@@ -240,9 +258,19 @@ export function setUserRole(actorId: number, userId: number, role: GlobalRole, i
 			if (user.role === role) return;
 			if (user.role === 'admin' && countAdmins(tx) <= 1)
 				throw new ServiceError('Tikket needs at least one active administrator');
-			tx.update(schema.users).set({ role, updatedAt: new Date() }).where(eq(schema.users.id, userId)).run();
+			tx.update(schema.users)
+				.set({ role, updatedAt: new Date() })
+				.where(eq(schema.users.id, userId))
+				.run();
 			audit(
-				{ actorId, action: 'user.role_changed', targetType: 'user', targetId: userId, data: { from: user.role, to: role }, ip },
+				{
+					actorId,
+					action: 'user.role_changed',
+					targetType: 'user',
+					targetId: userId,
+					data: { from: user.role, to: role },
+					ip
+				},
 				tx
 			);
 		},
@@ -265,9 +293,18 @@ export function setUserStatus(
 			if (user.status === status) return;
 			if (status === 'disabled' && user.role === 'admin' && countAdmins(tx) <= 1)
 				throw new ServiceError('Tikket needs at least one active administrator');
-			tx.update(schema.users).set({ status, updatedAt: new Date() }).where(eq(schema.users.id, userId)).run();
+			tx.update(schema.users)
+				.set({ status, updatedAt: new Date() })
+				.where(eq(schema.users.id, userId))
+				.run();
 			audit(
-				{ actorId, action: status === 'disabled' ? 'user.disabled' : 'user.enabled', targetType: 'user', targetId: userId, ip },
+				{
+					actorId,
+					action: status === 'disabled' ? 'user.disabled' : 'user.enabled',
+					targetType: 'user',
+					targetId: userId,
+					ip
+				},
 				tx
 			);
 		},
@@ -278,7 +315,14 @@ export function setUserStatus(
 
 export function revokeUserSessions(actorId: number, userId: number, ip: string | null) {
 	const count = invalidateUserSessions(userId);
-	audit({ actorId, action: 'user.sessions_revoked', targetType: 'user', targetId: userId, data: { count }, ip });
+	audit({
+		actorId,
+		action: 'user.sessions_revoked',
+		targetType: 'user',
+		targetId: userId,
+		data: { count },
+		ip
+	});
 	return count;
 }
 
@@ -288,7 +332,11 @@ const RESET_LIFETIME = 24 * 60 * 60 * 1000;
 export function createPasswordReset(actorId: number, userId: number, ip: string | null): string {
 	const token = randomToken(32);
 	getDb().transaction((tx) => {
-		const user = tx.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId)).get();
+		const user = tx
+			.select({ id: schema.users.id })
+			.from(schema.users)
+			.where(eq(schema.users.id, userId))
+			.get();
 		if (!user) throw new ServiceError('User not found', 'form', 404);
 		// Only the newest link is valid.
 		tx.update(schema.passwordResets)
@@ -296,9 +344,17 @@ export function createPasswordReset(actorId: number, userId: number, ip: string 
 			.where(and(eq(schema.passwordResets.userId, userId), isNull(schema.passwordResets.usedAt)))
 			.run();
 		tx.insert(schema.passwordResets)
-			.values({ tokenHash: sha256(token), userId, createdById: actorId, expiresAt: new Date(Date.now() + RESET_LIFETIME) })
+			.values({
+				tokenHash: sha256(token),
+				userId,
+				createdById: actorId,
+				expiresAt: new Date(Date.now() + RESET_LIFETIME)
+			})
 			.run();
-		audit({ actorId, action: 'user.password_reset_issued', targetType: 'user', targetId: userId, ip }, tx);
+		audit(
+			{ actorId, action: 'user.password_reset_issued', targetType: 'user', targetId: userId, ip },
+			tx
+		);
 	});
 	return token;
 }
@@ -306,7 +362,14 @@ export function createPasswordReset(actorId: number, userId: number, ip: string 
 export function findValidPasswordReset(token: string) {
 	if (!token || token.length > 128) return undefined;
 	return getDb()
-		.select({ reset: schema.passwordResets, user: { id: schema.users.id, username: schema.users.username, displayName: schema.users.displayName } })
+		.select({
+			reset: schema.passwordResets,
+			user: {
+				id: schema.users.id,
+				username: schema.users.username,
+				displayName: schema.users.displayName
+			}
+		})
 		.from(schema.passwordResets)
 		.innerJoin(schema.users, eq(schema.users.id, schema.passwordResets.userId))
 		.where(
@@ -335,12 +398,24 @@ export async function consumePasswordReset(token: string, newPassword: string, i
 				)
 				.get();
 			if (!found) throw new ServiceError('This reset link is invalid or has expired');
-			tx.update(schema.passwordResets).set({ usedAt: new Date() }).where(eq(schema.passwordResets.id, found.id)).run();
+			tx.update(schema.passwordResets)
+				.set({ usedAt: new Date() })
+				.where(eq(schema.passwordResets.id, found.id))
+				.run();
 			tx.update(schema.users)
 				.set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date() })
 				.where(eq(schema.users.id, found.userId))
 				.run();
-			audit({ actorId: found.userId, action: 'user.password_reset_used', targetType: 'user', targetId: found.userId, ip }, tx);
+			audit(
+				{
+					actorId: found.userId,
+					action: 'user.password_reset_used',
+					targetType: 'user',
+					targetId: found.userId,
+					ip
+				},
+				tx
+			);
 			return found.userId;
 		},
 		{ behavior: 'immediate' }
@@ -377,7 +452,12 @@ export function listUsers(opts: { q?: string; page: number; pageSize: number }) 
 		.limit(opts.pageSize)
 		.offset((opts.page - 1) * opts.pageSize)
 		.all();
-	const total = db.select({ n: sql<number>`count(*)` }).from(schema.users).where(where).get()?.n ?? 0;
+	const total =
+		db
+			.select({ n: sql<number>`count(*)` })
+			.from(schema.users)
+			.where(where)
+			.get()?.n ?? 0;
 	return { rows, total };
 }
 
@@ -395,7 +475,11 @@ export function searchUsers(q: string, limit = 10) {
 		.where(
 			and(
 				eq(schema.users.status, 'active'),
-				or(like(schema.users.username, term), like(schema.users.displayName, term), like(schema.users.email, term))
+				or(
+					like(schema.users.username, term),
+					like(schema.users.displayName, term),
+					like(schema.users.email, term)
+				)
 			)
 		)
 		.orderBy(asc(schema.users.username))

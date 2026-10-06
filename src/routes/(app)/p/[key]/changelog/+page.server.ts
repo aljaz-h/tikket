@@ -2,7 +2,12 @@ import { error } from '@sveltejs/kit';
 import { requireProject } from '$lib/server/authz';
 import { handleServiceError, intParam, requireActionUser } from '$lib/server/http';
 import { normaliseRichInput } from '$lib/server/sanitize';
-import { completedTickets, deleteChangelogEntry, listChangelog, saveChangelogEntry } from '$lib/server/services/changelog';
+import {
+	completedTickets,
+	deleteChangelogEntry,
+	listChangelog,
+	saveChangelogEntry
+} from '$lib/server/services/changelog';
 import { changelogSchema, parseForm } from '$lib/server/validation';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -25,12 +30,21 @@ async function save(locals: App.Locals, key: string, request: Request) {
 	const parsed = parseForm(changelogSchema, form);
 	if (!parsed.ok) return parsed.failure;
 	const summary = normaliseRichInput(parsed.data.summary, parsed.data.summaryFormat);
-	const ticketIds = form.getAll('ticketId').map((v) => intParam(String(v))).filter((v): v is number => v !== null);
+	const ticketIds = form
+		.getAll('ticketId')
+		.map((v) => intParam(String(v)))
+		.filter((v): v is number => v !== null);
 	try {
 		saveChangelogEntry(
 			access.project.id,
 			user.id,
-			{ version: parsed.data.version, releaseDate: parsed.data.releaseDate, summaryHtml: summary.html, published: parsed.data.published, ticketIds },
+			{
+				version: parsed.data.version,
+				releaseDate: parsed.data.releaseDate,
+				summaryHtml: summary.html,
+				published: parsed.data.published,
+				ticketIds
+			},
 			intParam(String(form.get('entryId') ?? '')) ?? undefined
 		);
 	} catch (err) {

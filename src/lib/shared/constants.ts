@@ -142,7 +142,8 @@ export const CONTEXT_FIELDS: Record<
 		{
 			key: 'steps',
 			label: 'How can we reproduce it?',
-			placeholder: '1. Open the dashboard\n2. Select a TV show\n3. Mark an episode as watched\n4. Refresh the page',
+			placeholder:
+				'1. Open the dashboard\n2. Select a TV show\n3. Mark an episode as watched\n4. Refresh the page',
 			kind: 'text'
 		},
 		{

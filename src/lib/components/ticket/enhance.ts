@@ -2,7 +2,9 @@ import type { SubmitFunction } from '@sveltejs/kit';
 import { toast } from 'svelte-sonner';
 
 /** Standard enhance handler: toast on failure/success, keep form values, refresh data. */
-export function quickSubmit(opts: { success?: string; onSuccess?: () => void; reset?: boolean } = {}): SubmitFunction {
+export function quickSubmit(
+	opts: { success?: string; onSuccess?: () => void; reset?: boolean } = {}
+): SubmitFunction {
 	return () =>
 		async ({ result, update }) => {
 			if (result.type === 'failure') {

@@ -91,7 +91,9 @@
 		</div>
 		<div class="max-h-96 overflow-y-auto">
 			{#if loading && !items.length}
-				<div class="flex justify-center py-8 text-muted-foreground"><LoaderCircle class="size-5 animate-spin" /></div>
+				<div class="flex justify-center py-8 text-muted-foreground">
+					<LoaderCircle class="size-5 animate-spin" />
+				</div>
 			{:else if !items.length}
 				<p class="px-3 py-8 text-center text-sm text-muted-foreground">You’re all caught up.</p>
 			{:else}
@@ -99,28 +101,42 @@
 					{#each items as item (item.id)}
 						<li>
 							<a
-								href={item.projectKey && item.ticketNumber ? ticketPath(item.projectKey, item.ticketNumber) : '/notifications'}
+								href={item.projectKey && item.ticketNumber
+									? ticketPath(item.projectKey, item.ticketNumber)
+									: '/notifications'}
 								onclick={() => openItem(item)}
 								class="flex gap-2.5 border-b border-border px-3 py-2.5 last:border-0 hover:bg-hover"
 							>
-								<UserAvatar user={{ displayName: item.actorName ?? '?', avatarId: item.actorAvatarId }} size="md" />
+								<UserAvatar
+									user={{ displayName: item.actorName ?? '?', avatarId: item.actorAvatarId }}
+									size="md"
+								/>
 								<div class="min-w-0 flex-1">
 									<p class="text-sm">{describeNotification(item)}</p>
 									{#if item.ticketTitle}
 										<p class="truncate text-xs text-muted-foreground">
-											{item.projectKey && item.ticketNumber ? ticketRef(item.projectKey, item.ticketNumber) : ''} · {item.ticketTitle}
+											{item.projectKey && item.ticketNumber
+												? ticketRef(item.projectKey, item.ticketNumber)
+												: ''} · {item.ticketTitle}
 										</p>
 									{/if}
 									<TimeAgo date={item.createdAt} class="text-xs text-subtle-foreground" />
 								</div>
-								{#if !item.readAt}<span class="mt-1.5 size-2 shrink-0 rounded-full bg-primary" aria-label="Unread"></span>{/if}
+								{#if !item.readAt}<span
+										class="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
+										aria-label="Unread"
+									></span>{/if}
 							</a>
 						</li>
 					{/each}
 				</ul>
 			{/if}
 		</div>
-		<a href="/notifications" onclick={() => (open = false)} class="block border-t border-border px-3 py-2 text-center text-xs font-medium text-primary hover:bg-hover">
+		<a
+			href="/notifications"
+			onclick={() => (open = false)}
+			class="block border-t border-border px-3 py-2 text-center text-xs font-medium text-primary hover:bg-hover"
+		>
 			View all notifications
 		</a>
 	</PopoverContent>

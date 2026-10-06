@@ -24,7 +24,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		projectKey: found.projectKey,
 		projectRole: inv.projectRole,
 		inviterName: found.inviterName,
-		signedInAs: locals.user ? { displayName: locals.user.displayName, email: locals.user.email } : null
+		signedInAs: locals.user
+			? { displayName: locals.user.displayName, email: locals.user.email }
+			: null
 	};
 };
 
@@ -32,7 +34,11 @@ export const actions: Actions = {
 	register: async (event) => {
 		const { request, locals, cookies, params } = event;
 		const wait = limiters.signup.hit(`invite:${locals.clientIp}`);
-		if (wait) return fail(429, { errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` }, values: {} });
+		if (wait)
+			return fail(429, {
+				errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` },
+				values: {}
+			});
 		const parsed = parseForm(accountSchema, await request.formData());
 		if (!parsed.ok) return parsed.failure;
 		const target = findValidInvitation(params.token)?.projectKey;
@@ -40,9 +46,17 @@ export const actions: Actions = {
 		try {
 			userId = (await acceptInvitationAsNewUser(params.token, parsed.data, locals.clientIp)).id;
 		} catch (err) {
-			return handleServiceError(err, { username: parsed.data.username, email: parsed.data.email, displayName: parsed.data.displayName });
+			return handleServiceError(err, {
+				username: parsed.data.username,
+				email: parsed.data.email,
+				displayName: parsed.data.displayName
+			});
 		}
-		signIn(cookies, userId, { ip: locals.clientIp, userAgent: request.headers.get('user-agent'), secure: isSecure(event) });
+		signIn(cookies, userId, {
+			ip: locals.clientIp,
+			userAgent: request.headers.get('user-agent'),
+			secure: isSecure(event)
+		});
 		redirect(303, target ? projectPath(target) : '/');
 	},
 	accept: async ({ locals, params }) => {

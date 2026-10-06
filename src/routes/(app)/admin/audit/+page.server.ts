@@ -9,5 +9,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const q = (url.searchParams.get('q') ?? '').slice(0, 100);
 	const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
 	const { rows, total } = listAuditLogs({ q, page, pageSize: PAGE_SIZE });
-	return { title: 'Audit log', q, page, total, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)), rows };
+	return {
+		title: 'Audit log',
+		q,
+		page,
+		total,
+		pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+		rows
+	};
 };

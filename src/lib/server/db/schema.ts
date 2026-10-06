@@ -97,9 +97,7 @@ export const projects = sqliteTable(
 			.notNull()
 			.default('any_user'),
 		votingEnabled: integer('voting_enabled', { mode: 'boolean' }).notNull().default(true),
-		attachmentsEnabled: integer('attachments_enabled', { mode: 'boolean' })
-			.notNull()
-			.default(true),
+		attachmentsEnabled: integer('attachments_enabled', { mode: 'boolean' }).notNull().default(true),
 		commentsEnabled: integer('comments_enabled', { mode: 'boolean' }).notNull().default(true),
 		editPolicy: text('edit_policy').$type<EditPolicy>().notNull().default('while_open'),
 		/** Monotonic counter used for atomic ticket number allocation. */

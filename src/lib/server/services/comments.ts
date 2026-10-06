@@ -15,7 +15,9 @@ export function getComment(ticketId: number, commentId: number): TicketComment |
 	return getDb()
 		.select()
 		.from(schema.ticketComments)
-		.where(and(eq(schema.ticketComments.id, commentId), eq(schema.ticketComments.ticketId, ticketId)))
+		.where(
+			and(eq(schema.ticketComments.id, commentId), eq(schema.ticketComments.ticketId, ticketId))
+		)
 		.get();
 }
 
@@ -26,7 +28,9 @@ function mentionedUserIds(text: string): number[] {
 	return getDb()
 		.select({ id: schema.users.id })
 		.from(schema.users)
-		.where(and(inArray(sql`lower(${schema.users.username})`, names), eq(schema.users.status, 'active')))
+		.where(
+			and(inArray(sql`lower(${schema.users.username})`, names), eq(schema.users.status, 'active'))
+		)
 		.all()
 		.map((r) => r.id);
 }
@@ -38,39 +42,78 @@ export function addComment(
 	body: { html: string; text: string },
 	attachmentIds: string[] = []
 ): TicketComment {
-	if (!access.canComment) throw new ServiceError('Comments are not available on this ticket', 'body', 403);
-	if (attachmentIds.length && !access.canAttach) throw new ServiceError('Attachments are disabled for this project', 'attachments');
+	if (!access.canComment)
+		throw new ServiceError('Comments are not available on this ticket', 'body', 403);
+	if (attachmentIds.length && !access.canAttach)
+		throw new ServiceError('Attachments are disabled for this project', 'attachments');
 	const pending = pendingAttachmentsFor(actor.id, attachmentIds);
 	const max = getSettings().maxAttachmentsPerTicket;
-	if (pending.length > max) throw new ServiceError(`You can attach up to ${max} images per comment`, 'attachments');
-	if (!body.text.trim() && !pending.length) throw new ServiceError('Write a comment or attach an image', 'body');
+	if (pending.length > max)
+		throw new ServiceError(`You can attach up to ${max} images per comment`, 'attachments');
+	if (!body.text.trim() && !pending.length)
+		throw new ServiceError('Write a comment or attach an image', 'body');
 
 	const db = getDb();
 	return db.transaction(
 		(tx) => {
 			const comment = tx
 				.insert(schema.ticketComments)
-				.values({ ticketId: ticket.id, authorId: actor.id, bodyHtml: body.html, bodyText: body.text })
+				.values({
+					ticketId: ticket.id,
+					authorId: actor.id,
+					bodyHtml: body.html,
+					bodyText: body.text
+				})
 				.returning()
 				.get();
 			if (pending.length)
 				tx.update(schema.attachments)
-					.set({ projectId: ticket.projectId, ticketId: ticket.id, commentId: comment.id, kind: 'comment', attachedAt: new Date() })
-					.where(inArray(schema.attachments.id, pending.map((p) => p.id)))
+					.set({
+						projectId: ticket.projectId,
+						ticketId: ticket.id,
+						commentId: comment.id,
+						kind: 'comment',
+						attachedAt: new Date()
+					})
+					.where(
+						inArray(
+							schema.attachments.id,
+							pending.map((p) => p.id)
+						)
+					)
 					.run();
 			tx.update(schema.tickets)
 				.set({ commentCount: sql`${schema.tickets.commentCount} + 1`, updatedAt: new Date() })
 				.where(eq(schema.tickets.id, ticket.id))
 				.run();
 			const recipients = new Set([...followerIds(ticket.id, tx), ticket.reporterId]);
-			tx.insert(schema.ticketFollowers).values({ ticketId: ticket.id, userId: actor.id }).onConflictDoNothing().run();
+			tx.insert(schema.ticketFollowers)
+				.values({ ticketId: ticket.id, userId: actor.id })
+				.onConflictDoNothing()
+				.run();
 
 			const excerpt = body.text.slice(0, 160);
 			const mentioned = mentionedUserIds(body.text).filter((id) => id !== actor.id);
-			notify(mentioned, { type: 'mention', project: access.project, ticketId: ticket.id, actorId: actor.id, data: { commentId: comment.id, excerpt } }, tx);
+			notify(
+				mentioned,
+				{
+					type: 'mention',
+					project: access.project,
+					ticketId: ticket.id,
+					actorId: actor.id,
+					data: { commentId: comment.id, excerpt }
+				},
+				tx
+			);
 			notify(
 				[...recipients].filter((id) => !mentioned.includes(id)),
-				{ type: 'comment', project: access.project, ticketId: ticket.id, actorId: actor.id, data: { commentId: comment.id, excerpt } },
+				{
+					type: 'comment',
+					project: access.project,
+					ticketId: ticket.id,
+					actorId: actor.id,
+					data: { commentId: comment.id, excerpt }
+				},
 				tx
 			);
 			return comment;
@@ -79,8 +122,14 @@ export function addComment(
 	);
 }
 
-export function editComment(actor: ActiveActor, access: ProjectAccess, comment: TicketComment, body: { html: string; text: string }) {
-	if (!canEditComment(access, actor, comment)) throw new ServiceError('You cannot edit this comment', 'body', 403);
+export function editComment(
+	actor: ActiveActor,
+	access: ProjectAccess,
+	comment: TicketComment,
+	body: { html: string; text: string }
+) {
+	if (!canEditComment(access, actor, comment))
+		throw new ServiceError('You cannot edit this comment', 'body', 403);
 	if (!body.text.trim()) throw new ServiceError('A comment cannot be empty', 'body');
 	if (body.html === comment.bodyHtml) return;
 	getDb()
@@ -92,7 +141,8 @@ export function editComment(actor: ActiveActor, access: ProjectAccess, comment: 
 
 /** Soft-deletes a comment (own comment, or moderator removal). */
 export function deleteComment(actor: ActiveActor, access: ProjectAccess, comment: TicketComment) {
-	if (!canDeleteComment(access, actor, comment)) throw new ServiceError('You cannot delete this comment', 'form', 403);
+	if (!canDeleteComment(access, actor, comment))
+		throw new ServiceError('You cannot delete this comment', 'form', 403);
 	const moderated = comment.authorId !== actor.id;
 	getDb().transaction((tx) => {
 		tx.update(schema.ticketComments)
@@ -107,6 +157,7 @@ export function deleteComment(actor: ActiveActor, access: ProjectAccess, comment
 			.set({ commentCount: sql`max(${schema.tickets.commentCount} - 1, 0)` })
 			.where(eq(schema.tickets.id, comment.ticketId))
 			.run();
-		if (moderated) addActivity(tx, comment.ticketId, actor.id, 'comment_removed', { commentId: comment.id });
+		if (moderated)
+			addActivity(tx, comment.ticketId, actor.id, 'comment_removed', { commentId: comment.id });
 	});
 }

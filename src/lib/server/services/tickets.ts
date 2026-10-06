@@ -106,7 +106,8 @@ export function createTicket(
 	input: TicketInput,
 	attachmentIds: string[] = []
 ): Ticket {
-	if (!access.canSubmit) throw new ServiceError('You cannot submit tickets to this project', 'form', 403);
+	if (!access.canSubmit)
+		throw new ServiceError('You cannot submit tickets to this project', 'form', 403);
 	if (attachmentIds.length && !access.canAttach)
 		throw new ServiceError('Attachments are disabled for this project', 'attachments');
 	const max = getSettings().maxAttachmentsPerTicket;
@@ -132,7 +133,10 @@ export function createTicket(
 				.returning()
 				.get();
 			attachPending(tx, actor.id, attachmentIds, { projectId: project.id, ticketId: created.id });
-			tx.insert(schema.ticketFollowers).values({ ticketId: created.id, userId: actor.id }).onConflictDoNothing().run();
+			tx.insert(schema.ticketFollowers)
+				.values({ ticketId: created.id, userId: actor.id })
+				.onConflictDoNothing()
+				.run();
 			addActivity(tx, created.id, actor.id, 'created', { type: input.type });
 			notify(
 				projectStaffIds(project.id),
@@ -159,7 +163,8 @@ export function updateTicketContent(
 	input: TicketInput,
 	newAttachmentIds: string[] = []
 ) {
-	if (!canEditTicket(access, actor, ticket)) throw new ServiceError('You cannot edit this ticket', 'form', 403);
+	if (!canEditTicket(access, actor, ticket))
+		throw new ServiceError('You cannot edit this ticket', 'form', 403);
 	const changed: string[] = [];
 	if (input.title !== ticket.title) changed.push('title');
 	if (input.descriptionHtml !== ticket.descriptionHtml) changed.push('description');
@@ -174,7 +179,10 @@ export function updateTicketContent(
 				const max = getSettings().maxAttachmentsPerTicket;
 				if (ticketAttachmentCount(ticket.id, tx) + newAttachmentIds.length > max)
 					throw new ServiceError(`You can attach up to ${max} images per ticket`, 'attachments');
-				const added = attachPending(tx, actor.id, newAttachmentIds, { projectId: ticket.projectId, ticketId: ticket.id });
+				const added = attachPending(tx, actor.id, newAttachmentIds, {
+					projectId: ticket.projectId,
+					ticketId: ticket.id
+				});
 				if (added) changed.push('attachments');
 			}
 			if (!changed.length) return;
@@ -189,10 +197,19 @@ export function updateTicketContent(
 				})
 				.where(eq(schema.tickets.id, ticket.id))
 				.run();
-			addActivity(tx, ticket.id, actor.id, 'edited', { fields: changed, previousTitle: changed.includes('title') ? ticket.title : undefined });
+			addActivity(tx, ticket.id, actor.id, 'edited', {
+				fields: changed,
+				previousTitle: changed.includes('title') ? ticket.title : undefined
+			});
 			notify(
 				followerIds(ticket.id, tx),
-				{ type: 'update', project: access.project, ticketId: ticket.id, actorId: actor.id, data: { kind: 'edited', fields: changed } },
+				{
+					type: 'update',
+					project: access.project,
+					ticketId: ticket.id,
+					actorId: actor.id,
+					data: { kind: 'edited', fields: changed }
+				},
 				tx
 			);
 		},
@@ -201,17 +218,35 @@ export function updateTicketContent(
 	return changed;
 }
 
-export function removeTicketAttachment(actor: ActiveActor, access: ProjectAccess, ticket: Ticket, attachmentId: string) {
-	if (!canEditTicket(access, actor, ticket)) throw new ServiceError('You cannot edit this ticket', 'form', 403);
+export function removeTicketAttachment(
+	actor: ActiveActor,
+	access: ProjectAccess,
+	ticket: Ticket,
+	attachmentId: string
+) {
+	if (!canEditTicket(access, actor, ticket))
+		throw new ServiceError('You cannot edit this ticket', 'form', 403);
 	const att = getDb()
 		.select()
 		.from(schema.attachments)
-		.where(and(eq(schema.attachments.id, attachmentId), eq(schema.attachments.ticketId, ticket.id), isNull(schema.attachments.commentId)))
+		.where(
+			and(
+				eq(schema.attachments.id, attachmentId),
+				eq(schema.attachments.ticketId, ticket.id),
+				isNull(schema.attachments.commentId)
+			)
+		)
 		.get();
 	if (!att || att.deletedAt) throw new ServiceError('Attachment not found', 'form', 404);
 	getDb().transaction((tx) => {
-		tx.update(schema.attachments).set({ deletedAt: new Date() }).where(eq(schema.attachments.id, att.id)).run();
-		tx.update(schema.tickets).set({ updatedAt: new Date() }).where(eq(schema.tickets.id, ticket.id)).run();
+		tx.update(schema.attachments)
+			.set({ deletedAt: new Date() })
+			.where(eq(schema.attachments.id, att.id))
+			.run();
+		tx.update(schema.tickets)
+			.set({ updatedAt: new Date() })
+			.where(eq(schema.tickets.id, ticket.id))
+			.run();
 		addActivity(tx, ticket.id, actor.id, 'attachment_removed', { name: att.originalName });
 	});
 	removeFiles(att);
@@ -223,15 +258,20 @@ export function changeStatus(
 	ticket: Ticket,
 	input: { status: TicketStatus; note: string | null; duplicateOf?: string }
 ) {
-	if (!access.isStaff || access.archived) throw new ServiceError('Only project staff can change the status', 'status', 403);
+	if (!access.isStaff || access.archived)
+		throw new ServiceError('Only project staff can change the status', 'status', 403);
 	let target: Ticket | undefined;
 	if (input.status === 'duplicate') {
-		const number = input.duplicateOf ? parseTicketReference(input.duplicateOf, access.project.key) : null;
+		const number = input.duplicateOf
+			? parseTicketReference(input.duplicateOf, access.project.key)
+			: null;
 		target = number ? getTicket(ticket.projectId, number) : undefined;
-		if (input.duplicateOf && !target) throw new ServiceError(`No ticket ${input.duplicateOf} in this project`, 'duplicateOf');
+		if (input.duplicateOf && !target)
+			throw new ServiceError(`No ticket ${input.duplicateOf} in this project`, 'duplicateOf');
 	}
 	const problem = validateStatusChange(ticket, input.status, target ?? null);
-	if (problem) throw new ServiceError(problem, input.status === 'duplicate' ? 'duplicateOf' : 'status');
+	if (problem)
+		throw new ServiceError(problem, input.status === 'duplicate' ? 'duplicateOf' : 'status');
 
 	const from = ticket.status;
 	const to = input.status;
@@ -240,14 +280,24 @@ export function changeStatus(
 	getDb().transaction(
 		(tx) => {
 			// Re-read inside the transaction so concurrent changes are not silently overwritten.
-			const current = tx.select({ status: schema.tickets.status }).from(schema.tickets).where(eq(schema.tickets.id, ticket.id)).get();
-			if (current?.status !== from) throw new ServiceError('The ticket was changed by someone else. Reload and try again.', 'status', 409);
+			const current = tx
+				.select({ status: schema.tickets.status })
+				.from(schema.tickets)
+				.where(eq(schema.tickets.id, ticket.id))
+				.get();
+			if (current?.status !== from)
+				throw new ServiceError(
+					'The ticket was changed by someone else. Reload and try again.',
+					'status',
+					409
+				);
 			tx.update(schema.tickets)
 				.set({
 					status: to,
 					duplicateOfId: to === 'duplicate' ? target!.id : null,
 					resolutionNote: input.note,
-					completedAt: to === 'completed' ? now : STATUS_META[to].resolved ? ticket.completedAt : null,
+					completedAt:
+						to === 'completed' ? now : STATUS_META[to].resolved ? ticket.completedAt : null,
 					closedAt: STATUS_META[to].resolved ? now : null,
 					updatedAt: now
 				})
@@ -258,7 +308,9 @@ export function changeStatus(
 				to,
 				effect,
 				note: input.note ?? undefined,
-				duplicateOf: target ? { id: target.id, number: target.number, title: target.title } : undefined
+				duplicateOf: target
+					? { id: target.id, number: target.number, title: target.title }
+					: undefined
 			});
 			if (target) {
 				// People following the duplicate probably care about the original too.
@@ -268,7 +320,10 @@ export function changeStatus(
 						.values(followers.map((userId) => ({ ticketId: target!.id, userId })))
 						.onConflictDoNothing()
 						.run();
-				addActivity(tx, target.id, actor.id, 'duplicate_linked', { number: ticket.number, title: ticket.title });
+				addActivity(tx, target.id, actor.id, 'duplicate_linked', {
+					number: ticket.number,
+					title: ticket.title
+				});
 			}
 			notify(
 				[...followerIds(ticket.id, tx), ticket.reporterId],
@@ -286,49 +341,101 @@ export function changeStatus(
 	);
 }
 
-export function changePriority(actor: ActiveActor, access: ProjectAccess, ticket: Ticket, priority: TicketPriority) {
-	if (!access.isStaff || access.archived) throw new ServiceError('Only project staff can change the priority', 'priority', 403);
+export function changePriority(
+	actor: ActiveActor,
+	access: ProjectAccess,
+	ticket: Ticket,
+	priority: TicketPriority
+) {
+	if (!access.isStaff || access.archived)
+		throw new ServiceError('Only project staff can change the priority', 'priority', 403);
 	if (priority === ticket.priority) return;
 	getDb().transaction((tx) => {
-		tx.update(schema.tickets).set({ priority, updatedAt: new Date() }).where(eq(schema.tickets.id, ticket.id)).run();
+		tx.update(schema.tickets)
+			.set({ priority, updatedAt: new Date() })
+			.where(eq(schema.tickets.id, ticket.id))
+			.run();
 		addActivity(tx, ticket.id, actor.id, 'priority', { from: ticket.priority, to: priority });
 		notify(
 			followerIds(ticket.id, tx),
-			{ type: 'update', project: access.project, ticketId: ticket.id, actorId: actor.id, data: { kind: 'priority', from: ticket.priority, to: priority } },
+			{
+				type: 'update',
+				project: access.project,
+				ticketId: ticket.id,
+				actorId: actor.id,
+				data: { kind: 'priority', from: ticket.priority, to: priority }
+			},
 			tx
 		);
 	});
 }
 
-export function assignTicket(actor: ActiveActor, access: ProjectAccess, ticket: Ticket, assigneeId: number | null) {
-	if (!access.isStaff || access.archived) throw new ServiceError('Only project staff can assign tickets', 'assignee', 403);
+export function assignTicket(
+	actor: ActiveActor,
+	access: ProjectAccess,
+	ticket: Ticket,
+	assigneeId: number | null
+) {
+	if (!access.isStaff || access.archived)
+		throw new ServiceError('Only project staff can assign tickets', 'assignee', 403);
 	if (assigneeId === ticket.assigneeId) return;
 	if (assigneeId !== null && !isAssignable(ticket.projectId, assigneeId))
 		throw new ServiceError('Tickets can only be assigned to project staff', 'assignee');
 	getDb().transaction((tx) => {
-		tx.update(schema.tickets).set({ assigneeId, updatedAt: new Date() }).where(eq(schema.tickets.id, ticket.id)).run();
+		tx.update(schema.tickets)
+			.set({ assigneeId, updatedAt: new Date() })
+			.where(eq(schema.tickets.id, ticket.id))
+			.run();
 		const assignee = assigneeId
-			? tx.select({ displayName: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, assigneeId)).get()
+			? tx
+					.select({ displayName: schema.users.displayName })
+					.from(schema.users)
+					.where(eq(schema.users.id, assigneeId))
+					.get()
 			: null;
 		addActivity(tx, ticket.id, actor.id, assigneeId ? 'assigned' : 'unassigned', {
 			assigneeId,
 			assigneeName: assignee?.displayName
 		});
 		if (assigneeId) {
-			tx.insert(schema.ticketFollowers).values({ ticketId: ticket.id, userId: assigneeId }).onConflictDoNothing().run();
-			notify([assigneeId], { type: 'assigned', project: access.project, ticketId: ticket.id, actorId: actor.id, data: {} }, tx);
+			tx.insert(schema.ticketFollowers)
+				.values({ ticketId: ticket.id, userId: assigneeId })
+				.onConflictDoNothing()
+				.run();
+			notify(
+				[assigneeId],
+				{
+					type: 'assigned',
+					project: access.project,
+					ticketId: ticket.id,
+					actorId: actor.id,
+					data: {}
+				},
+				tx
+			);
 		}
 	});
 }
 
-export function setTicketLabels(actor: ActiveActor, access: ProjectAccess, ticket: Ticket, labelIds: number[]) {
-	if (!access.isStaff || access.archived) throw new ServiceError('Only project staff can change labels', 'labels', 403);
+export function setTicketLabels(
+	actor: ActiveActor,
+	access: ProjectAccess,
+	ticket: Ticket,
+	labelIds: number[]
+) {
+	if (!access.isStaff || access.archived)
+		throw new ServiceError('Only project staff can change labels', 'labels', 403);
 	const db = getDb();
 	const valid = labelIds.length
 		? db
 				.select({ id: schema.ticketLabels.id, name: schema.ticketLabels.name })
 				.from(schema.ticketLabels)
-				.where(and(eq(schema.ticketLabels.projectId, ticket.projectId), inArray(schema.ticketLabels.id, labelIds)))
+				.where(
+					and(
+						eq(schema.ticketLabels.projectId, ticket.projectId),
+						inArray(schema.ticketLabels.id, labelIds)
+					)
+				)
 				.all()
 		: [];
 	const current = db
@@ -342,9 +449,17 @@ export function setTicketLabels(actor: ActiveActor, access: ProjectAccess, ticke
 	const removed = current.filter((id) => !next.includes(id));
 	if (!added.length && !removed.length) return;
 	db.transaction((tx) => {
-		tx.delete(schema.ticketLabelAssignments).where(eq(schema.ticketLabelAssignments.ticketId, ticket.id)).run();
-		if (next.length) tx.insert(schema.ticketLabelAssignments).values(next.map((labelId) => ({ ticketId: ticket.id, labelId }))).run();
-		tx.update(schema.tickets).set({ updatedAt: new Date() }).where(eq(schema.tickets.id, ticket.id)).run();
+		tx.delete(schema.ticketLabelAssignments)
+			.where(eq(schema.ticketLabelAssignments.ticketId, ticket.id))
+			.run();
+		if (next.length)
+			tx.insert(schema.ticketLabelAssignments)
+				.values(next.map((labelId) => ({ ticketId: ticket.id, labelId })))
+				.run();
+		tx.update(schema.tickets)
+			.set({ updatedAt: new Date() })
+			.where(eq(schema.tickets.id, ticket.id))
+			.run();
 		addActivity(tx, ticket.id, actor.id, 'labels', {
 			added: valid.filter((l) => added.includes(l.id)).map((l) => l.name),
 			removedCount: removed.length
@@ -356,23 +471,47 @@ export function setTicketLabels(actor: ActiveActor, access: ProjectAccess, ticke
  * Adds or removes the actor's vote. The vote row's primary key guarantees one vote per user and
  * the counter is adjusted in the same transaction only when a row actually changed.
  */
-export function setVote(actor: ActiveActor, access: ProjectAccess, ticket: Ticket, on: boolean): number {
-	if (!access.canVote) throw new ServiceError('Voting is not available for this ticket', 'form', 403);
+export function setVote(
+	actor: ActiveActor,
+	access: ProjectAccess,
+	ticket: Ticket,
+	on: boolean
+): number {
+	if (!access.canVote)
+		throw new ServiceError('Voting is not available for this ticket', 'form', 403);
 	return getDb().transaction(
 		(tx) => {
 			if (on) {
-				const res = tx.insert(schema.ticketVotes).values({ ticketId: ticket.id, userId: actor.id }).onConflictDoNothing().run();
+				const res = tx
+					.insert(schema.ticketVotes)
+					.values({ ticketId: ticket.id, userId: actor.id })
+					.onConflictDoNothing()
+					.run();
 				if (res.changes)
-					tx.update(schema.tickets).set({ voteCount: sql`${schema.tickets.voteCount} + 1` }).where(eq(schema.tickets.id, ticket.id)).run();
+					tx.update(schema.tickets)
+						.set({ voteCount: sql`${schema.tickets.voteCount} + 1` })
+						.where(eq(schema.tickets.id, ticket.id))
+						.run();
 			} else {
 				const res = tx
 					.delete(schema.ticketVotes)
-					.where(and(eq(schema.ticketVotes.ticketId, ticket.id), eq(schema.ticketVotes.userId, actor.id)))
+					.where(
+						and(eq(schema.ticketVotes.ticketId, ticket.id), eq(schema.ticketVotes.userId, actor.id))
+					)
 					.run();
 				if (res.changes)
-					tx.update(schema.tickets).set({ voteCount: sql`max(${schema.tickets.voteCount} - 1, 0)` }).where(eq(schema.tickets.id, ticket.id)).run();
+					tx.update(schema.tickets)
+						.set({ voteCount: sql`max(${schema.tickets.voteCount} - 1, 0)` })
+						.where(eq(schema.tickets.id, ticket.id))
+						.run();
 			}
-			return tx.select({ n: schema.tickets.voteCount }).from(schema.tickets).where(eq(schema.tickets.id, ticket.id)).get()?.n ?? 0;
+			return (
+				tx
+					.select({ n: schema.tickets.voteCount })
+					.from(schema.tickets)
+					.where(eq(schema.tickets.id, ticket.id))
+					.get()?.n ?? 0
+			);
 		},
 		{ behavior: 'immediate' }
 	);
@@ -380,10 +519,19 @@ export function setVote(actor: ActiveActor, access: ProjectAccess, ticket: Ticke
 
 export function setFollow(actor: ActiveActor, ticket: Ticket, on: boolean) {
 	const db = getDb();
-	if (on) db.insert(schema.ticketFollowers).values({ ticketId: ticket.id, userId: actor.id }).onConflictDoNothing().run();
+	if (on)
+		db.insert(schema.ticketFollowers)
+			.values({ ticketId: ticket.id, userId: actor.id })
+			.onConflictDoNothing()
+			.run();
 	else
 		db.delete(schema.ticketFollowers)
-			.where(and(eq(schema.ticketFollowers.ticketId, ticket.id), eq(schema.ticketFollowers.userId, actor.id)))
+			.where(
+				and(
+					eq(schema.ticketFollowers.ticketId, ticket.id),
+					eq(schema.ticketFollowers.userId, actor.id)
+				)
+			)
 			.run();
 }
 
@@ -395,8 +543,18 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 	const assignee = alias(schema.users, 'assignee');
 	const people = db
 		.select({
-			reporter: { id: reporter.id, username: reporter.username, displayName: reporter.displayName, avatarId: reporter.avatarId },
-			assignee: { id: assignee.id, username: assignee.username, displayName: assignee.displayName, avatarId: assignee.avatarId }
+			reporter: {
+				id: reporter.id,
+				username: reporter.username,
+				displayName: reporter.displayName,
+				avatarId: reporter.avatarId
+			},
+			assignee: {
+				id: assignee.id,
+				username: assignee.username,
+				displayName: assignee.displayName,
+				avatarId: assignee.avatarId
+			}
 		})
 		.from(schema.tickets)
 		.innerJoin(reporter, eq(reporter.id, schema.tickets.reporterId))
@@ -405,9 +563,16 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 		.get()!;
 
 	const labels = db
-		.select({ id: schema.ticketLabels.id, name: schema.ticketLabels.name, color: schema.ticketLabels.color })
+		.select({
+			id: schema.ticketLabels.id,
+			name: schema.ticketLabels.name,
+			color: schema.ticketLabels.color
+		})
 		.from(schema.ticketLabelAssignments)
-		.innerJoin(schema.ticketLabels, eq(schema.ticketLabels.id, schema.ticketLabelAssignments.labelId))
+		.innerJoin(
+			schema.ticketLabels,
+			eq(schema.ticketLabels.id, schema.ticketLabelAssignments.labelId)
+		)
 		.where(eq(schema.ticketLabelAssignments.ticketId, ticket.id))
 		.orderBy(asc(schema.ticketLabels.name))
 		.all();
@@ -438,7 +603,12 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 			editedAt: schema.ticketComments.editedAt,
 			deletedAt: schema.ticketComments.deletedAt,
 			authorId: schema.ticketComments.authorId,
-			author: { id: author.id, username: author.username, displayName: author.displayName, avatarId: author.avatarId },
+			author: {
+				id: author.id,
+				username: author.username,
+				displayName: author.displayName,
+				avatarId: author.avatarId
+			},
 			authorRole: schema.projectMembers.role,
 			authorGlobalRole: author.role
 		})
@@ -446,7 +616,10 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 		.innerJoin(author, eq(author.id, schema.ticketComments.authorId))
 		.leftJoin(
 			schema.projectMembers,
-			and(eq(schema.projectMembers.userId, author.id), eq(schema.projectMembers.projectId, ticket.projectId))
+			and(
+				eq(schema.projectMembers.userId, author.id),
+				eq(schema.projectMembers.projectId, ticket.projectId)
+			)
 		)
 		.where(eq(schema.ticketComments.ticketId, ticket.id))
 		.orderBy(asc(schema.ticketComments.createdAt))
@@ -464,7 +637,11 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 			type: schema.ticketActivity.type,
 			data: schema.ticketActivity.data,
 			createdAt: schema.ticketActivity.createdAt,
-			actor: { id: activityActor.id, displayName: activityActor.displayName, avatarId: activityActor.avatarId }
+			actor: {
+				id: activityActor.id,
+				displayName: activityActor.displayName,
+				avatarId: activityActor.avatarId
+			}
 		})
 		.from(schema.ticketActivity)
 		.leftJoin(activityActor, eq(activityActor.id, schema.ticketActivity.actorId))
@@ -474,23 +651,43 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 
 	const duplicateOf = ticket.duplicateOfId
 		? db
-				.select({ number: schema.tickets.number, title: schema.tickets.title, status: schema.tickets.status })
+				.select({
+					number: schema.tickets.number,
+					title: schema.tickets.title,
+					status: schema.tickets.status
+				})
 				.from(schema.tickets)
 				.where(eq(schema.tickets.id, ticket.duplicateOfId))
 				.get()
 		: undefined;
 	const duplicates = db
-		.select({ number: schema.tickets.number, title: schema.tickets.title, status: schema.tickets.status })
+		.select({
+			number: schema.tickets.number,
+			title: schema.tickets.title,
+			status: schema.tickets.status
+		})
 		.from(schema.tickets)
 		.where(eq(schema.tickets.duplicateOfId, ticket.id))
 		.orderBy(asc(schema.tickets.number))
 		.all();
 
 	const releases = db
-		.select({ id: schema.changelogEntries.id, version: schema.changelogEntries.version, releaseDate: schema.changelogEntries.releaseDate })
+		.select({
+			id: schema.changelogEntries.id,
+			version: schema.changelogEntries.version,
+			releaseDate: schema.changelogEntries.releaseDate
+		})
 		.from(schema.changelogTicketLinks)
-		.innerJoin(schema.changelogEntries, eq(schema.changelogEntries.id, schema.changelogTicketLinks.entryId))
-		.where(and(eq(schema.changelogTicketLinks.ticketId, ticket.id), eq(schema.changelogEntries.published, true)))
+		.innerJoin(
+			schema.changelogEntries,
+			eq(schema.changelogEntries.id, schema.changelogTicketLinks.entryId)
+		)
+		.where(
+			and(
+				eq(schema.changelogTicketLinks.ticketId, ticket.id),
+				eq(schema.changelogEntries.published, true)
+			)
+		)
 		.all();
 
 	let hasVoted = false;
@@ -499,16 +696,27 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 		hasVoted = !!db
 			.select({ t: schema.ticketVotes.ticketId })
 			.from(schema.ticketVotes)
-			.where(and(eq(schema.ticketVotes.ticketId, ticket.id), eq(schema.ticketVotes.userId, actor.id)))
+			.where(
+				and(eq(schema.ticketVotes.ticketId, ticket.id), eq(schema.ticketVotes.userId, actor.id))
+			)
 			.get();
 		isFollowing = !!db
 			.select({ t: schema.ticketFollowers.ticketId })
 			.from(schema.ticketFollowers)
-			.where(and(eq(schema.ticketFollowers.ticketId, ticket.id), eq(schema.ticketFollowers.userId, actor.id)))
+			.where(
+				and(
+					eq(schema.ticketFollowers.ticketId, ticket.id),
+					eq(schema.ticketFollowers.userId, actor.id)
+				)
+			)
 			.get();
 	}
 	const followerCount =
-		db.select({ n: sql<number>`count(*)` }).from(schema.ticketFollowers).where(eq(schema.ticketFollowers.ticketId, ticket.id)).get()?.n ?? 0;
+		db
+			.select({ n: sql<number>`count(*)` })
+			.from(schema.ticketFollowers)
+			.where(eq(schema.ticketFollowers.ticketId, ticket.id))
+			.get()?.n ?? 0;
 
 	return {
 		reporter: people.reporter,
@@ -528,7 +736,11 @@ export function getTicketDetail(actor: Actor, ticket: Ticket) {
 
 export function recentVoters(ticketId: number, limit = 8) {
 	return getDb()
-		.select({ id: schema.users.id, displayName: schema.users.displayName, avatarId: schema.users.avatarId })
+		.select({
+			id: schema.users.id,
+			displayName: schema.users.displayName,
+			avatarId: schema.users.avatarId
+		})
 		.from(schema.ticketVotes)
 		.innerJoin(schema.users, eq(schema.users.id, schema.ticketVotes.userId))
 		.where(eq(schema.ticketVotes.ticketId, ticketId))

@@ -1,4 +1,11 @@
-import { PRIORITY_META, STATUS_META, TYPE_META, type TicketPriority, type TicketStatus, type TicketType } from './constants';
+import {
+	PRIORITY_META,
+	STATUS_META,
+	TYPE_META,
+	type TicketPriority,
+	type TicketStatus,
+	type TicketType
+} from './constants';
 
 /** Short, past-tense description of a ticket activity entry (actor name is prepended by the UI). */
 export function describeActivity(type: string, data: Record<string, unknown>): string {

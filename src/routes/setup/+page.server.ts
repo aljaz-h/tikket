@@ -17,7 +17,11 @@ export const actions: Actions = {
 		const { request, locals, cookies } = event;
 		if (!needsSetup()) redirect(303, '/login');
 		const wait = limiters.signup.hit(`setup:${locals.clientIp}`);
-		if (wait) return fail(429, { errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` }, values: {} });
+		if (wait)
+			return fail(429, {
+				errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` },
+				values: {}
+			});
 		const form = await request.formData();
 		const parsed = parseForm(accountSchema, form);
 		if (!parsed.ok) return parsed.failure;
@@ -30,7 +34,11 @@ export const actions: Actions = {
 			return handleServiceError(err, { ...parsed.data, password: '', confirmPassword: '' });
 		}
 		if (appName) updateSettings({ appName: appName.slice(0, 60) });
-		signIn(cookies, userId, { ip: locals.clientIp, userAgent: request.headers.get('user-agent'), secure: isSecure(event) });
+		signIn(cookies, userId, {
+			ip: locals.clientIp,
+			userAgent: request.headers.get('user-agent'),
+			secure: isSecure(event)
+		});
 		redirect(303, '/?welcome=1');
 	}
 };

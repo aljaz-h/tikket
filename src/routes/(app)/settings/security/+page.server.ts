@@ -20,11 +20,21 @@ export const actions: Actions = {
 	password: async ({ locals, request }) => {
 		const user = requireActionUser(locals);
 		const wait = limiters.password.hit(`pw:${user.id}`);
-		if (wait) return fail(429, { errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` }, values: {} });
+		if (wait)
+			return fail(429, {
+				errors: { form: `Too many attempts. Try again in ${formatWait(wait)}.` },
+				values: {}
+			});
 		const parsed = parseForm(changePasswordSchema, await request.formData());
 		if (!parsed.ok) return parsed.failure;
 		try {
-			await changePassword(user.id, parsed.data.currentPassword, parsed.data.newPassword, locals.session!.id, locals.clientIp);
+			await changePassword(
+				user.id,
+				parsed.data.currentPassword,
+				parsed.data.newPassword,
+				locals.session!.id,
+				locals.clientIp
+			);
 		} catch (err) {
 			return handleServiceError(err);
 		}
@@ -33,7 +43,9 @@ export const actions: Actions = {
 	revoke: async ({ locals, request }) => {
 		const user = requireActionUser(locals);
 		const prefix = String((await request.formData()).get('sessionId') ?? '');
-		const match = listUserSessions(user.id).find((s) => s.id.startsWith(prefix) && prefix.length === 16 && s.id !== locals.session?.id);
+		const match = listUserSessions(user.id).find(
+			(s) => s.id.startsWith(prefix) && prefix.length === 16 && s.id !== locals.session?.id
+		);
 		if (!match) return fail(404, { errors: { form: 'Session not found' }, values: {} });
 		deleteUserSession(user.id, match.id);
 		return { revoked: true };

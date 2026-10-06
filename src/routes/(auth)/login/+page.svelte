@@ -13,7 +13,9 @@
 
 <Card class="p-6">
 	<h1 class="text-lg font-semibold tracking-tight">Sign in</h1>
-	<p class="mt-1 text-sm text-muted-foreground">Welcome back. Sign in to report and follow tickets.</p>
+	<p class="mt-1 text-sm text-muted-foreground">
+		Welcome back. Sign in to report and follow tickets.
+	</p>
 	<form
 		method="POST"
 		class="mt-5 grid gap-4"
@@ -39,14 +41,22 @@
 			/>
 		</Field>
 		<Field label="Password" for="password" error={errors.password}>
-			<Input id="password" name="password" type="password" autocomplete="current-password" required />
+			<Input
+				id="password"
+				name="password"
+				type="password"
+				autocomplete="current-password"
+				required
+			/>
 		</Field>
 		<Button type="submit" class="w-full" loading={pending}>Sign in</Button>
 	</form>
 </Card>
 {#if data.app.registrationEnabled}
 	<p class="mt-4 text-center text-sm text-muted-foreground">
-		New here? <a href="/register" class="font-medium text-primary hover:underline">Create an account</a>
+		New here? <a href="/register" class="font-medium text-primary hover:underline"
+			>Create an account</a
+		>
 	</p>
 {:else}
 	<p class="mt-4 text-center text-sm text-muted-foreground">

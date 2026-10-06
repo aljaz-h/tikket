@@ -83,7 +83,10 @@ export function activeFilterCount(f: TicketFilters): number {
 }
 
 /** Serialises filters back to a query string, omitting defaults. */
-export function filtersToParams(f: Partial<TicketFilters>, extra: Record<string, string> = {}): URLSearchParams {
+export function filtersToParams(
+	f: Partial<TicketFilters>,
+	extra: Record<string, string> = {}
+): URLSearchParams {
 	const p = new URLSearchParams();
 	if (f.q) p.set('q', f.q);
 	for (const s of f.status ?? []) p.append('status', s);

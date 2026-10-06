@@ -15,8 +15,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		title: access.project.name,
 		stats: projectStats(id),
-		recent: queryTickets({ scope: eq(schema.tickets.projectId, id), filters, pageSize: 8, projectKey: access.project.key }).rows,
-		topVoted: queryTickets({ scope: eq(schema.tickets.projectId, id), filters: { ...filters, sort: 'votes', status: ['open', 'planned', 'in_progress', 'on_hold'] }, pageSize: 5 }).rows,
+		recent: queryTickets({
+			scope: eq(schema.tickets.projectId, id),
+			filters,
+			pageSize: 8,
+			projectKey: access.project.key
+		}).rows,
+		topVoted: queryTickets({
+			scope: eq(schema.tickets.projectId, id),
+			filters: { ...filters, sort: 'votes', status: ['open', 'planned', 'in_progress', 'on_hold'] },
+			pageSize: 5
+		}).rows,
 		upcoming: [...road.in_progress.slice(0, 4), ...road.planned.slice(0, 4)],
 		changelog: listChangelog(id, false).slice(0, 2)
 	};

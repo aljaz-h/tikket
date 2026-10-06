@@ -11,7 +11,13 @@
 		class?: string;
 		children?: Snippet;
 	}
-	let { open = $bindable(false), title, side = 'left', class: className, children }: Props = $props();
+	let {
+		open = $bindable(false),
+		title,
+		side = 'left',
+		class: className,
+		children
+	}: Props = $props();
 </script>
 
 <Dialog.Root bind:open>

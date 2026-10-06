@@ -7,9 +7,23 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	adminActor(locals);
 	const db = getDb();
-	const count = (table: typeof schema.users | typeof schema.projects | typeof schema.tickets | typeof schema.ticketComments | typeof schema.attachments) =>
-		db.select({ n: sql<number>`count(*)` }).from(table).get()?.n ?? 0;
-	const storage = db.select({ n: sql<number>`coalesce(sum(size), 0)` }).from(schema.attachments).get()?.n ?? 0;
+	const count = (
+		table:
+			| typeof schema.users
+			| typeof schema.projects
+			| typeof schema.tickets
+			| typeof schema.ticketComments
+			| typeof schema.attachments
+	) =>
+		db
+			.select({ n: sql<number>`count(*)` })
+			.from(table)
+			.get()?.n ?? 0;
+	const storage =
+		db
+			.select({ n: sql<number>`coalesce(sum(size), 0)` })
+			.from(schema.attachments)
+			.get()?.n ?? 0;
 	return {
 		title: 'Administration',
 		stats: {

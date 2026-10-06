@@ -11,10 +11,29 @@
 </script>
 
 <Field label="Display name" for="displayName" error={errors.displayName}>
-	<Input id="displayName" name="displayName" autocomplete="name" required maxlength={60} value={values.displayName ?? ''} aria-invalid={!!errors.displayName} />
+	<Input
+		id="displayName"
+		name="displayName"
+		autocomplete="name"
+		required
+		maxlength={60}
+		value={values.displayName ?? ''}
+		aria-invalid={!!errors.displayName}
+	/>
 </Field>
 <Field label="Username" for="username" error={errors.username} hint="Used for @mentions.">
-	<Input id="username" name="username" autocomplete="username" required minlength={2} maxlength={32} value={values.username ?? ''} aria-invalid={!!errors.username} autocapitalize="none" spellcheck="false" />
+	<Input
+		id="username"
+		name="username"
+		autocomplete="username"
+		required
+		minlength={2}
+		maxlength={32}
+		value={values.username ?? ''}
+		aria-invalid={!!errors.username}
+		autocapitalize="none"
+		spellcheck="false"
+	/>
 </Field>
 <Field label="Email" for="email" error={errors.email}>
 	<Input
@@ -29,8 +48,24 @@
 	/>
 </Field>
 <Field label="Password" for="password" error={errors.password} hint="At least 10 characters.">
-	<Input id="password" name="password" type="password" autocomplete="new-password" required minlength={10} aria-invalid={!!errors.password} />
+	<Input
+		id="password"
+		name="password"
+		type="password"
+		autocomplete="new-password"
+		required
+		minlength={10}
+		aria-invalid={!!errors.password}
+	/>
 </Field>
 <Field label="Confirm password" for="confirmPassword" error={errors.confirmPassword}>
-	<Input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required minlength={10} aria-invalid={!!errors.confirmPassword} />
+	<Input
+		id="confirmPassword"
+		name="confirmPassword"
+		type="password"
+		autocomplete="new-password"
+		required
+		minlength={10}
+		aria-invalid={!!errors.confirmPassword}
+	/>
 </Field>

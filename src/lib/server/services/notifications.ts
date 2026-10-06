@@ -32,7 +32,10 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 		.from(schema.users)
 		.leftJoin(
 			schema.projectMembers,
-			and(eq(schema.projectMembers.userId, schema.users.id), eq(schema.projectMembers.projectId, input.project.id))
+			and(
+				eq(schema.projectMembers.userId, schema.users.id),
+				eq(schema.projectMembers.projectId, input.project.id)
+			)
 		)
 		.where(inArray(schema.users.id, ids))
 		.all();
@@ -71,7 +74,10 @@ export function unreadCount(userId: number): number {
 	);
 }
 
-export function listNotifications(userId: number, opts: { unreadOnly?: boolean; limit?: number; offset?: number } = {}) {
+export function listNotifications(
+	userId: number,
+	opts: { unreadOnly?: boolean; limit?: number; offset?: number } = {}
+) {
 	const actor = alias(schema.users, 'actor');
 	return getDb()
 		.select({
@@ -145,6 +151,8 @@ export function pruneOldNotifications(days = 180) {
 	const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 	return getDb()
 		.delete(schema.notifications)
-		.where(sql`${schema.notifications.createdAt} < ${cutoff.getTime()} and ${schema.notifications.readAt} is not null`)
+		.where(
+			sql`${schema.notifications.createdAt} < ${cutoff.getTime()} and ${schema.notifications.readAt} is not null`
+		)
 		.run().changes;
 }

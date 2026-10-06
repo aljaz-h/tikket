@@ -13,7 +13,8 @@ export function safeHttpUrl(value: string | null | undefined): string | null {
 	}
 }
 
-export type TextSegment = { type: 'text'; value: string } | { type: 'link'; value: string; href: string };
+export type TextSegment =
+	{ type: 'text'; value: string } | { type: 'link'; value: string; href: string };
 
 const LINK_RE = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/gi;
 
@@ -55,6 +56,7 @@ const MENTION_RE = /(^|[^\w@])@([a-zA-Z0-9_][a-zA-Z0-9_.-]{1,31})/g;
 /** Usernames mentioned as @username in plain text (lower-cased, unique). */
 export function extractMentions(text: string): string[] {
 	const names = new Set<string>();
-	for (const match of text.matchAll(MENTION_RE)) names.add(match[2].replace(/[.-]+$/, '').toLowerCase());
+	for (const match of text.matchAll(MENTION_RE))
+		names.add(match[2].replace(/[.-]+$/, '').toLowerCase());
 	return [...names];
 }

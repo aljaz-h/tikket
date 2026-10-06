@@ -56,7 +56,9 @@
 			searchOpen = true;
 		}
 	});
-	const newTicketHref = $derived(page.params.key ? `/new?project=${page.params.key.toUpperCase()}` : '/new');
+	const newTicketHref = $derived(
+		page.params.key ? `/new?project=${page.params.key.toUpperCase()}` : '/new'
+	);
 </script>
 
 <div class="flex min-h-dvh">

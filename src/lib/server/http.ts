@@ -35,12 +35,14 @@ export function handleServiceError(err: unknown, values: Record<string, string> 
 			values
 		});
 	}
-	if (err instanceof UploadError) return fail(400, { errors: { attachments: err.message } as FieldErrors, values });
+	if (err instanceof UploadError)
+		return fail(400, { errors: { attachments: err.message } as FieldErrors, values });
 	throw err;
 }
 
 export function safeRedirectTarget(value: string | null | undefined, fallback = '/') {
-	if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return fallback;
+	if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\'))
+		return fallback;
 	return value;
 }
 

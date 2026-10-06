@@ -5,7 +5,7 @@ node_modules
 /data
 /test-results
 /playwright-report
-/e2e/.data
+
 .env
 .env.*
 !.env.example
@@ -14,3 +14,4 @@ vite.config.*.timestamp-*
 *.db-shm
 *.db-wal
 .DS_Store
+

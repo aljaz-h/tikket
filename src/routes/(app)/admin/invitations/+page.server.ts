@@ -13,7 +13,8 @@ export const actions: Actions = {
 	revoke: async ({ locals, request }) => {
 		const admin = adminActor(locals);
 		const id = intParam(String((await request.formData()).get('invitationId')));
-		if (!id || !revokeInvitation(admin.id, id, null, locals.clientIp)) error(404, 'Invitation not found');
+		if (!id || !revokeInvitation(admin.id, id, null, locals.clientIp))
+			error(404, 'Invitation not found');
 		return { revoked: true };
 	}
 };

@@ -6,7 +6,17 @@ import ts from 'typescript-eslint';
 import svelteConfig from './svelte.config.js';
 
 export default ts.config(
-	{ ignores: ['build/', '.svelte-kit/', 'node_modules/', 'drizzle/', 'data/', 'test-results/', 'playwright-report/'] },
+	{
+		ignores: [
+			'build/',
+			'.svelte-kit/',
+			'node_modules/',
+			'drizzle/',
+			'data/',
+			'test-results/',
+			'playwright-report/'
+		]
+	},
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
@@ -16,7 +26,10 @@ export default ts.config(
 		languageOptions: { globals: { ...globals.browser, ...globals.node } },
 		rules: {
 			'no-undef': 'off',
-			'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+			],
 			'svelte/no-navigation-without-resolve': 'off'
 		}
 	},

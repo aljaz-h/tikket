@@ -3,7 +3,14 @@ import { eq } from 'drizzle-orm';
 import { adminActor } from '$lib/server/admin';
 import { getDb, schema } from '$lib/server/db';
 import { handleServiceError, intParam } from '$lib/server/http';
-import { createPasswordReset, getUser, listUserSessions, revokeUserSessions, setUserRole, setUserStatus } from '$lib/server/services/users';
+import {
+	createPasswordReset,
+	getUser,
+	listUserSessions,
+	revokeUserSessions,
+	setUserRole,
+	setUserStatus
+} from '$lib/server/services/users';
 import { getSettings } from '$lib/server/settings';
 import { globalRoleSchema } from '$lib/server/validation';
 import type { Actions, PageServerLoad } from './$types';
@@ -19,7 +26,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	adminActor(locals);
 	const user = target(params.id);
 	const memberships = getDb()
-		.select({ role: schema.projectMembers.role, key: schema.projects.key, name: schema.projects.name, icon: schema.projects.icon, color: schema.projects.color })
+		.select({
+			role: schema.projectMembers.role,
+			key: schema.projects.key,
+			name: schema.projects.name,
+			icon: schema.projects.icon,
+			color: schema.projects.color
+		})
 		.from(schema.projectMembers)
 		.innerJoin(schema.projects, eq(schema.projects.id, schema.projectMembers.projectId))
 		.where(eq(schema.projectMembers.userId, user.id))
@@ -83,6 +96,8 @@ export const actions: Actions = {
 	resetLink: async ({ locals, params, url }) => {
 		const admin = adminActor(locals);
 		const token = createPasswordReset(admin.id, target(params.id).id, locals.clientIp);
-		return { resetLink: `${(getSettings().appUrl || url.origin).replace(/\/$/, '')}/reset/${token}` };
+		return {
+			resetLink: `${(getSettings().appUrl || url.origin).replace(/\/$/, '')}/reset/${token}`
+		};
 	}
 };

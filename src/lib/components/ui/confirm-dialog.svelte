@@ -70,7 +70,9 @@
 			<div class="grid gap-1.5">
 				<AlertDialog.Title class="text-base font-semibold">{title}</AlertDialog.Title>
 				{#if description}
-					<AlertDialog.Description class="text-sm text-muted-foreground">{description}</AlertDialog.Description>
+					<AlertDialog.Description class="text-sm text-muted-foreground"
+						>{description}</AlertDialog.Description
+					>
 				{/if}
 			</div>
 			<form method="POST" {action} use:enhance={submit} class="grid gap-4">
@@ -79,7 +81,9 @@
 				{/each}
 				{@render children?.()}
 				<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-					<AlertDialog.Cancel type="button" class={buttonVariants({ variant: 'outline' })}>Cancel</AlertDialog.Cancel>
+					<AlertDialog.Cancel type="button" class={buttonVariants({ variant: 'outline' })}
+						>Cancel</AlertDialog.Cancel
+					>
 					<button
 						type="submit"
 						disabled={pending}
