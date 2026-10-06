@@ -1,0 +1,9 @@
+package-lock.json
+build
+.svelte-kit
+node_modules
+drizzle
+data
+test-results
+playwright-report
+static

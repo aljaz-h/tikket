@@ -1,0 +1,260 @@
+/**
+ * Domain constants shared by the client and the server.
+ * Keep labels and colours here so every view renders statuses consistently.
+ */
+
+export const TICKET_STATUSES = [
+	'open',
+	'planned',
+	'in_progress',
+	'completed',
+	'on_hold',
+	'declined',
+	'duplicate'
+] as const;
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+export const STATUS_META: Record<
+	TicketStatus,
+	{ label: string; description: string; tone: string; resolved: boolean }
+> = {
+	open: {
+		label: 'Open',
+		description: 'Newly submitted or awaiting review',
+		tone: 'tone-open',
+		resolved: false
+	},
+	planned: {
+		label: 'Planned',
+		description: 'Accepted for a future update',
+		tone: 'tone-planned',
+		resolved: false
+	},
+	in_progress: {
+		label: 'In Progress',
+		description: 'Currently being worked on',
+		tone: 'tone-progress',
+		resolved: false
+	},
+	completed: {
+		label: 'Completed',
+		description: 'Implemented or fixed',
+		tone: 'tone-completed',
+		resolved: true
+	},
+	on_hold: {
+		label: 'On Hold',
+		description: 'Postponed or undecided',
+		tone: 'tone-hold',
+		resolved: false
+	},
+	declined: {
+		label: 'Declined',
+		description: 'Not needed or rejected',
+		tone: 'tone-declined',
+		resolved: true
+	},
+	duplicate: {
+		label: 'Duplicate',
+		description: 'Already tracked by another ticket',
+		tone: 'tone-duplicate',
+		resolved: true
+	}
+};
+
+export const UNRESOLVED_STATUSES = TICKET_STATUSES.filter((s) => !STATUS_META[s].resolved);
+export const RESOLVED_STATUSES = TICKET_STATUSES.filter((s) => STATUS_META[s].resolved);
+
+/** Statuses where an optional explanation is offered when switching to them. */
+export const STATUSES_WITH_NOTE: TicketStatus[] = ['declined', 'on_hold', 'duplicate', 'completed'];
+
+export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
+export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
+
+export const PRIORITY_META: Record<TicketPriority, { label: string; tone: string; rank: number }> =
+	{
+		low: { label: 'Low', tone: 'tone-low', rank: 0 },
+		medium: { label: 'Medium', tone: 'tone-medium', rank: 1 },
+		high: { label: 'High', tone: 'tone-high', rank: 2 },
+		critical: { label: 'Critical', tone: 'tone-critical', rank: 3 }
+	};
+
+export const TICKET_TYPES = ['bug', 'feature', 'improvement', 'feedback'] as const;
+export type TicketType = (typeof TICKET_TYPES)[number];
+
+export const TYPE_META: Record<
+	TicketType,
+	{
+		label: string;
+		short: string;
+		tagline: string;
+		descriptionLabel: string;
+		descriptionHint: string;
+		titlePlaceholder: string;
+	}
+> = {
+	bug: {
+		label: 'Bug Report',
+		short: 'Bug',
+		tagline: "Something isn't working correctly.",
+		descriptionLabel: 'What happened?',
+		descriptionHint: 'Describe the problem you ran into.',
+		titlePlaceholder: "The episode progress doesn't update after marking it watched"
+	},
+	feature: {
+		label: 'Feature Request',
+		short: 'Feature',
+		tagline: 'Suggest something new.',
+		descriptionLabel: 'What would you like to see?',
+		descriptionHint: 'Describe the functionality you have in mind.',
+		titlePlaceholder: 'Let me export my watch history as CSV'
+	},
+	improvement: {
+		label: 'Improvement',
+		short: 'Improvement',
+		tagline: 'Something already works, but could be better.',
+		descriptionLabel: 'What could be improved?',
+		descriptionHint: 'Explain what is inconvenient today.',
+		titlePlaceholder: 'Remember the last selected filter on the shows page'
+	},
+	feedback: {
+		label: 'General Feedback',
+		short: 'Feedback',
+		tagline: 'Anything else you want to share.',
+		descriptionLabel: 'Your feedback',
+		descriptionHint: 'Tell us what is on your mind.',
+		titlePlaceholder: 'Thoughts on the new dashboard'
+	}
+};
+
+/** Optional, type-specific context fields shown with progressive disclosure. */
+export const CONTEXT_FIELDS: Record<
+	TicketType,
+	{ key: ContextKey; label: string; placeholder: string; kind: 'text' | 'url' }[]
+> = {
+	bug: [
+		{
+			key: 'expected',
+			label: 'What did you expect to happen?',
+			placeholder: 'The progress bar should update immediately.',
+			kind: 'text'
+		},
+		{
+			key: 'steps',
+			label: 'How can we reproduce it?',
+			placeholder: '1. Open the dashboard\n2. Select a TV show\n3. Mark an episode as watched\n4. Refresh the page',
+			kind: 'text'
+		},
+		{
+			key: 'affectedUrl',
+			label: 'Affected URL',
+			placeholder: 'https://example.com/shows/123',
+			kind: 'url'
+		}
+	],
+	feature: [
+		{
+			key: 'motivation',
+			label: 'Why would it be useful?',
+			placeholder: 'Explain the problem it would solve for you.',
+			kind: 'text'
+		}
+	],
+	improvement: [
+		{
+			key: 'proposal',
+			label: 'How would you improve it?',
+			placeholder: 'Describe the solution you would suggest.',
+			kind: 'text'
+		}
+	],
+	feedback: []
+};
+
+export const CONTEXT_KEYS = ['expected', 'steps', 'affectedUrl', 'motivation', 'proposal'] as const;
+export type ContextKey = (typeof CONTEXT_KEYS)[number];
+export type TicketContext = Partial<Record<ContextKey, string>>;
+
+export const CONTEXT_LABELS: Record<ContextKey, string> = {
+	expected: 'Expected behaviour',
+	steps: 'Steps to reproduce',
+	affectedUrl: 'Affected URL',
+	motivation: 'Why it would be useful',
+	proposal: 'Suggested improvement'
+};
+
+export const GLOBAL_ROLES = ['admin', 'user'] as const;
+export type GlobalRole = (typeof GLOBAL_ROLES)[number];
+
+export const PROJECT_ROLES = ['owner', 'moderator', 'member'] as const;
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
+export const PROJECT_ROLE_META: Record<ProjectRole, { label: string; description: string }> = {
+	owner: { label: 'Owner', description: 'Full management access within the project' },
+	moderator: { label: 'Moderator', description: 'Reviews and manages tickets and discussions' },
+	member: { label: 'Member', description: 'Submits tickets, comments and votes' }
+};
+
+export const VISIBILITIES = ['public', 'private'] as const;
+export type Visibility = (typeof VISIBILITIES)[number];
+
+export const SUBMISSION_POLICIES = ['any_user', 'members'] as const;
+export type SubmissionPolicy = (typeof SUBMISSION_POLICIES)[number];
+
+export const EDIT_POLICIES = ['never', 'while_open', 'always'] as const;
+export type EditPolicy = (typeof EDIT_POLICIES)[number];
+export const EDIT_POLICY_META: Record<EditPolicy, string> = {
+	never: 'Authors cannot edit after submitting',
+	while_open: 'Authors can edit while the ticket is Open',
+	always: 'Authors can always edit their tickets'
+};
+
+export const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
+export type ImageMimeType = (typeof IMAGE_MIME_TYPES)[number];
+
+export const NOTIFICATION_TYPES = [
+	'new_ticket',
+	'comment',
+	'status',
+	'mention',
+	'assigned',
+	'update'
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+export const NOTIFICATION_PREF_META: Record<NotificationType, { label: string; hint: string }> = {
+	new_ticket: { label: 'New tickets', hint: 'A ticket is submitted to a project you manage' },
+	comment: { label: 'New comments', hint: 'Someone comments on a ticket you follow' },
+	status: { label: 'Status changes', hint: 'Including completed and declined tickets' },
+	mention: { label: 'Mentions', hint: 'Someone mentions you with @username' },
+	assigned: { label: 'Assignments', hint: 'A ticket is assigned to you' },
+	update: { label: 'Other updates', hint: 'Priority changes, duplicates and edits' }
+};
+export type NotificationPrefs = Record<NotificationType, boolean>;
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+	new_ticket: true,
+	comment: true,
+	status: true,
+	mention: true,
+	assigned: true,
+	update: false
+};
+
+export const THEMES = ['dark', 'light', 'system'] as const;
+export type Theme = (typeof THEMES)[number];
+export const THEME_COOKIE = 'tikket_theme';
+
+export const PROJECT_COLORS = [
+	'indigo',
+	'violet',
+	'sky',
+	'teal',
+	'emerald',
+	'amber',
+	'orange',
+	'rose',
+	'slate'
+] as const;
+export type ProjectColor = (typeof PROJECT_COLORS)[number];
+
+export const LABEL_COLORS = PROJECT_COLORS;
+
+export const PAGE_SIZE = 25;

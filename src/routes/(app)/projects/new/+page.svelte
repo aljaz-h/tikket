@@ -1,0 +1,48 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import ProjectFields from '$lib/components/ProjectFields.svelte';
+	import FormMessage from '$lib/components/FormMessage.svelte';
+	import Button from '$lib/components/ui/button.svelte';
+	import Card from '$lib/components/ui/card.svelte';
+	import Field from '$lib/components/ui/field.svelte';
+	import NativeSelect from '$lib/components/ui/native-select.svelte';
+
+	let { data, form } = $props();
+	let pending = $state(false);
+	const errors = $derived((form?.errors ?? {}) as Record<string, string>);
+	const values = $derived((form?.values ?? {}) as Record<string, string>);
+</script>
+
+<div class="mx-auto grid max-w-2xl gap-6">
+	<PageHeader title="New project" description="Projects keep tickets, members, the roadmap and changelog together." />
+	<Card class="p-5 sm:p-6">
+		<form
+			method="POST"
+			class="grid gap-5"
+			use:enhance={() => {
+				pending = true;
+				return async ({ update }) => {
+					await update({ reset: false });
+					pending = false;
+				};
+			}}
+		>
+			<FormMessage message={errors.form} />
+			<ProjectFields {errors} {values} />
+			{#if data.owners.length}
+				<Field label="Owner" for="ownerId" error={errors.ownerId} hint="The owner manages the project, its members and settings.">
+					<NativeSelect id="ownerId" name="ownerId" value={values.ownerId ?? String(data.user?.id)}>
+						{#each data.owners as owner (owner.id)}
+							<option value={String(owner.id)}>{owner.displayName} (@{owner.username})</option>
+						{/each}
+					</NativeSelect>
+				</Field>
+			{/if}
+			<div class="flex justify-end gap-2 border-t border-border pt-5">
+				<Button href="/projects" variant="ghost">Cancel</Button>
+				<Button type="submit" loading={pending}>Create project</Button>
+			</div>
+		</form>
+	</Card>
+</div>

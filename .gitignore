@@ -1,0 +1,16 @@
+node_modules
+/build
+/.svelte-kit
+/package
+/data
+/test-results
+/playwright-report
+/e2e/.data
+.env
+.env.*
+!.env.example
+vite.config.*.timestamp-*
+*.db
+*.db-shm
+*.db-wal
+.DS_Store

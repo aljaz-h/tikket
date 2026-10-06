@@ -1,0 +1,27 @@
+<script lang="ts">
+	import type { HTMLInputAttributes } from 'svelte/elements';
+	import { cn } from '$lib/utils';
+
+	let {
+		checked = $bindable(false),
+		group = $bindable(),
+		class: className,
+		...rest
+	}: Omit<HTMLInputAttributes, 'type'> & { group?: unknown[] } = $props();
+</script>
+
+{#if group !== undefined}
+	<input
+		type="checkbox"
+		bind:group
+		class={cn('size-4 shrink-0 rounded border-border-strong accent-[var(--primary)]', className)}
+		{...rest}
+	/>
+{:else}
+	<input
+		type="checkbox"
+		bind:checked
+		class={cn('size-4 shrink-0 rounded border-border-strong accent-[var(--primary)]', className)}
+		{...rest}
+	/>
+{/if}
