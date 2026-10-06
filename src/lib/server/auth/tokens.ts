@@ -25,7 +25,10 @@ let secret: string | null = null;
  */
 export function serverSecret(): string {
 	if (secret) return secret;
-	if (config.sessionSecret && config.sessionSecret.length >= 32) {
+	if (config.sessionSecret) {
+		// Never silently fall back when an explicitly configured secret is unusable.
+		if (config.sessionSecret.length < 32)
+			throw new Error('SESSION_SECRET must be at least 32 characters');
 		secret = config.sessionSecret;
 		return secret;
 	}

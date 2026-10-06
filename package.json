@@ -22,7 +22,9 @@
 		"test:e2e": "playwright test",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "node scripts/migrate.js",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"check:compose": "node scripts/check-compose.mjs",
+		"test:deployment": "bash tests/deployment/run.sh"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

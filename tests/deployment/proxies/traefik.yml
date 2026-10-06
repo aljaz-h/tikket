@@ -1,0 +1,10 @@
+# Traefik terminating TLS (the role Coolify's default proxy plays). File provider instead of
+# Docker labels: Tikket itself carries no Traefik configuration.
+entryPoints:
+  websecure:
+    address: ':443'
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+log:
+  level: WARN

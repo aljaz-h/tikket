@@ -1,0 +1,11 @@
+# Optional override: publish Tikket on the HOST's loopback interface only, for direct access
+# from the server itself (an SSH tunnel, a host-installed proxy, or quick testing).
+#
+#   docker compose -f compose.yml -f compose.local-port.yml up -d
+#   curl http://127.0.0.1:${HOST_PORT:-3000}/api/health
+#
+# Not needed (and not recommended) with Coolify's proxy or a proxy on a shared Docker network.
+services:
+  tikket:
+    ports:
+      - '127.0.0.1:${HOST_PORT:-3000}:3000'

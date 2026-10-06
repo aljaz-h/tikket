@@ -1,0 +1,12 @@
+# Optional override: run the prebuilt multi-architecture image instead of building from source.
+#
+#   docker compose -f compose.yml -f compose.ghcr.yml pull
+#   docker compose -f compose.yml -f compose.ghcr.yml up -d
+#
+# Pin a version for predictable upgrades, e.g. TIKKET_IMAGE=ghcr.io/<owner>/tikket:1.2.0
+# (Requires Docker Compose v2.24+ for the !reset tag.)
+services:
+  tikket:
+    build: !reset null
+    image: ${TIKKET_IMAGE:-ghcr.io/aljaz-h/tikket:latest}
+    pull_policy: missing

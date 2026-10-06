@@ -1,11 +1,12 @@
 import SQLite from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
 import * as schema from './schema';
+// Shared with the CLI (`scripts/migrate.js`); bundled into the server build.
+import { runMigrations } from '../../../../scripts/migrations.js';
 
 export type AppDatabase = BetterSQLite3Database<typeof schema>;
 /** A database handle or a transaction – both expose the same query API. */
@@ -29,8 +30,19 @@ export function openDatabase(file: string, migrationsFolder = config.migrationsD
 	sqlite.pragma('synchronous = NORMAL');
 	sqlite.pragma('temp_store = MEMORY');
 	sqlite.pragma('cache_size = -16000');
+	try {
+		const { applied, total } = runMigrations(sqlite, { migrationsFolder });
+		if (applied) console.info(`[tikket] database migrations applied: ${applied} (now at ${total})`);
+	} catch (err) {
+		sqlite.close();
+		throw new Error(
+			`Database migration failed for ${file}: ${err instanceof Error ? err.message : err}. ` +
+				'No data was changed by the failed migration (it runs in a transaction). ' +
+				'Restore the previous image or a backup and check the release notes.',
+			{ cause: err }
+		);
+	}
 	const db = drizzle(sqlite, { schema });
-	migrate(db, { migrationsFolder });
 	return { sqlite, db, path: file };
 }
 

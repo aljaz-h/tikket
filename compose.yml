@@ -1,36 +1,67 @@
+# Tikket – portable Docker Compose definition.
+#
+# Works unchanged with plain `docker compose` and with Coolify's Docker Compose build pack
+# (Traefik or Caddy). It contains no proxy-specific labels and publishes no host port:
+# the app listens on port 3000 inside the Compose network only.
+#
+#   Optional extras (stack them with -f):
+#     compose.local-port.yml     publish 127.0.0.1:${HOST_PORT:-3000} for direct local access
+#     compose.ghcr.yml           run the prebuilt image from GitHub Container Registry
+#   External reverse proxy (e.g. Nginx Proxy Manager) on a shared Docker network:
+#     compose.external-proxy.yml (this file + one external network; see docs/deployment-coolify.md)
+#
+# Configuration is read from the environment / an `.env` file next to this file (see .env.example).
+# Never commit real secrets.
+
 services:
   tikket:
-    build: .
-    image: tikket:latest
-    container_name: tikket
+    build:
+      context: .
     restart: unless-stopped
-    env_file: .env
+    # Reachable by other containers on the same network (and by Coolify's proxy) without
+    # publishing anything on the host.
+    expose:
+      - '3000'
     environment:
+      # Public URL users open (scheme + host, no trailing slash). Required.
+      ORIGIN: ${ORIGIN:?Set ORIGIN to the public URL, e.g. https://tikket.example.com}
+      # Base for invitation / password-reset links; defaults to ORIGIN.
+      APP_URL: ${APP_URL:-}
+      # ≥ 32 random characters (openssl rand -base64 48). If empty, a secret is generated once
+      # and stored in the data volume.
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      # Trusted proxy: header carrying the client IP and number of trusted proxy hops.
+      # Leave ADDRESS_HEADER empty unless a reverse proxy you control sits in front.
+      ADDRESS_HEADER: ${ADDRESS_HEADER:-}
+      XFF_DEPTH: ${XFF_DEPTH:-1}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10M}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-25M}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      # Fixed container paths – change the volume, not these.
+      PORT: '3000'
+      HOST: 0.0.0.0
       DATA_DIR: /data
     volumes:
+      # Database (incl. WAL files), uploads and the generated secret. Never removed by updates.
       - tikket-data:/data
-    # Bound to localhost only. Put a reverse proxy (e.g. Nginx Proxy Manager) in front,
-    # or remove `ports` and attach the proxy to the same Docker network instead.
-    ports:
-      - '127.0.0.1:${HOST_PORT:-3000}:3000'
-    stop_grace_period: 30s
-    init: true
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=256m,mode=1777
+    init: true
+    stop_grace_period: 30s
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     healthcheck:
       test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
-      start_period: 20s
+      start_period: 30s
       retries: 3
 
 volumes:

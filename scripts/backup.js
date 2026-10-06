@@ -5,8 +5,8 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dataDir = path.resolve(process.env.DATA_DIR ?? './data');
-const file = path.resolve(process.env.DATABASE_PATH ?? path.join(dataDir, 'tikket.db'));
+const dataDir = path.resolve(process.env.DATA_DIR || './data');
+const file = path.resolve(process.env.DATABASE_PATH || path.join(dataDir, 'tikket.db'));
 const target = path.resolve(process.argv[2] ?? path.join(dataDir, 'backups'));
 const keep = Number(process.argv[3] ?? 14);
 

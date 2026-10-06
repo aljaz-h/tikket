@@ -14,6 +14,7 @@ import {
 } from '$lib/server/auth/session';
 import { closeDatabase, getInstance } from '$lib/server/db';
 import { getSettings } from '$lib/server/settings';
+import { checkConfiguration, checkDataDirectory, markReady } from '$lib/server/startup';
 import { pruneOldNotifications } from '$lib/server/services/notifications';
 import { needsSetup } from '$lib/server/services/users';
 import { cleanupAbandonedUploads } from '$lib/server/uploads';
@@ -34,12 +35,17 @@ function maintenance() {
 }
 
 export const init: ServerInit = async () => {
-	// Opening the database applies pending migrations before the first request is served.
-	getInstance();
+	// Order matters: validate configuration, check storage, then migrate. Any failure aborts the
+	// start-up with a clear message, and the health check never reports ready before this finishes.
+	checkConfiguration();
+	checkDataDirectory();
+	getInstance(); // opens the database and applies pending migrations under a cross-process lock
 	maintenance();
 	setInterval(maintenance, 60 * 60 * 1000).unref();
 	// adapter-node emits this after draining connections on SIGTERM/SIGINT.
 	process.once('sveltekit:shutdown' as 'exit', () => closeDatabase());
+	markReady();
+	console.info(`[tikket] ready – serving ${process.env.ORIGIN || '(ORIGIN not set: development)'}`);
 };
 
 let setupDone = false;
@@ -97,6 +103,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 			)
 	});
 
+	// SvelteKit mirrors every <link rel=preload> of the page in a `Link` response header. The tags
+	// are already in the HTML, and the header grows beyond the default 4–8 KB proxy buffers of
+	// nginx / Nginx Proxy Manager ("upstream sent too big header" → 502), so drop it.
+	response.headers.delete('link');
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 	response.headers.set('X-Frame-Options', 'DENY');

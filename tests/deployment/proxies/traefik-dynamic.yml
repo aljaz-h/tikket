@@ -1,0 +1,16 @@
+http:
+  routers:
+    tikket:
+      rule: Host(`tikket.test`)
+      entryPoints: [websecure]
+      tls: {}
+      service: tikket
+  services:
+    tikket:
+      loadBalancer:
+        servers:
+          - url: http://tikket-app:3000
+tls:
+  certificates:
+    - certFile: /certs/cert.pem
+      keyFile: /certs/key.pem

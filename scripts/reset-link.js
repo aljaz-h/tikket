@@ -9,9 +9,9 @@ if (!who) {
 	console.error('Usage: node scripts/reset-link.js <username-or-email>');
 	process.exit(1);
 }
-const dataDir = path.resolve(process.env.DATA_DIR ?? './data');
+const dataDir = path.resolve(process.env.DATA_DIR || './data');
 const db = new Database(
-	path.resolve(process.env.DATABASE_PATH ?? path.join(dataDir, 'tikket.db')),
+	path.resolve(process.env.DATABASE_PATH || path.join(dataDir, 'tikket.db')),
 	{ fileMustExist: true }
 );
 db.pragma('busy_timeout = 5000');

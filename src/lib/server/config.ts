@@ -23,16 +23,16 @@ export function parseSize(raw: string | undefined, fallback: number): number {
 
 export const config = {
 	get dataDir() {
-		return path.resolve(process.env.DATA_DIR ?? './data');
+		return path.resolve(process.env.DATA_DIR || './data');
 	},
 	get databasePath() {
-		return path.resolve(process.env.DATABASE_PATH ?? path.join(this.dataDir, 'tikket.db'));
+		return path.resolve(process.env.DATABASE_PATH || path.join(this.dataDir, 'tikket.db'));
 	},
 	get uploadsDir() {
-		return path.resolve(process.env.UPLOADS_DIR ?? path.join(this.dataDir, 'uploads'));
+		return path.resolve(process.env.UPLOADS_DIR || path.join(this.dataDir, 'uploads'));
 	},
 	get migrationsDir() {
-		return path.resolve(process.env.MIGRATIONS_DIR ?? './drizzle');
+		return path.resolve(process.env.MIGRATIONS_DIR || './drizzle');
 	},
 	/** Hard upper bound for a single uploaded file (admins can lower it in settings). */
 	get maxUploadSize() {
@@ -42,7 +42,7 @@ export const config = {
 		return process.env.SESSION_SECRET;
 	},
 	get appUrl() {
-		return process.env.APP_URL ?? process.env.ORIGIN ?? '';
+		return process.env.APP_URL || process.env.ORIGIN || '';
 	},
 	get loginRateLimit() {
 		return envInt('LOGIN_RATE_LIMIT', 10);

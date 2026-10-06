@@ -1,0 +1,69 @@
+# Tikket for an EXTERNAL reverse proxy (Nginx Proxy Manager, Caddy, nginx, Traefik, …)
+# that reaches the app over a shared, pre-existing Docker network.
+#
+# Identical to compose.yml except for the `proxy` network below; `npm run check:compose`
+# verifies the two files never drift apart. Use this file as the Compose file in Coolify
+# when an external proxy (not Coolify's) terminates HTTPS.
+#
+#   docker network create proxy_shared            # once, if it does not exist yet
+#   PROXY_NETWORK=proxy_shared PROXY_ALIAS=tikket docker compose -f compose.external-proxy.yml up -d
+#
+# The proxy then forwards to http://<PROXY_ALIAS>:3000 (default alias: tikket).
+
+services:
+  tikket:
+    build:
+      context: .
+    restart: unless-stopped
+    expose:
+      - '3000'
+    environment:
+      ORIGIN: ${ORIGIN:?Set ORIGIN to the public URL, e.g. https://tikket.example.com}
+      APP_URL: ${APP_URL:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ADDRESS_HEADER: ${ADDRESS_HEADER:-}
+      XFF_DEPTH: ${XFF_DEPTH:-1}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10M}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-25M}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      PORT: '3000'
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+    volumes:
+      - tikket-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    init: true
+    stop_grace_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      # Keep the stack's own network (Coolify also attaches its network here).
+      default: {}
+      proxy:
+        # Stable, explicit DNS name for the proxy. Pick a unique value per Tikket instance
+        # when several share one proxy network.
+        aliases:
+          - ${PROXY_ALIAS:-tikket}
+
+volumes:
+  tikket-data:
+
+networks:
+  proxy:
+    # Pre-existing network shared with the reverse proxy. Never created or removed by this stack.
+    name: ${PROXY_NETWORK:-proxy_shared}
+    external: true

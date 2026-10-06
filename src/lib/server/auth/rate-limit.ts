@@ -53,9 +53,9 @@ const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
 export const limiters = {
 	/** Failed logins per account identifier. */
-	loginAccount: new RateLimiter(Number(process.env.LOGIN_RATE_LIMIT ?? 10), FIFTEEN_MINUTES),
+	loginAccount: new RateLimiter(Number(process.env.LOGIN_RATE_LIMIT) || 10, FIFTEEN_MINUTES),
 	/** All login attempts per client IP. */
-	loginIp: new RateLimiter(Number(process.env.LOGIN_RATE_LIMIT ?? 10) * 3, FIFTEEN_MINUTES),
+	loginIp: new RateLimiter((Number(process.env.LOGIN_RATE_LIMIT) || 10) * 3, FIFTEEN_MINUTES),
 	/** Registration, setup and invitation acceptance per IP. */
 	signup: new RateLimiter(10, 60 * 60 * 1000),
 	/** Password changes per user. */

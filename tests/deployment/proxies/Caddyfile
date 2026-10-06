@@ -1,0 +1,12 @@
+# Caddy as an external proxy (also what Coolify's Caddy proxy does conceptually).
+{
+	auto_https disable_redirects
+	admin off
+}
+https://tikket.test:443 {
+	tls /certs/cert.pem /certs/key.pem
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy tikket-app:3000
+}

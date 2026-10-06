@@ -13,7 +13,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Quick start (Docker Compose)](#quick-start-docker-compose)
 - [Initial administrator setup](#initial-administrator-setup)
 - [Configuration](#configuration)
-- [Reverse proxy (Nginx Proxy Manager / Cloudflare)](#reverse-proxy-nginx-proxy-manager--cloudflare)
+- [Reverse proxy](#reverse-proxy) · [Coolify & proxy deployment guide](docs/deployment-coolify.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
 - [Development](#development)
@@ -79,14 +79,29 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 ```bash
 git clone <this repository> tikket && cd tikket
 cp .env.example .env
-# Edit .env: set ORIGIN to the URL users will open, and a long random SESSION_SECRET:
-#   openssl rand -base64 48
-docker compose up -d --build
+# Edit .env: ORIGIN = the URL users will open; SESSION_SECRET = output of `openssl rand -base64 48`
+docker compose -f compose.yml -f compose.local-port.yml up -d --build
+curl http://127.0.0.1:3000/api/health      # {"status":"ok"}
 ```
 
-The container listens on port 3000 and Compose publishes it on `127.0.0.1:3000` only, so it is not exposed to the network directly — put a reverse proxy in front (see below). Open `ORIGIN` in the browser and you will be taken to the setup page.
+`compose.yml` publishes **no** host port (the app listens on 3000 inside the Compose network);
+`compose.local-port.yml` adds a binding on `127.0.0.1` only. Put a reverse proxy in front for HTTPS,
+open `ORIGIN` and you are taken to the setup page.
 
-`compose.yml` runs the container with a read-only root filesystem, `no-new-privileges`, an init process, a restart policy, a health check and a named volume `tikket-data` mounted at `/data`.
+**Deployment guides** – Coolify (with its Traefik/Caddy proxy or an external Nginx Proxy Manager),
+external proxies on a shared Docker network, Cloudflare, the optional prebuilt GHCR image, backups
+and rollback: **[docs/deployment-coolify.md](docs/deployment-coolify.md)**.
+
+| Compose file                 | Use                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| `compose.yml`                | Portable definition (standalone and Coolify with its own proxy)            |
+| `compose.external-proxy.yml` | Same plus a pre-existing shared Docker network for NPM/Caddy/nginx/Traefik |
+| `compose.local-port.yml`     | Override: publish on `127.0.0.1:${HOST_PORT:-3000}`                        |
+| `compose.ghcr.yml`           | Override: run the prebuilt image instead of building                       |
+
+The container runs as uid 1000 with a read-only root filesystem, `no-new-privileges`, no
+capabilities, an init process, a restart policy, a health check (healthy only after configuration
+checks and migrations) and a named volume `tikket-data` at `/data`.
 
 ## Initial administrator setup
 
@@ -100,48 +115,39 @@ Next steps:
 
 ## Configuration
 
-All configuration is via environment variables (see `.env.example`).
+All configuration is via environment variables (see `.env.example`). They are validated at
+start-up; invalid values (missing `ORIGIN`, short/placeholder `SESSION_SECRET`, impossible size
+limits, malformed proxy settings, an unwritable data directory) stop the process with a message
+listing every problem.
 
-| Variable                       | Default                                            | Description                                                                                                                                                                                          |
-| ------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ORIGIN`                       | — (**required** in production)                     | Public URL, e.g. `https://tikket.example.com`. Used by SvelteKit for CSRF origin checks; `https://` enables `Secure` cookies and HSTS.                                                               |
-| `APP_URL`                      | `ORIGIN`                                           | Base for invitation/reset links (also editable in System settings).                                                                                                                                  |
-| `SESSION_SECRET`               | auto-generated                                     | ≥ 32 characters. Sessions are stored as an HMAC of the cookie token with this secret. If unset, a secret is generated once and stored in `DATA_DIR/.session-secret`. Changing it signs everyone out. |
-| `PORT` / `HOST`                | `3000` / `0.0.0.0`                                 | Listen address inside the container.                                                                                                                                                                 |
-| `DATA_DIR`                     | `./data` (`/data` in Docker)                       | Database, uploads and generated secret.                                                                                                                                                              |
-| `DATABASE_PATH`                | `$DATA_DIR/tikket.db`                              | SQLite file.                                                                                                                                                                                         |
-| `UPLOADS_DIR`                  | `$DATA_DIR/uploads`                                | Attachment storage.                                                                                                                                                                                  |
-| `MAX_UPLOAD_SIZE`              | `10M`                                              | Hard per-image limit (admins can set a lower limit in the UI).                                                                                                                                       |
-| `BODY_SIZE_LIMIT`              | `25M` in Docker (`512K` adapter default otherwise) | Max request body. Must exceed `MAX_UPLOAD_SIZE`; the no-JS form can send several images at once.                                                                                                     |
-| `ADDRESS_HEADER` / `XFF_DEPTH` | unset                                              | Set to `X-Forwarded-For` / `1` behind exactly one reverse proxy so rate limiting and audit logs see real client IPs. Leave unset when not behind a proxy — the header would otherwise be spoofable.  |
-| `LOGIN_RATE_LIMIT`             | `10`                                               | Failed sign-ins per account per 15 min (per-IP limit is 3×).                                                                                                                                         |
-| `MIGRATIONS_DIR`               | `./drizzle`                                        | Location of SQL migrations.                                                                                                                                                                          |
+| Variable                                                       | Default                                            | Description                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ORIGIN`                                                       | — (**required** in production)                     | Public URL, e.g. `https://tikket.example.com` (no path, no trailing slash). Used for CSRF origin checks, `Secure` cookies, HSTS and every absolute link; forwarded `Host`/`Proto` headers are never trusted instead.                                      |
+| `APP_URL`                                                      | `ORIGIN`                                           | Base for invitation/reset links (also editable in System settings).                                                                                                                                                                                       |
+| `SESSION_SECRET`                                               | auto-generated                                     | ≥ 32 characters. Sessions are stored as an HMAC of the cookie token with this secret. If empty, a secret is generated once and stored in `DATA_DIR/.session-secret` (logged as a warning). Changing it signs everyone out.                                |
+| `PORT` / `HOST`                                                | `3000` / `0.0.0.0`                                 | Listen address inside the container.                                                                                                                                                                                                                      |
+| `DATA_DIR`                                                     | `./data` (`/data` in Docker)                       | Database, uploads and generated secret.                                                                                                                                                                                                                   |
+| `DATABASE_PATH`                                                | `$DATA_DIR/tikket.db`                              | SQLite file.                                                                                                                                                                                                                                              |
+| `UPLOADS_DIR`                                                  | `$DATA_DIR/uploads`                                | Attachment storage.                                                                                                                                                                                                                                       |
+| `MAX_UPLOAD_SIZE`                                              | `10M`                                              | Hard per-image limit (admins can set a lower limit in the UI).                                                                                                                                                                                            |
+| `BODY_SIZE_LIMIT`                                              | `25M` in Docker (`512K` adapter default otherwise) | Max request body. Must be ≥ `MAX_UPLOAD_SIZE`; the no-JS form can send several images at once.                                                                                                                                                            |
+| `ADDRESS_HEADER` / `XFF_DEPTH`                                 | empty / `1`                                        | Set to `X-Forwarded-For` / number of trusted proxy hops when Tikket is only reachable through your proxy, so rate limiting and audit logs see real client IPs. Leave empty otherwise — see [trusted proxies](docs/deployment-coolify.md#trusted-proxies). |
+| `LOGIN_RATE_LIMIT`                                             | `10`                                               | Failed sign-ins per account per 15 min (per-IP limit is 3×).                                                                                                                                                                                              |
+| `MIGRATIONS_DIR`                                               | `./drizzle`                                        | Location of SQL migrations.                                                                                                                                                                                                                               |
+| `PROXY_NETWORK` / `PROXY_ALIAS` / `HOST_PORT` / `TIKKET_IMAGE` |                                                    | Only used by the matching Compose file/override.                                                                                                                                                                                                          |
 
-## Reverse proxy (Nginx Proxy Manager / Cloudflare)
+## Reverse proxy
 
-Tikket expects TLS to be terminated by a proxy.
+Tikket expects TLS to be terminated by a reverse proxy and works with any of them – Coolify's
+Traefik or Caddy, Nginx Proxy Manager, Caddy, nginx or Traefik – with or without Cloudflare in front.
+No proxy-specific labels are part of the Compose files. Step-by-step instructions, NPM proxy host
+settings, Cloudflare client-IP handling and verification commands are in
+[docs/deployment-coolify.md](docs/deployment-coolify.md); tested minimal nginx/Caddy/Traefik
+configurations are in `tests/deployment/proxies/`.
 
-**Nginx Proxy Manager → Proxy Host**
-
-- _Domain_: `tikket.example.com`; _Scheme_: `http`; _Forward host_: the Docker host (or the container name if NPM shares a Docker network with Tikket — then you can remove `ports:` from `compose.yml`); _Forward port_: `3000`.
-- Enable _Block Common Exploits_ and _Websockets Support_ (harmless; not required).
-- _SSL_: request a certificate, enable _Force SSL_ and _HTTP/2_. Enable HSTS once everything works.
-- _Advanced_ → custom Nginx configuration:
-
-  ```nginx
-  client_max_body_size 25m;          # >= BODY_SIZE_LIMIT
-  proxy_read_timeout 60s;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
-  ```
-
-- In `.env`: `ORIGIN=https://tikket.example.com`, `ADDRESS_HEADER=X-Forwarded-For`, `XFF_DEPTH=1`.
-
-**Cloudflare in front of NPM**: use SSL mode _Full (strict)_. Each proxy appends to `X-Forwarded-For`, so with Cloudflare → NPM → Tikket set `XFF_DEPTH=2` (or use `ADDRESS_HEADER=CF-Connecting-IP` and only allow Cloudflare IPs to reach NPM). Cloudflare's free plan limits uploads to 100 MB, well above the defaults. Attachments are served with `Cache-Control: private`, so Cloudflare does not cache private files.
-
-**Why `ORIGIN` matters**: SvelteKit rejects form posts whose `Origin` header does not match. If you see _"Cross-site POST form submissions are forbidden"_, `ORIGIN` does not exactly match the URL in the browser (scheme, host and port).
-
-The health check endpoint is `GET /api/health` (returns `{"status":"ok"}` and checks the database); it is reachable before setup and needs no authentication.
+Essentials for any proxy: forward to `http://<tikket>:3000`, allow request bodies ≥ `BODY_SIZE_LIMIT`
+(25 MB), do not cache responses, set `ORIGIN` to the public `https://` URL. The health check
+endpoint is `GET /api/health` (`{"status":"ok"}` once start-up completed; `503` before).
 
 ## Data, attachments and backups
 
@@ -166,7 +172,8 @@ The database must be copied consistently — don't just copy `tikket.db` while t
 docker compose exec tikket node scripts/backup.js /data/backups 14
 
 # 2. Archive the snapshot and the attachments to the host
-docker run --rm -v tikket-data:/data -v "$PWD":/backup alpine \
+# The volume is named <compose-project>_tikket-data (see `docker volume ls`).
+docker run --rm -v tikket_tikket-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/tikket-$(date +%F).tar.gz -C /data backups uploads
 ```
 
@@ -177,7 +184,7 @@ Copy the archive off the server. A daily cron job running these two commands is 
 ```bash
 docker compose down
 # Extract the archive somewhere, then copy files into the volume:
-docker run --rm -v tikket-data:/data -v "$PWD":/backup alpine sh -c '
+docker run --rm -v tikket_tikket-data:/data -v "$PWD":/backup alpine sh -c '
   cd /tmp && tar xzf /backup/tikket-YYYY-MM-DD.tar.gz &&
   rm -f /data/tikket.db /data/tikket.db-wal /data/tikket.db-shm &&
   cp "$(ls backups/tikket-*.db | tail -1)" /data/tikket.db &&
@@ -193,10 +200,10 @@ Restore the database and the `uploads` directory from the same point in time; at
 ```bash
 docker compose exec tikket node scripts/backup.js     # always back up first
 git pull
-docker compose up -d --build
+docker compose -f compose.yml -f compose.local-port.yml up -d --build   # same -f files as before
 ```
 
-Database migrations (in `drizzle/`) run automatically on start-up before requests are served; they are forward-only and never rebuild the database. The container shuts down gracefully on `SIGTERM` (in-flight requests finish, the database is checkpointed and closed). To roll back, restore the backup taken before updating and run the previous image.
+Database migrations (in `drizzle/`) run automatically on start-up before requests are served; they are forward-only, transactional, never rebuild or reset the database, and are serialised across processes with a lock file so overlapping containers cannot apply a migration twice. The container shuts down gracefully on `SIGTERM` (in-flight requests finish, the database is checkpointed and closed). To roll back, restore the backup taken before updating and run the previous image.
 
 ## Development
 
@@ -218,6 +225,8 @@ The first visit redirects to `/setup`. Useful scripts:
 | `npm run build` / `npm start`     | Production build / run it (`node build`)                          |
 | `npm run db:generate`             | Generate a migration after changing `src/lib/server/db/schema.ts` |
 | `npm run db:migrate`              | Apply migrations manually (also done automatically at start-up)   |
+| `npm run check:compose`           | Validate all Compose files (needs Docker)                         |
+| `npm run test:deployment`         | Build the image and test it behind nginx, Caddy and Traefik       |
 
 Schema changes: edit `schema.ts`, run `npm run db:generate -- --name <change>`, review the SQL in `drizzle/`, commit it. Custom SQL (e.g. FTS triggers) lives in `drizzle/0001_search_fts.sql`.
 
@@ -225,13 +234,18 @@ Schema changes: edit `schema.ts`, run `npm run db:generate -- --name <change>`, 
 
 - **Unit** (`tests/unit`): permission matrix, status workflow rules, ticket references, filters and FTS query building, sanitisation, URL safety, validation schemas, rate limiting, image detection.
 - **Integration** (`tests/integration`, real migrated SQLite per test): first-run setup race, authentication and sessions, password change/reset, invitations, ticket numbering, creation/editing policies, attachments (real images via sharp), status/priority/assignment/labels, duplicates, voting, comments, mentions, notifications and access control in search.
+- **Unit/integration additions for deployment**: start-up environment validation, concurrent migrations from several processes, failed-migration rollback, idempotent restarts.
+- **Deployment** (`tests/deployment/run.sh`, needs Docker): builds the production image, deploys `compose.external-proxy.yml` on an external network and drives it through **nginx (NPM-style), Caddy and Traefik** terminating HTTPS – Secure cookies, CSRF, spoofed forwarded headers, large uploads, links built from `ORIGIN`, persistence across re-creation/upgrade/`down`+`up`, start-up failures for bad configuration, read-only filesystem, loopback-only port override.
 - **End-to-end** (`e2e/`, Playwright against the production build): setup, login/logout, project creation, invitation & membership, ticket submission with uploaded and pasted screenshots, owner review (priority, assignee, status, comment), notifications, upvote, completion on the board, private-project isolation (pages, files, search APIs, forged posts), mobile submission without horizontal overflow, and no console errors.
 
 ```bash
 npm test
 npm run build && npx playwright install chromium && npm run test:e2e
 # Use an existing Chromium instead of downloading: PW_CHROMIUM_PATH=/path/to/chrome npm run test:e2e
+npm run check:compose && npm run test:deployment     # Docker required
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, type checks, all three test layers and the deployment test.
 
 ## Architecture
 
