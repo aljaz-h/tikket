@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { AutomationTrigger, TicketStatus } from '../../shared/constants';
 import { statusEffect } from '../../shared/workflow';
 import { randomId } from '../auth/tokens';
@@ -69,6 +69,23 @@ export function hasRules(tx: Pick<DB, 'select'>, projectId: number, trigger: Aut
 		.get();
 }
 
+export const MAX_CHAIN_EVENTS = 50;
+
+function chainEvents(tx: DB, root: string) {
+	return (
+		tx
+			.select({ n: sql<number>`count(*)` })
+			.from(schema.outboundJobs)
+			.where(
+				and(
+					eq(schema.outboundJobs.kind, 'automation'),
+					sql`json_extract(${schema.outboundJobs.payload}, '$.chain.root') = ${root}`
+				)
+			)
+			.get()?.n ?? 0
+	);
+}
+
 /** Queues automation processing for an event if any enabled rule listens to it. */
 export function fireTrigger(
 	tx: DB,
@@ -78,6 +95,14 @@ export function fireTrigger(
 	data: Record<string, unknown> = {}
 ) {
 	if (!hasRules(tx, projectId, trigger)) return false;
+	// Fan-out guard: one person's change may cause at most MAX_CHAIN_EVENTS automated events in
+	// total (many rules reacting to each other's changes would otherwise multiply jobs).
+	if (current && chainEvents(tx, current.root) >= MAX_CHAIN_EVENTS) {
+		console.warn(
+			`[tikket] automation chain ${current.root} reached ${MAX_CHAIN_EVENTS} events; stopped`
+		);
+		return false;
+	}
 	const eventId = `aev_${randomId(12)}`;
 	const job: AutomationJob = {
 		trigger,

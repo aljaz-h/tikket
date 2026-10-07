@@ -24,7 +24,8 @@ more than your account can, narrowed further by its scopes.
 **Project settings → Developer** (owners only). For CI pipelines, deploy scripts and bots that
 work on **one project**. A project token can never reach another project – other projects answer
 `404` exactly like projects that don't exist. It acts with the rights of the owner who created it
-and **stops working if that person is no longer an owner** (or is disabled).
+and **stops working if that person is no longer an owner** (or is disabled). Project tokens
+never see or write **internal notes**, so they are safe to hand to CI systems and third parties.
 
 | Scope             | Allows                                      |
 | ----------------- | ------------------------------------------- |
@@ -45,7 +46,8 @@ and **stops working if that person is no longer an owner** (or is disabled).
 - _Last used_ is updated at most every 5 minutes per token.
 - Creating, revoking and every API write are audit-logged with the token's prefix and id.
 - At most 50 active tokens per person or project; at most 10 new tokens per hour per person.
-- Failed authentication is rate-limited per client IP.
+- Failed authentication (a wrong, expired or revoked token) is rate-limited per client IP; valid
+  tokens are never blocked by it.
 
 ## Backups
 

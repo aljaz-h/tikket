@@ -21,8 +21,10 @@ Automations**.
 - **Then (actions)** – up to 10, run in order: change status (with an optional note), change
   priority, assign to (a staff member or the project owner), clear assignee, add / remove label,
   add to / remove from milestone or release, add follower, add internal note, send a notification
-  (to the assignee, reporter, project owners, project staff, followers or a person), send to a
-  Discord channel or webhook of the project, add a public comment (shown as _Automated_).
+  (to the assignee, reporter, project owners, project staff, followers or a project member), send
+  to a Discord channel or webhook of the project (rules with this action can only be saved by
+  owners), add a public comment (shown as _Automated_). Notifications and followers are limited to
+  people of the project.
   Automations can't delete anything.
 
 Rules run in a fixed order (their position, then creation order). New rules and rules created
@@ -60,8 +62,12 @@ no webhook is sent.
 
 A change made by an automation can trigger further rules (a _chain_). To prevent loops:
 
-- a rule runs **at most once per chain**, and
-- chains stop after **5 levels** (later runs are recorded as **Skipped** with the reason).
+- a rule runs **at most once per chain**,
+- chains stop after **5 levels** (later runs are recorded as **Skipped** with the reason), and
+- one change causes at most **50 automated events** in total, however many rules react to each
+  other (further events are dropped and logged).
+
+A project can have at most 50 automations.
 
 Each event is processed once per rule (unique run per event and rule), so retries after a crash
 never apply a rule twice.

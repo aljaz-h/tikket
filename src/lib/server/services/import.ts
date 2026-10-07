@@ -561,13 +561,20 @@ function projectMembers(projectId: number) {
 		.select({
 			id: schema.users.id,
 			username: schema.users.username,
+			email: schema.users.email,
 			role: schema.projectMembers.role
 		})
 		.from(schema.projectMembers)
 		.innerJoin(schema.users, eq(schema.users.id, schema.projectMembers.userId))
 		.where(and(eq(schema.projectMembers.projectId, projectId), eq(schema.users.status, 'active')))
 		.all();
-	return new Map(rows.map((r) => [r.username.toLowerCase(), r]));
+	// Matched by username or by email address (CSV files from other trackers often hold emails).
+	return new Map(
+		rows.flatMap((r) => [
+			[r.username.toLowerCase(), r] as const,
+			[r.email.toLowerCase(), r] as const
+		])
+	);
 }
 
 function prepare(access: ProjectAccess, payload: Payload, options: ImportOptions) {

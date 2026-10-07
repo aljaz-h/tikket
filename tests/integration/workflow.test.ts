@@ -142,7 +142,7 @@ describe('workflow enforcement', () => {
 
 	it('lets reporters reopen their completed tickets only when enabled', () => {
 		const t = createTicket(reporter, access(reporter, fresh()), input('Reopen'));
-		changeStatus(mod, access(mod, fresh()), t, { status: 'completed', note: null });
+		changeStatus(mod, access(mod, fresh()), t, { status: 'completed', note: 'Fixed in 2.0' });
 		const done = getTicket(project.id, 1)!;
 		expect(canReporterReopen(reporter, access(reporter, fresh()), done)).toBe(false);
 		expect(() =>
@@ -155,8 +155,14 @@ describe('workflow enforcement', () => {
 		expect(() =>
 			changeStatus(reporter, access(reporter, fresh()), done, { status: 'declined', note: null })
 		).toThrow(/staff/);
-		changeStatus(reporter, access(reporter, fresh()), done, { status: 'open', note: null });
-		expect(getTicket(project.id, 1)!.status).toBe('open');
+		changeStatus(reporter, access(reporter, fresh()), done, {
+			status: 'open',
+			note: 'Still broken on Safari'
+		});
+		const reopened = getTicket(project.id, 1)!;
+		expect(reopened.status).toBe('open');
+		// The reporter's reason is history, not the team's public resolution note.
+		expect(reopened.resolutionNote).toBeNull();
 	});
 
 	it('closes completed tickets for public comments when configured', () => {

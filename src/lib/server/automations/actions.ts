@@ -416,8 +416,20 @@ function targets(ctx: ActionContext, target: string): number[] {
 		case 'followers':
 			return followerIds(t.id, ctx.tx);
 		default: {
+			// A specific person must (still) be a member of the project.
 			const id = Number(target);
-			return Number.isInteger(id) && id > 0 ? viewers(ctx.tx, ctx.project, [id]) : [];
+			if (!Number.isInteger(id) || id < 1) return [];
+			const member = ctx.tx
+				.select({ id: schema.projectMembers.userId })
+				.from(schema.projectMembers)
+				.where(
+					and(
+						eq(schema.projectMembers.projectId, ctx.project.id),
+						eq(schema.projectMembers.userId, id)
+					)
+				)
+				.get();
+			return member ? viewers(ctx.tx, ctx.project, [id]) : [];
 		}
 	}
 }

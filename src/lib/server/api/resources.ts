@@ -465,11 +465,14 @@ function applyPatch(
 // ── Comments ───────────────────────────────────────────────────────────────
 
 export function listCommentsApi(
+	auth: ApiAuth,
 	access: ProjectAccess,
 	ticket: Ticket,
 	page: { limit: number; before: number | null }
 ) {
-	const staff = canViewInternalNotes(access);
+	// Internal notes need a personal token of a staff member: project tokens (handed to CI and
+	// third parties) never see them, although they act with an owner's rights.
+	const staff = auth.kind === 'personal' && canViewInternalNotes(access);
 	const c = schema.ticketComments;
 	const rows = getDb()
 		.select({ c, username: schema.users.username, name: schema.users.displayName })
@@ -529,6 +532,8 @@ export function createCommentApi(
 	body: unknown
 ) {
 	const input = commentSchema.parse(body);
+	if (input.internal && ctx.auth.kind === 'project')
+		throw new ApiError(403, 'forbidden', 'Project tokens cannot write internal notes');
 	const rich =
 		input.body_html !== undefined
 			? normaliseRichInput(input.body_html, 'html')
@@ -553,7 +558,9 @@ export function createCommentApi(
 		id: comment.id,
 		author: { username: ctx.auth.user.username, name: ctx.auth.user.displayName },
 		automated: false,
-		...(canViewInternalNotes(access) ? { internal: comment.internal } : {}),
+		...(ctx.auth.kind === 'personal' && canViewInternalNotes(access)
+			? { internal: comment.internal }
+			: {}),
 		body_html: comment.bodyHtml,
 		body_text: comment.bodyText,
 		deleted: false,

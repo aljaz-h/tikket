@@ -289,7 +289,8 @@ export function canReporterReopen(
 	access: ProjectAccess,
 	ticket: Pick<Ticket, 'reporterId' | 'status'>
 ) {
-	if (!actor || access.archived || !access.canView || ticket.reporterId !== actor.id) return false;
+	if (!actor || access.archived || !access.canParticipate || ticket.reporterId !== actor.id)
+		return false;
 	if (ticket.status !== 'completed') return false;
 	const workflow = workflowFor(access.project);
 	return (
@@ -311,6 +312,8 @@ export function changeStatus(
 		input.status === workflowFor(access.project).defaultStatus;
 	if ((!access.isStaff && !reporterReopen) || access.archived)
 		throw new ServiceError('Only project staff can change the status', 'status', 403);
+	if (reporterReopen && input.note?.trim() && !access.canComment)
+		throw new ServiceError('Comments are not available on this ticket', 'note', 403);
 	let target: Ticket | undefined;
 	if (input.status === 'duplicate') {
 		const number = input.duplicateOf
@@ -357,7 +360,8 @@ export function changeStatus(
 				.set({
 					status: to,
 					duplicateOfId: to === 'duplicate' ? target!.id : null,
-					resolutionNote: input.note,
+					// A reporter's reopen reason is kept in the history, never as the team's note.
+					resolutionNote: reporterReopen ? null : input.note,
 					completedAt:
 						to === 'completed' ? now : STATUS_META[to].resolved ? ticket.completedAt : null,
 					closedAt: STATUS_META[to].resolved ? now : null,

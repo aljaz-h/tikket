@@ -30,6 +30,9 @@ import {
 import { createLabel } from '../../src/lib/server/services/projects';
 import type { AutomationJob } from '../../src/lib/server/automations/triggers';
 import { connectRepository, handleGithubWebhook } from '../../src/lib/server/integrations/github';
+import { createHook } from '../../src/lib/server/integrations/hooks';
+import { MAX_CHAIN_EVENTS } from '../../src/lib/server/automations/triggers';
+import { MAX_RULES } from '../../src/lib/server/automations/rules';
 
 let owner: User, mod: User, member: User, project: Project, other: Project;
 const fresh = () => findProjectById(project.id)!;
@@ -423,5 +426,62 @@ describe('automation rules', () => {
 		expect(ticket(1).status).toBe('completed');
 		expect(runs().filter((x) => x.trigger === 'github.pull_request.merged')).toHaveLength(1);
 		expect(ticket(1).commentCount).toBe(1);
+	});
+
+	it('bounds fan-out: many rules reacting to each other stop at the chain event limit', async () => {
+		for (let i = 0; i < 10; i++)
+			rule({
+				name: `Flip ${i}`,
+				trigger: 'ticket.priority_changed',
+				actions: [{ type: 'set_priority', value: i % 2 ? 'high' : 'low' }]
+			});
+		createTicket(member, access(member, fresh()), input('Fan-out'));
+		changePriority(owner, access(owner, fresh()), ticket(1), 'critical');
+		await drainQueue();
+		const jobs = getDb()
+			.select()
+			.from(schema.outboundJobs)
+			.where(eq(schema.outboundJobs.kind, 'automation'))
+			.all();
+		// Without the guard this would be tens of thousands of jobs (10·9·8·7·6 at depth 5).
+		expect(jobs.length).toBeLessThanOrEqual(MAX_CHAIN_EVENTS);
+	});
+
+	it('limits who rules can reach: members only, hooks for owners, a rule cap', async () => {
+		const outsider = await makeUser();
+		expect(() =>
+			rule({ name: 'Spam', actions: [{ type: 'notify', value: String(outsider.id), text: 'Hi' }] })
+		).toThrow(/member of this project/);
+		expect(() =>
+			rule({ name: 'Follow', actions: [{ type: 'follow', value: String(mod.id) }] })
+		).not.toThrow();
+		const { hook } = createHook(
+			owner.id,
+			access(owner, fresh()),
+			'webhook',
+			{
+				name: 'Hook',
+				url: 'https://hooks.example.com/tikket',
+				events: ['ticket.created'],
+				enabled: true
+			},
+			null
+		);
+		const hookRule = {
+			name: 'To hook',
+			enabled: true,
+			trigger: 'ticket.created',
+			conditions: { any: [] },
+			actions: [{ type: 'trigger_hook', value: hook.id }]
+		};
+		expect(() => createRule(mod.id, access(mod, fresh()), hookRule, null)).toThrow(
+			/Only project owners/
+		);
+		expect(createRule(owner.id, access(owner, fresh()), hookRule, null).id).toBeTruthy();
+		while (getDb().select().from(schema.automations).all().length < MAX_RULES)
+			rule({ name: 'Filler', actions: [{ type: 'set_priority', value: 'low' }] });
+		expect(() =>
+			rule({ name: 'One too many', actions: [{ type: 'set_priority', value: 'low' }] })
+		).toThrow(/at most/);
 	});
 });

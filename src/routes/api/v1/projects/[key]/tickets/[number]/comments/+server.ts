@@ -8,6 +8,7 @@ export const GET: RequestHandler = apiHandler(
 	({ auth, event }) => {
 		const access = projectAccess(auth, event.params.key!);
 		const result = listCommentsApi(
+			auth,
 			access,
 			requireTicket(access, event.params.number!),
 			pageParams(event.url)

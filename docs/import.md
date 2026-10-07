@@ -20,7 +20,7 @@
    Medium), new labels, releases and milestones, number conflicts and a preview.
 4. **Options**
    - _Match people to project members_ (off by default): reporters, assignees and comment authors
-     whose username matches a member of this project are linked to them (assignees must be
+     whose username or email address matches a member of this project are linked to them (assignees must be
      staff). Otherwise **you** are recorded and the original name is kept in the ticket history
      and on imported comments.
    - _Keep original ticket numbers_: used when the number is free in this project; otherwise the

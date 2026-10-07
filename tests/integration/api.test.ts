@@ -554,4 +554,38 @@ describe('REST API', () => {
 		expect(doc.paths['/api/v1/projects/{key}/tickets'].post).toBeTruthy();
 		expect(doc.info.description).toMatch(/v2/);
 	});
+
+	it('project tokens never see or write internal notes', async () => {
+		createTicket(member, access(member, fresh()), input('Notes'));
+		const staffToken = pat(owner, ['comments:write']);
+		await call(comments.POST, {
+			token: staffToken,
+			method: 'POST',
+			params: { key: 'API', number: '1' },
+			body: { body: 'Owner-only plan', internal: true }
+		});
+		const token = prj(['tickets:read', 'comments:create']);
+		const list = await call(comments.GET, { token, params: { key: 'API', number: '1' } });
+		expect(list.status).toBe(200);
+		expect(list.body.data).toEqual([]);
+		const write = await call(comments.POST, {
+			token,
+			method: 'POST',
+			params: { key: 'API', number: '1' },
+			body: { body: 'CI note', internal: true }
+		});
+		expect(write.status).toBe(403);
+	});
+
+	it('failed-auth IP limiting never blocks valid tokens or counts missing headers', async () => {
+		const token = pat(member, ['tickets:read']);
+		for (let i = 0; i < 40; i++) await call(me.GET);
+		expect((await call(me.GET, { token })).status).toBe(200);
+		let last = 0;
+		for (let i = 0; i < 31; i++)
+			last = (await call(me.GET, { token: `tkt_pat_${'x'.repeat(40)}` })).status;
+		expect(last).toBe(429);
+		// A valid token from the same address still works.
+		expect((await call(me.GET, { token })).status).toBe(200);
+	});
 });

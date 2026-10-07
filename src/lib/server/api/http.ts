@@ -160,11 +160,15 @@ export function apiHandler(
 		const headers = new Headers();
 		const ip = event.locals.clientIp ?? 'unknown';
 		try {
-			if (limiters.auth.check(`ip:${ip}`))
-				throw new ApiError(429, 'rate_limited', 'Too many failed authentication attempts');
 			const auth = authenticateToken(event.request.headers.get('authorization'));
 			if (typeof auth === 'string') {
-				limiters.auth.hit(`ip:${ip}`);
+				// Only failed attempts with a token count: a valid token is never blocked by other
+				// clients behind the same IP, and a missing header is not a guessing attempt.
+				if (auth !== 'missing') {
+					if (limiters.auth.check(`ip:${ip}`))
+						throw new ApiError(429, 'rate_limited', 'Too many failed authentication attempts');
+					limiters.auth.hit(`ip:${ip}`);
+				}
 				const [status, code, message] = AUTH_MESSAGES[auth];
 				headers.set('www-authenticate', 'Bearer realm="tikket"');
 				throw new ApiError(status, code, message);

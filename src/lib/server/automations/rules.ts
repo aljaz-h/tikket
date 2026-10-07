@@ -99,6 +99,17 @@ function userExists(id: number) {
 		.get();
 }
 
+/** Notify/follow targets must belong to the project (no messages to arbitrary accounts). */
+function isMember(projectId: number, id: number) {
+	return !!getDb()
+		.select({ id: schema.projectMembers.userId })
+		.from(schema.projectMembers)
+		.where(
+			and(eq(schema.projectMembers.projectId, projectId), eq(schema.projectMembers.userId, id))
+		)
+		.get();
+}
+
 function validCondition(c: AutomationCondition, projectId: number) {
 	if (!FIELD_OPS[c.field].includes(c.op)) fail(`“${c.op}” cannot be used with ${c.field}`);
 	if (['is_empty', 'is_not_empty', 'is_true', 'is_false'].includes(c.op))
@@ -187,7 +198,8 @@ function validAction(a: AutomationAction, projectId: number): AutomationAction {
 		case 'notify': {
 			const target = String(a.value ?? '');
 			if (!(PEOPLE_TARGETS as readonly string[]).includes(target)) {
-				if (!Number.isInteger(n) || !userExists(n)) fail('Choose who to notify or add as follower');
+				if (!Number.isInteger(n) || !isMember(projectId, n))
+					fail('Choose a member of this project to notify or add as follower');
 			}
 			return {
 				type: a.type,
@@ -208,6 +220,14 @@ function validAction(a: AutomationAction, projectId: number): AutomationAction {
 }
 
 /** Validates a rule and every project reference in it (cross-project references are refused). */
+export const MAX_RULES = 50;
+
+/** Hook destinations are configured by owners, so only owners may send to them from rules. */
+function requireHookRights(access: ProjectAccess, rule: { actions: { type: string }[] }) {
+	if (!access.isOwner && rule.actions.some((a) => a.type === 'trigger_hook'))
+		fail('Only project owners can send to Discord or webhook destinations from automations');
+}
+
 export function normaliseRule(input: unknown, projectId: number) {
 	const parsed = ruleInput.safeParse(input);
 	if (!parsed.success) fail(parsed.error.issues[0].message);
@@ -251,6 +271,9 @@ export function createRule(
 ) {
 	requireAutomationManager(access);
 	const rule = normaliseRule(input, access.project.id);
+	requireHookRights(access, rule);
+	if (listRules(access.project.id).length >= MAX_RULES)
+		fail(`A project can have at most ${MAX_RULES} automations`);
 	const position =
 		(getDb()
 			.select({ n: max(schema.automations.position) })
@@ -295,6 +318,7 @@ export function updateRule(
 	const existing = getRule(access.project.id, id);
 	if (!existing) throw new ServiceError('Automation not found', 'form', 404);
 	const rule = normaliseRule(input, access.project.id);
+	requireHookRights(access, rule);
 	getDb()
 		.update(schema.automations)
 		.set({ ...rule, updatedById: actorId, updatedAt: new Date(), lastError: null })
