@@ -65,18 +65,31 @@ A change made by an automation can trigger further rules (a _chain_). To prevent
 - a rule runs **at most once per chain**,
 - chains stop after **5 levels** (later runs are recorded as **Skipped** with the reason), and
 - one change causes at most **50 automated events** in total, however many rules react to each
-  other (further events are dropped and logged).
+  other (further events are dropped and the intervention is shown in the history).
 
 A project can have at most 50 automations.
 
 Each event is processed once per rule (unique run per event and rule), so retries after a crash
 never apply a rule twice.
 
-## History
+## Health and history
 
-**Automations → History** lists recent runs with filters (rule, result, ticket, date range). Each
-run shows the trigger, ticket, chain depth, duration, each action's outcome and any error.
-Runs are kept for 90 days.
+The Automations page starts with a compact summary: enabled and disabled rules, runs and failed
+runs in the last 24 hours, how often a safety limit intervened, and the last failure.
+
+**Automations → History** lists recent runs with filters (rule, result, ticket, date range, and
+_Stopped by a safety limit_). Each run shows:
+
+- rule, trigger, ticket, time, duration and chain depth;
+- **how each condition evaluated** (passed / not passed, with names instead of ids);
+- the actions **attempted** (changed, unchanged or failed) and those **not run** because an earlier
+  action failed;
+- the error summary (URLs, tokens and long secrets are removed);
+- whether **loop protection, the depth limit or the 50-event safety limit** intervened.
+
+When the 50-event limit stops a chain, one entry _Automation stopped after reaching the 50-event
+safety limit._ is added to the history (staff only, not a notification), so rules that keep
+triggering each other can be found. Runs are kept for 90 days.
 
 ## Permissions
 

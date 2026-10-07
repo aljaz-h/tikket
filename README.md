@@ -23,6 +23,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Reverse proxy](#reverse-proxy) · [Coolify & proxy deployment guide](docs/deployment-coolify.md)
 - [Feedback widget guide](docs/feedback-widget.md) · [Project management guide](docs/project-management.md)
 - [Integrations](docs/integrations.md): [Email](docs/email.md) · [Webhooks](docs/webhooks.md) · [GitHub](docs/github.md) · [Data export](docs/data-export.md)
+- Operations: [Health, delivery queue & reminders](docs/health.md) · [Backup verification](docs/backup-verification.md)
 - Developer workflow: [Automations](docs/automations.md) · [REST API](docs/api.md) · [API tokens](docs/authentication-tokens.md) · [Import](docs/import.md) · [Workflows](docs/workflows.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
@@ -86,6 +87,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - **Automations**: per-project _when / if / then_ rules (ticket, comment, vote, release and GitHub triggers; AND/OR conditions; status, priority, assignee, label, planning, note, notification, webhook and comment actions) with templates, dry-run testing, loop prevention and run history. → [Automations](docs/automations.md)
 - **REST API** (`/api/v1`) with personal access tokens and project API tokens, scopes, cursor pagination, idempotent ticket creation, rate limits and an OpenAPI 3.1 document (`/api/openapi.json`, rendered at `/docs/api`). → [REST API](docs/api.md) · [API tokens](docs/authentication-tokens.md)
 - **Import** from Tikket JSON exports or CSV with column mapping, review, all-or-nothing transactions and optional member matching. → [Import](docs/import.md)
+- **Operations** (v0.7): _Administration → Health_, _Delivery queue_ (inspect, retry, discard) and _Backups_; `backup:verify`, `restore:verify` and `db:check` scripts; personal ticket reminders. → [Health](docs/health.md) · [Backup verification](docs/backup-verification.md)
 - **Workflow customisation** per project: enabled statuses, defaults, allowed transitions, required notes, reporter reopen, comments on completed tickets. → [Workflows](docs/workflows.md)
 - Integration secrets are encrypted at rest with `ENCRYPTION_KEY`; deliveries run from a persistent SQLite queue inside the same container.
 
@@ -251,6 +253,11 @@ docker run --rm -v tikket_tikket-data:/data -v "$PWD":/backup alpine sh -c '
 docker compose up -d
 ```
 
+Check a backup before you need it – `npm run backup:verify -- <file>` (read-only) and
+`npm run restore:verify -- <file>` (dry-run restore on a temporary copy); see
+[Backup verification](docs/backup-verification.md). _Administration → Backups_ shows the last
+recorded backup.
+
 Restore the database and the `uploads` directory from the same point in time; attachments without a database row are harmless, but database rows without files show broken images. Pending migrations are applied automatically when the restored database is opened by a newer version.
 
 ## Updating
@@ -406,7 +413,7 @@ Key decisions:
 - Email, Discord, webhooks and GitHub were tested against local mock servers (an SMTP sink, a local HTTP receiver, signed fake GitHub deliveries) – not against the real services.
 - GitHub uses a repository webhook plus an optional read-only token; a GitHub App installation flow is not implemented. One repository per project; no issue synchronisation.
 - No email-to-ticket ingestion; replies to notification emails are not read.
-- Import creates tickets in an existing project; it does not restore whole projects, accounts, attachments or votes (see [Import](docs/import.md)). Full instance restore is done with the backup scripts.
+- Import creates tickets in an existing project; it does not restore whole projects, accounts or votes. Attachments are restored only from project bundles (see [Import](docs/import.md)). Full instance restore is done with the backup scripts.
 - Automations, the REST API, imports and GitHub automation triggers were tested with integration tests, end-to-end tests and signed fake GitHub deliveries – not against the real GitHub service.
 - Workflows configure the built-in statuses; custom statuses are not supported. The REST API has no webhooks-management or attachment endpoints and no OAuth app flow (tokens only).
 - Website-icon fetching supports PNG, JPEG, WebP and GIF icons and PNG images inside `.ico` files; SVG-only icons and BMP-only `.ico` files are not supported (upload a logo instead). Only the standard ports 80/443 are fetched.
@@ -415,3 +422,6 @@ Key decisions:
 - The feedback widget requires reporters to sign in; anonymous widget submissions are not supported.
 - Tickets cannot be archived or deleted (bulk or otherwise); close them with a status.
 - A ticket has at most one target release and one milestone. Published releases cannot be unpublished.
+- Backup verification reads archives into memory (up to 4 GB) and understands the tar formats produced by GNU/BusyBox tar; ZIP64 project bundles (over 4 GB) are not supported, and bundle imports are limited to 200 MB.
+- Reminders fire at 9:00 server time (the container's time zone, usually UTC), checked every few seconds by the delivery worker; there is no per-user time zone.
+- Imported bundle images get no thumbnail (the original is shown); browser support was verified with Chromium only in automated tests.

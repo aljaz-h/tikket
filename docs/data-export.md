@@ -9,10 +9,13 @@ recorded in the audit log.
   - **Standard export**: public discussion only.
   - **Staff export**: additionally internal notes (each comment has `internal: true/false`) and the
     usernames of voters. The file starts with a `notice` field saying so. Share it only with staff.
+- **Project bundle (.zip)** – the JSON export plus the uploaded images, for moving a project to
+  another Tikket (see below).
 - **CSV** – one row per ticket for spreadsheets.
 
-Exports never contain password hashes, sessions, tokens, integration secrets or email addresses.
-Uploaded images are listed by name, type and size, not embedded. Tickets are read page by page and
+Exports never contain password hashes, sessions, API tokens, integration secrets, SMTP
+credentials, encryption keys or email addresses. In the JSON export, uploaded images are listed by
+name, type and size, not embedded; the bundle carries the files. Tickets are read page by page and
 streamed, so large projects don't need much memory.
 
 ### JSON format (`tikket-project`, version 1)
@@ -137,7 +140,8 @@ streamed, so large projects don't need much memory.
 
 Users are referenced by username (stable and unique), tickets by key. The format is designed as the
 basis of a future import/restore: fields are only added within version 1; anything incompatible
-gets a new version number. Import is not part of v0.5.
+gets a new version number. JSON exports can be imported into another project – see
+[Import](import.md).
 
 ### CSV
 
@@ -145,6 +149,26 @@ Columns: Ticket ID, Title, Type, Status, Priority, Reporter, Assignee, Labels (`
 Votes, Release, Milestone, Created, Updated, Completed, URL. UTF-8 with BOM, RFC 4180 quoting.
 **Formula injection is prevented:** any cell starting with `=`, `+`, `-`, `@`, tab or carriage
 return is prefixed with `'`, so spreadsheets show it as text instead of evaluating it.
+
+### Project bundle (`tikket-project-bundle`, version 1)
+
+A ZIP file with:
+
+```
+manifest.json            { "format": "tikket-project-bundle", "version": 1, "createdAt", "project",
+                           "projectJson": { "path", "sha256", "size" },
+                           "files": [{ "path", "sha256", "size", "attachmentId", "name",
+                                       "mimeType", "width", "height" }] }
+project.json             the JSON export above (standard or staff, as chosen)
+attachments/<id>.<ext>   the original image of every attachment listed in project.json
+```
+
+- The scope follows the JSON choice: a standard bundle never contains images of internal notes.
+- The export page shows how many images a bundle will contain and their total size, and warns above
+  100 MB. Bundles are streamed (one image at a time); no background job is involved.
+- Importing a bundle needs the receiving server's `BODY_SIZE_LIMIT` (and the proxy's body limit)
+  to be at least the bundle size; the importer accepts bundles up to 200 MB.
+- Images missing on disk when the bundle is created are left out; the importer then reports them.
 
 ## Personal export
 

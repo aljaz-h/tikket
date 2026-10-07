@@ -398,6 +398,12 @@ In Coolify you can schedule the first command as a _Scheduled Task_ on the `tikk
 (e.g. daily `node scripts/backup.js /data/backups 14`). Coolify's built-in database backups do not
 cover SQLite files inside application volumes. Always copy backups to another machine.
 
+Verify a backup (read-only) and dry-run its restore with the current image:
+`docker exec <tikket-container> node scripts/backup-verify.js /data/backups/<file>.db --uploads /data/uploads`
+and `node scripts/restore-verify.js <archive>` – see [Backup verification](backup-verification.md).
+_Administration → Backups_ shows the last recorded backup; _Administration → Health_ warns when
+none is recorded or it is older than a week.
+
 **Upgrade.** Back up, then redeploy (Coolify) or `git pull && docker compose … up -d --build`.
 
 **Rollback.** If a new version fails to start, the old data is untouched (migrations are
@@ -415,7 +421,8 @@ docker run --rm -v <volume-name>:/data -v "$PWD":/in alpine sh -c '
 ```
 
 **Recovery.** Lost the only admin password: `docker exec <tikket-container> node scripts/reset-link.js <username>`.
-Database integrity: `docker exec <tikket-container> node -e "console.log(require('better-sqlite3')('/data/tikket.db',{readonly:true}).pragma('integrity_check',{simple:true}))"`.
+Database integrity: `docker exec <tikket-container> node scripts/db-check.js` (integrity, foreign
+keys, schema version; read-only).
 
 ## Verifying a deployment
 
