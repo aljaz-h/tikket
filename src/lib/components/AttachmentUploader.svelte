@@ -14,7 +14,6 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import PencilLine from '@lucide/svelte/icons/pencil-line';
-	import ImageAnnotator from './ImageAnnotator.svelte';
 	import { formatBytes } from '$lib/shared/text';
 	import { cn } from '$lib/utils';
 
@@ -321,14 +320,17 @@
 		{/if}
 		<div class="sr-only" aria-live="polite">{announcement}</div>
 		{#if editing}
-			<ImageAnnotator
-				bind:open={editorOpen}
-				src={editSource(editing)}
-				name={editing.name}
-				{maxSize}
-				onsave={saveEdited}
-				oncancel={() => (editing = null)}
-			/>
+			<!-- The annotation editor is loaded only when someone opens it (separate chunk). -->
+			{#await import('./ImageAnnotator.svelte') then { default: ImageAnnotator }}
+				<ImageAnnotator
+					bind:open={editorOpen}
+					src={editSource(editing)}
+					name={editing.name}
+					{maxSize}
+					onsave={saveEdited}
+					oncancel={() => (editing = null)}
+				/>
+			{/await}
 		{/if}
 	{:else}
 		<input

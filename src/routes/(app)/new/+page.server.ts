@@ -1,5 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { accessForProject, findProjectByKey, assertAccess } from '$lib/server/authz';
+import {
+	accessForProject,
+	assertAccess,
+	computeProjectAccess,
+	findProjectByKey
+} from '$lib/server/authz';
+import { inArray } from 'drizzle-orm';
+import { getDb, schema } from '$lib/server/db';
 import { handleServiceError, requireActionUser, requireUser } from '$lib/server/http';
 import { listProjects } from '$lib/server/services/projects';
 import { createTicket } from '$lib/server/services/tickets';
@@ -17,10 +24,27 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals, url);
-	const projects = listProjects(user)
+	const list = listProjects(user);
+	// One query for the full project rows; access is computed from the role listProjects loaded.
+	const full = new Map(
+		(list.length
+			? getDb()
+					.select()
+					.from(schema.projects)
+					.where(
+						inArray(
+							schema.projects.id,
+							list.map((p) => p.id)
+						)
+					)
+					.all()
+			: []
+		).map((p) => [p.id, p])
+	);
+	const projects = list
 		.map((p) => {
-			const project = findProjectByKey(p.key)!;
-			const access = accessForProject(user, project);
+			const project = full.get(p.id)!;
+			const access = computeProjectAccess(user, project, p.role);
 			return {
 				key: p.key,
 				name: p.name,
