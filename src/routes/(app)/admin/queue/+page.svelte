@@ -26,10 +26,8 @@
 	const FILTER_LABEL = { failed: 'Failed', retrying: 'Retrying', pending: 'Waiting' };
 	let discarding = $state<number | null>(null);
 	let discardOpen = $state(false);
-	let detailOpen = $state(false);
-	$effect.pre(() => {
-		detailOpen = !!data.detail;
-	});
+	// Writable derived: opens with ?job=…, closes locally until the next navigation.
+	let detailOpen = $derived(!!data.detail);
 
 	function link(params: Record<string, string | null>) {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built once per navigation
