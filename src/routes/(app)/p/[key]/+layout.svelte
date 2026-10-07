@@ -8,13 +8,15 @@
 	import ProjectIcon from '$lib/components/ProjectIcon.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import { projectPath } from '$lib/shared/format';
+	import BookOpen from '@lucide/svelte/icons/book-open';
+	import { readableOn } from '$lib/shared/color';
 
 	let { children, data } = $props();
 	const base = $derived(projectPath(data.project.key));
 	const tabs = $derived([
 		{ href: base, label: 'Overview', exact: true },
 		{ href: `${base}/tickets`, label: 'Tickets' },
-		{ href: `${base}/roadmap`, label: 'Roadmap' },
+		...(data.roadmapVisible ? [{ href: `${base}/roadmap`, label: 'Roadmap' }] : []),
 		{ href: `${base}/changelog`, label: 'Changelog' },
 		// Staff keep read-only access to planning pages in archived projects too.
 		...(data.permissions.isStaff ||
@@ -31,10 +33,16 @@
 	const isActive = (tab: { href: string; exact?: boolean }) =>
 		tab.exact ? page.url.pathname === tab.href : page.url.pathname.startsWith(tab.href);
 	const hideHeader = $derived(/\/tickets\/\d+/.test(page.url.pathname));
+	// The project accent is used sparingly: icon, a thin header rule and the project's main action.
+	const accent = $derived(data.project.accentColor);
 </script>
 
 {#if !hideHeader}
-	<div class="mb-6 grid gap-4">
+	<div
+		class="mb-6 grid gap-4"
+		style:--project-accent={accent ?? undefined}
+		style:--project-accent-foreground={accent ? readableOn(accent) : undefined}
+	>
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div class="flex min-w-0 items-center gap-3">
 				<ProjectIcon project={data.project} size="lg" />
@@ -46,6 +54,11 @@
 								aria-label="Private project"
 							/>{/if}
 					</h1>
+					{#if data.project.description}
+						<p class="line-clamp-2 max-w-2xl text-sm text-muted-foreground">
+							{data.project.description}
+						</p>
+					{/if}
 					<p class="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
 						<span class="font-mono">{data.project.key}</span>
 						{#if data.project.url}
@@ -58,11 +71,27 @@
 								{new URL(data.project.url).host}<ExternalLink class="size-3" />
 							</a>
 						{/if}
+						{#if data.project.docsUrl}
+							<a
+								href={data.project.docsUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="inline-flex items-center gap-1 hover:text-foreground"
+							>
+								<BookOpen class="size-3" />Docs &amp; support
+							</a>
+						{/if}
 					</p>
 				</div>
 			</div>
 			{#if data.permissions.canSubmit}
-				<Button href="/new?project={data.project.key}" size="lg"><Plus /> New ticket</Button>
+				<Button
+					href="/new?project={data.project.key}"
+					size="lg"
+					class={accent
+						? 'border-[var(--project-accent)] bg-[var(--project-accent)] text-[var(--project-accent-foreground)] hover:bg-[var(--project-accent)] hover:brightness-110'
+						: undefined}><Plus /> New ticket</Button
+				>
 			{/if}
 		</div>
 		{#if data.permissions.archived}

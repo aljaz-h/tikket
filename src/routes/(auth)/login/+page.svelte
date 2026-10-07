@@ -49,6 +49,11 @@
 				required
 			/>
 		</Field>
+		{#if data.canResetPassword}
+			<a href="/forgot" class="-mt-2 justify-self-end text-xs text-link hover:underline"
+				>Forgot password?</a
+			>
+		{/if}
 		<Button type="submit" class="w-full" loading={pending}>Sign in</Button>
 	</form>
 </Card>

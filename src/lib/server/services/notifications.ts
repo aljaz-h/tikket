@@ -5,6 +5,7 @@ import { userCanViewProject } from '../authz';
 import { getDb, schema, type DB } from '../db';
 import type { Project } from '../db/schema';
 import { getNotificationPrefs } from './users';
+import { queueNotificationEmails } from '../email/notifications';
 
 export interface NotifyInput {
 	type: NotificationType;
@@ -18,7 +19,8 @@ export interface NotifyInput {
 
 /**
  * Creates notifications for the given recipients, skipping the actor, inactive accounts,
- * users who opted out and anyone who can no longer view the project.
+ * users who opted out and anyone who can no longer view the project. Recipients who want email
+ * for this category also get an email (queued in the same transaction, see email/notifications).
  */
 export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: DB = getDb()) {
 	const ids = [...new Set(recipientIds)].filter((id) => id !== input.actorId);
@@ -29,6 +31,8 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 			role: schema.users.role,
 			status: schema.users.status,
 			notificationPrefs: schema.users.notificationPrefs,
+			emailPrefs: schema.users.emailPrefs,
+			email: schema.users.email,
 			memberRole: schema.projectMembers.role
 		})
 		.from(schema.users)
@@ -41,9 +45,8 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 		)
 		.where(inArray(schema.users.id, ids))
 		.all();
-	const rows = users
+	const eligible = users
 		.filter((u) => u.status === 'active')
-		.filter((u) => getNotificationPrefs(u)[input.type])
 		.filter((u) => userCanViewProject(u, input.project, u.memberRole))
 		.filter(
 			(u) =>
@@ -51,7 +54,11 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 				u.role === 'admin' ||
 				u.memberRole === 'owner' ||
 				u.memberRole === 'moderator'
-		)
+		);
+	// Email preferences are independent of in-app preferences.
+	queueNotificationEmails(tx, eligible, input);
+	const rows = eligible
+		.filter((u) => getNotificationPrefs(u)[input.type])
 		.map((u) => ({
 			userId: u.id,
 			type: input.type,
@@ -109,7 +116,7 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 }
 
 /** Kinds of notifications that are merged per ticket while unread (never mentions/assignments). */
-const GROUPABLE: NotificationType[] = ['comment', 'status', 'update', 'milestone'];
+export const GROUPABLE: NotificationType[] = ['comment', 'status', 'update', 'milestone'];
 const GROUP_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 export function followerIds(ticketId: number, tx: Pick<DB, 'select'> = getDb()): number[] {

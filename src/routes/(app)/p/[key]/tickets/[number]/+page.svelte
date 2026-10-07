@@ -42,6 +42,7 @@
 	import PopoverContent from '$lib/components/ui/popover-content.svelte';
 	import ConfirmDialog from '$lib/components/ui/confirm-dialog.svelte';
 	import { describeActivity } from '$lib/shared/activity';
+	import DevelopmentCard from '$lib/components/ticket/DevelopmentCard.svelte';
 	import {
 		CONTEXT_FIELDS,
 		CONTEXT_LABELS,
@@ -365,7 +366,8 @@
 									</span>
 									<div class="min-w-0">
 										<span class="font-medium text-foreground"
-											>{a.actor?.displayName ?? 'Someone'}</span
+											>{a.actor?.displayName ??
+												(a.data.automation ? 'GitHub automation' : 'Someone')}</span
 										>
 										{describeActivity(a.type, a.data)}
 										{#if a.type === 'status' && a.data.duplicateOf}
@@ -816,6 +818,12 @@
 						</p>
 					{/if}
 				</Card>
+			{/if}
+			{#if data.development}
+				<DevelopmentCard
+					development={data.development}
+					canEdit={perms.isStaff && !perms.archived}
+				/>
 			{/if}
 		</aside>
 	</div>

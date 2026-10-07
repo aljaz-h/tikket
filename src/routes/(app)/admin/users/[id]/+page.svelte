@@ -126,6 +126,14 @@
 			<p class="text-xs text-muted-foreground">
 				Valid for 24 hours and usable once. Using it signs the user out everywhere.
 			</p>
+			{#if form && 'emailResult' in form && form.emailResult}
+				<FormMessage
+					variant={form.emailResult.ok ? 'success' : 'error'}
+					message={form.emailResult.ok
+						? `${form.emailResult.message}.`
+						: `The link could not be emailed (${form.emailResult.message}) – share it yourself.`}
+				/>
+			{/if}
 		{/if}
 	</Card>
 

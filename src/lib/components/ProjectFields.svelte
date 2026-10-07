@@ -8,6 +8,8 @@
 	import Lock from '@lucide/svelte/icons/lock';
 	import { PROJECT_COLORS } from '$lib/shared/constants';
 	import { cn } from '$lib/utils';
+	import { readableOn } from '$lib/shared/color';
+	import X from '@lucide/svelte/icons/x';
 
 	interface Props {
 		errors?: Record<string, string>;
@@ -23,6 +25,7 @@
 	let visibility = $state('private');
 	let anonymous = $state(false);
 	let keyTouched = $state(false);
+	let accent = $state('');
 
 	$effect.pre(() => {
 		name = String(values.name ?? '');
@@ -32,7 +35,10 @@
 		visibility = String(values.visibility ?? 'private');
 		anonymous = values.allowAnonymousRead === true || values.allowAnonymousRead === 'on';
 		keyTouched = !!values.key;
+		accent = String(values.accentColor ?? '');
 	});
+
+	const validAccent = $derived(/^#[0-9a-f]{6}$/i.test(accent) ? accent : null);
 
 	function suggestKey(source: string) {
 		const words = source
@@ -110,7 +116,10 @@
 	<div class="grid gap-4 sm:grid-cols-[7rem_1fr]">
 		<Field label="Icon" for="icon" optional error={errors.icon}>
 			<div class="flex items-center gap-2">
-				<ProjectIcon project={{ name: name || '?', icon, color }} size="md" />
+				<ProjectIcon
+					project={{ name: name || '?', icon, color, accentColor: validAccent }}
+					size="md"
+				/>
 				<Input
 					id="icon"
 					name="icon"
@@ -143,6 +152,48 @@
 		Use an emoji or leave empty to show the first letter.
 	</p>
 
+	<Field
+		label="Accent colour"
+		for="accentColor"
+		error={errors.accentColor}
+		optional
+		hint="Used sparingly for this project: its icon, roadmap and main buttons. Text on it switches between dark and light automatically."
+	>
+		<div class="flex flex-wrap items-center gap-2">
+			<input
+				type="color"
+				value={validAccent ?? '#b8f779'}
+				oninput={(e) => (accent = e.currentTarget.value)}
+				aria-label="Pick accent colour"
+				class="h-9 w-12 cursor-pointer rounded-md border border-input bg-surface p-1"
+			/>
+			<Input
+				id="accentColor"
+				name="accentColor"
+				bind:value={accent}
+				maxlength={7}
+				placeholder="#b8f779"
+				class="w-28 font-mono"
+				aria-invalid={!!errors.accentColor}
+			/>
+			{#if validAccent}
+				<span
+					class="inline-flex h-8 items-center rounded-md px-3 text-sm font-medium"
+					style:background-color={validAccent}
+					style:color={readableOn(validAccent)}>New ticket</span
+				>
+			{/if}
+			{#if accent}
+				<button
+					type="button"
+					class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground"
+					onclick={() => (accent = '')}
+					aria-label="Remove accent colour"><X class="size-4" /></button
+				>
+			{/if}
+		</div>
+	</Field>
+
 	<Field label="Project website" for="url" error={errors.url} optional>
 		<Input
 			id="url"
@@ -152,6 +203,24 @@
 			placeholder="https://spool.example.com"
 			value={String(values.url ?? '')}
 			aria-invalid={!!errors.url}
+		/>
+	</Field>
+
+	<Field
+		label="Support or documentation link"
+		for="docsUrl"
+		error={errors.docsUrl}
+		optional
+		hint="Shown in the project header, e.g. your docs or help centre."
+	>
+		<Input
+			id="docsUrl"
+			name="docsUrl"
+			type="url"
+			inputmode="url"
+			placeholder="https://docs.spool.example.com"
+			value={String(values.docsUrl ?? '')}
+			aria-invalid={!!errors.docsUrl}
 		/>
 	</Field>
 

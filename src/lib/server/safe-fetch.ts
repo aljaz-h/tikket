@@ -4,16 +4,21 @@ import https from 'node:https';
 import net from 'node:net';
 
 /**
- * Outbound HTTP for the one feature that fetches user-supplied URLs (project website icons).
+ * Outbound HTTP to user-supplied URLs: project website icons, Discord and generic webhooks,
+ * GitHub API calls.
  *
  * SSRF protections:
- * - only http/https on the default ports (80/443), no credentials in URLs;
+ * - only http/https, no credentials in URLs; icon fetching is limited to ports 80/443;
  * - every hostname is resolved and *all* addresses must be public: loopback, private, link-local
  *   (incl. cloud metadata 169.254.169.254), CGNAT, multicast, reserved, IPv4-mapped/NAT64 forms
  *   and unique-local IPv6 are refused;
  * - the connection is pinned to the validated address (no second DNS lookup → no rebinding);
  * - redirects are followed manually (max 3) and every hop is validated again;
  * - strict timeouts and response-size limits; responses are buffered, never streamed elsewhere.
+ *
+ * Private destinations can be allowed for webhooks only with OUTBOUND_ALLOW_PRIVATE_NETWORKS=true
+ * (an explicit administrator decision). Even then, link-local addresses (cloud metadata
+ * services) and the unspecified address stay blocked.
  */
 
 export class FetchError extends Error {}
@@ -70,8 +75,34 @@ export function isPublicAddress(address: string): boolean {
 	return false;
 }
 
+/** Link-local (incl. 169.254.169.254 metadata) and unspecified addresses: never reachable. */
+export function isAlwaysBlocked(address: string): boolean {
+	if (net.isIPv4(address)) return address.startsWith('169.254.') || address.startsWith('0.');
+	const a = address.toLowerCase();
+	if (a === '::' || /^fe[89ab]/.test(a)) return true;
+	const embedded = /^(?:::ffff:)(\d+\.\d+\.\d+\.\d+)$/.exec(a);
+	return embedded ? isAlwaysBlocked(embedded[1]) : a === 'fd00:ec2::254';
+}
+
+export interface UrlPolicy {
+	/** Allow any port (webhooks); otherwise only 80/443. */
+	anyPort?: boolean;
+	/** Allow private/loopback destinations (only with the administrator opt-in). */
+	allowPrivate?: boolean;
+}
+
+/** True when the administrator explicitly allowed webhooks to private networks. */
+export function privateNetworksAllowed() {
+	return process.env.OUTBOUND_ALLOW_PRIVATE_NETWORKS === 'true';
+}
+
+function addressAllowed(address: string, policy: UrlPolicy) {
+	if (isAlwaysBlocked(address)) return false;
+	return policy.allowPrivate ? net.isIP(address) !== 0 : isPublicAddress(address);
+}
+
 /** Validates scheme, port and host syntax of a URL we are about to fetch. */
-export function checkUrl(raw: string | URL): URL {
+export function checkUrl(raw: string | URL, policy: UrlPolicy = {}): URL {
 	let url: URL;
 	try {
 		url = new URL(raw);
@@ -82,18 +113,20 @@ export function checkUrl(raw: string | URL): URL {
 		throw new FetchError('Only http and https addresses can be used.');
 	if (url.username || url.password)
 		throw new FetchError('Addresses with credentials are not allowed.');
-	if (url.port && url.port !== '80' && url.port !== '443')
+	if (!policy.anyPort && url.port && url.port !== '80' && url.port !== '443')
 		throw new FetchError('Only the standard web ports (80 and 443) are allowed.');
 	const host = url.hostname.replace(/^\[|\]$/g, '');
+	if (!host || host === 'metadata.google.internal')
+		throw new FetchError('That address is not publicly reachable.');
 	if (
-		!host ||
-		host === 'localhost' ||
-		host.endsWith('.localhost') ||
-		host.endsWith('.local') ||
-		host.endsWith('.internal')
+		!policy.allowPrivate &&
+		(host === 'localhost' ||
+			host.endsWith('.localhost') ||
+			host.endsWith('.local') ||
+			host.endsWith('.internal'))
 	)
 		throw new FetchError('That address is not publicly reachable.');
-	if (net.isIP(host) && !isPublicAddress(host))
+	if (net.isIP(host) && !addressAllowed(host, policy))
 		throw new FetchError('That address is not publicly reachable.');
 	return url;
 }
@@ -103,10 +136,15 @@ const systemResolver: Resolver = async (host) =>
 	(await dns.promises.lookup(host, { all: true, verbatim: true })).map((r) => r.address);
 
 /** Resolves a host and returns one validated public address (all must be public). */
-export async function resolvePublic(host: string, resolve: Resolver = systemResolver) {
+export async function resolvePublic(
+	host: string,
+	resolve: Resolver = systemResolver,
+	policy: UrlPolicy = {}
+) {
 	const bare = host.replace(/^\[|\]$/g, '');
 	if (net.isIP(bare)) {
-		if (!isPublicAddress(bare)) throw new FetchError('That address is not publicly reachable.');
+		if (!addressAllowed(bare, policy))
+			throw new FetchError('That address is not publicly reachable.');
 		return bare;
 	}
 	let addresses: string[];
@@ -115,7 +153,7 @@ export async function resolvePublic(host: string, resolve: Resolver = systemReso
 	} catch {
 		throw new FetchError(`Could not find the website ${bare}.`);
 	}
-	if (!addresses.length || addresses.some((a) => !isPublicAddress(a)))
+	if (!addresses.length || addresses.some((a) => !addressAllowed(a, policy)))
 		throw new FetchError('That website resolves to a private or reserved address.');
 	return addresses[0];
 }
@@ -125,13 +163,17 @@ export interface SafeResponse {
 	status: number;
 	contentType: string;
 	body: Buffer;
+	headers: http.IncomingHttpHeaders;
 }
 
-interface Options {
+interface Options extends UrlPolicy {
 	maxBytes: number;
 	timeoutMs?: number;
 	accept?: string;
 	resolve?: Resolver;
+	method?: 'GET' | 'POST';
+	body?: string | Buffer;
+	headers?: Record<string, string>;
 }
 
 function requestOnce(
@@ -147,10 +189,14 @@ function requestOnce(
 				hostname: url.hostname,
 				port: url.port || (url.protocol === 'https:' ? 443 : 80),
 				path: `${url.pathname}${url.search}`,
-				method: 'GET',
+				method: opts.method ?? 'GET',
 				headers: {
 					accept: opts.accept ?? '*/*',
-					'user-agent': 'Tikket/1.0 (+website icon fetcher)'
+					'user-agent': 'Tikket/1.0',
+					...opts.headers,
+					...(opts.body !== undefined
+						? { 'content-length': String(Buffer.byteLength(opts.body)) }
+						: {})
 				},
 				// Pin the connection to the address we validated (TLS still verifies the hostname).
 				lookup: (_host, _options, callback) =>
@@ -171,6 +217,7 @@ function requestOnce(
 						status,
 						contentType: '',
 						body: Buffer.alloc(0),
+						headers: res.headers,
 						location: res.headers.location
 					});
 					return;
@@ -197,7 +244,8 @@ function requestOnce(
 						url,
 						status,
 						contentType: String(res.headers['content-type'] ?? '').toLowerCase(),
-						body: Buffer.concat(chunks)
+						body: Buffer.concat(chunks),
+						headers: res.headers
 					})
 				);
 				res.on('error', reject);
@@ -207,18 +255,29 @@ function requestOnce(
 		req.on('error', (err) =>
 			reject(err instanceof FetchError ? err : new FetchError('The website could not be reached.'))
 		);
-		req.end();
+		req.end(opts.body);
 	});
+}
+
+/**
+ * One request with SSRF protections and no redirect following (webhooks): any status is
+ * returned to the caller; a redirect is reported as its 3xx status and never followed.
+ */
+export async function safeRequest(raw: string | URL, opts: Options): Promise<SafeResponse> {
+	const url = checkUrl(raw, opts);
+	const address = await resolvePublic(url.hostname, opts.resolve, opts);
+	const { location: _location, ...res } = await requestOnce(url, address, opts);
+	return res;
 }
 
 /** GET a public URL with SSRF protections, following at most three validated redirects. */
 export async function safeFetch(raw: string | URL, opts: Options): Promise<SafeResponse> {
-	let url = checkUrl(raw);
+	let url = checkUrl(raw, opts);
 	for (let hop = 0; hop <= 3; hop++) {
-		const address = await resolvePublic(url.hostname, opts.resolve);
+		const address = await resolvePublic(url.hostname, opts.resolve, opts);
 		const res = await requestOnce(url, address, opts);
 		if (res.location) {
-			url = checkUrl(new URL(res.location, url));
+			url = checkUrl(new URL(res.location, url), opts);
 			continue;
 		}
 		if (res.status < 200 || res.status >= 300)

@@ -60,6 +60,14 @@
 				><Copy /> Copy</Button
 			>
 		</div>
+		{#if form && 'emailResult' in form && form.emailResult}
+			<FormMessage
+				variant={form.emailResult.ok ? 'success' : 'error'}
+				message={form.emailResult.ok
+					? `${form.emailResult.message}.`
+					: `The invitation could not be emailed (${form.emailResult.message}) – share the link instead.`}
+			/>
+		{/if}
 	{/if}
 	{#if form && 'created' in form}<FormMessage
 			variant="success"

@@ -27,7 +27,22 @@ export type AuditAction =
 	| 'invitation.accepted'
 	| 'settings.updated'
 	| 'widget.updated'
-	| 'project.logo';
+	| 'project.logo'
+	| 'project.branding'
+	| 'project.roadmap_visibility'
+	| 'project.exported'
+	| 'settings.smtp'
+	| 'settings.smtp_test'
+	| 'integration.discord_created'
+	| 'integration.discord_updated'
+	| 'integration.discord_deleted'
+	| 'integration.webhook_created'
+	| 'integration.webhook_updated'
+	| 'integration.webhook_secret_rotated'
+	| 'integration.webhook_deleted'
+	| 'integration.github_connected'
+	| 'integration.github_updated'
+	| 'integration.github_disconnected';
 
 export interface AuditEntry {
 	actorId: number | null;

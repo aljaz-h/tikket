@@ -37,6 +37,23 @@ services:
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10M}
       BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-25M}
       LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      # Integrations (v0.5) – all optional. ENCRYPTION_KEY protects stored integration secrets
+      # (SMTP password, Discord/webhook URLs, signing secrets, GitHub secrets): 32 random bytes,
+      # e.g. openssl rand -base64 32. Back it up – without it stored secrets are unrecoverable.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ENCRYPTION_KEY_PREVIOUS: ${ENCRYPTION_KEY_PREVIOUS:-}
+      # Email via environment variables (takes precedence over Administration → Email).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      SMTP_REPLY_TO: ${SMTP_REPLY_TO:-}
+      SMTP_TIMEOUT: ${SMTP_TIMEOUT:-}
+      # Only for trusted single-tenant setups: allow webhooks to private network addresses.
+      OUTBOUND_ALLOW_PRIVATE_NETWORKS: ${OUTBOUND_ALLOW_PRIVATE_NETWORKS:-false}
       # Fixed container paths – change the volume, not these.
       PORT: '3000'
       HOST: 0.0.0.0

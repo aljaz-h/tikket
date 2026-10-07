@@ -11,18 +11,21 @@
 	const base = $derived(projectPath(data.project.key, 'settings'));
 	const path = $derived(page.url.pathname.replace(/\/$/, ''));
 
-	// "General" groups four pages. The active one is derived from the URL, so the label stays
+	// "General" groups several pages. The active one is derived from the URL, so the label stays
 	// right for links, reloads and back/forward navigation alike.
 	const general = $derived([
 		{ href: base, label: 'General settings', short: 'General' },
 		{ href: `${base}/members`, label: 'Members', short: 'Members' },
 		{ href: `${base}/labels`, label: 'Labels', short: 'Labels' },
+		{ href: `${base}/roadmap`, label: 'Roadmap visibility', short: 'Roadmap' },
+		{ href: `${base}/export`, label: 'Export data', short: 'Export' },
 		{ href: `${base}/danger`, label: 'Danger zone', short: 'Danger zone' }
 	]);
 	const currentGeneral = $derived(general.find((g) => g.href === path) ?? null);
 	const tabs = $derived([
 		{ href: `${base}/widget`, label: 'Feedback widget' },
-		{ href: `${base}/templates`, label: 'Ticket templates' }
+		{ href: `${base}/templates`, label: 'Ticket templates' },
+		{ href: `${base}/integrations`, label: 'Integrations' }
 	]);
 	const tabActive = (href: string) => path === href || path.startsWith(`${href}/`);
 	let open = $state(false);

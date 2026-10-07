@@ -14,6 +14,9 @@ import { followerIds, notify } from './notifications';
 import { addProjectActivity } from './project-activity';
 import { addActivity, getTicket } from './tickets';
 import { ServiceError } from './users';
+import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
+import { publicBaseUrl } from '../email/notifications';
+import { htmlToText } from '../sanitize';
 
 type ActiveActor = NonNullable<Actor>;
 const t = schema.tickets;
@@ -440,6 +443,24 @@ export function publishRelease(
 					},
 					tx
 				);
+			emitProjectEvent(tx, access.project, 'release.published', () => {
+				const base = publicBaseUrl();
+				return {
+					release: {
+						id: releaseId,
+						version: release.version,
+						released_at: now.toISOString(),
+						summary: htmlToText(opts.summaryHtml ?? release.summaryHtml).slice(0, 4000),
+						ticket_count: completed.length,
+						tickets: completed
+							.slice(0, 100)
+							.map((x) => ticketSnapshot(tx, x.id))
+							.filter(Boolean)
+							.map((x) => ({ key: x!.key, title: x!.title, type: x!.type, url: x!.url })),
+						url: base ? `${base}/p/${access.project.key.toLowerCase()}/changelog` : null
+					}
+				};
+			});
 			return { completed: completed.length, unresolved: unresolved.length, detached };
 		},
 		{ behavior: 'immediate' }

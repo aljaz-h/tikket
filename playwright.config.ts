@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4173;
@@ -33,6 +34,9 @@ export default defineConfig({
 				DATA_DIR: 'e2e/.data',
 				LOGIN_RATE_LIMIT: '1000',
 				BODY_SIZE_LIMIT: '20M',
+				// Throw-away key per run and opt-in so webhooks can reach the local mock receiver.
+				ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+				OUTBOUND_ALLOW_PRIVATE_NETWORKS: 'true',
 				NODE_ENV: 'production'
 			}
 		},

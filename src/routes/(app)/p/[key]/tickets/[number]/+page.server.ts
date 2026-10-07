@@ -40,6 +40,12 @@ import { checkWriteLimit, pendingPreview } from '$lib/server/ticket-form';
 import { storeImage } from '$lib/server/uploads';
 import { commentSchema, parseForm, prioritySchema, statusSchema } from '$lib/server/validation';
 import { ticketRef } from '$lib/shared/format';
+import {
+	addManualLink,
+	getConnection,
+	removeDevLink,
+	ticketDevLinks
+} from '$lib/server/integrations/github';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -126,6 +132,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			return neighbors ? { ...neighbors, list } : null;
 		})(),
 		relationships: listRelationships(ticket.id),
+		// Development references (cached GitHub metadata): project members and staff only.
+		development: (() => {
+			if (!access.isStaff && !access.role) return null;
+			const conn = getConnection(access.project.id);
+			if (!conn) return null;
+			return { repository: `${conn.owner}/${conn.repo}`, links: ticketDevLinks(ticket.id) };
+		})(),
 		canWriteInternal: canWriteInternalNotes(access),
 		voters: access.project.votingEnabled ? recentVoters(ticket.id) : [],
 		canEdit: canEditTicket(access, user, ticket),
@@ -328,6 +341,30 @@ export const actions: Actions = {
 			return handleServiceError(err);
 		}
 		return { unrelated: true };
+	},
+
+	addDevLink: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		const reference = String((await request.formData()).get('reference') ?? '').slice(0, 300);
+		try {
+			await addManualLink(user.id, access, ticket, reference);
+		} catch (err) {
+			return handleServiceError(err, { reference });
+		}
+		return { devLinked: true };
+	},
+
+	removeDevLink: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		const id = intParam(String((await request.formData()).get('linkId') ?? ''));
+		try {
+			removeDevLink(access, ticket, id ?? 0);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { devUnlinked: true };
 	},
 
 	removeAttachment: async ({ locals, params, request }) => {

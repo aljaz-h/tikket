@@ -7,6 +7,7 @@
 	import Link from '@lucide/svelte/icons/link';
 	import UserAvatar from '$lib/components/UserAvatar.svelte';
 	import { quickSubmit } from '$lib/components/ticket/enhance';
+	import FormMessage from '$lib/components/FormMessage.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import Input from '$lib/components/ui/input.svelte';
@@ -153,6 +154,15 @@
 			<p class="mt-1 text-xs text-muted-foreground">
 				Copy it now – for security the link is not shown again.
 			</p>
+			{#if 'emailResult' in form && form.emailResult}
+				<FormMessage
+					class="mt-2"
+					variant={form.emailResult.ok ? 'success' : 'error'}
+					message={form.emailResult.ok
+						? `${form.emailResult.message}.`
+						: `The invitation could not be emailed (${form.emailResult.message}) – share the link instead.`}
+				/>
+			{/if}
 		{/if}
 		{#if data.invitations.length}
 			<ul class="mt-4 divide-y divide-border rounded-lg border border-border text-sm">

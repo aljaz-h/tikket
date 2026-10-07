@@ -67,7 +67,11 @@ export const limiters = {
 	/** Widget sign-in / authorisation attempts per IP. */
 	widgetAuth: new RateLimiter(30, 60 * 60 * 1000),
 	/** Content creation (tickets / comments) per user. */
-	write: new RateLimiter(60, 10 * 60 * 1000)
+	write: new RateLimiter(60, 10 * 60 * 1000),
+	/** Test emails / test deliveries / GitHub connection checks per user. */
+	outboundTest: new RateLimiter(20, 10 * 60 * 1000),
+	/** Self-service password reset requests per client IP. */
+	passwordResetIp: new RateLimiter(10, 60 * 60 * 1000)
 };
 
 export function resetAllLimiters() {

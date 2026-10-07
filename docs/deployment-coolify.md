@@ -59,6 +59,11 @@ labels for this; Coolify generates the routing from the domain you enter.
    | `ADDRESS_HEADER` | `X-Forwarded-For` (Coolify's proxy is the only entry point)                                     |
    | `XFF_DEPTH`      | `1` (`2` if Cloudflare is proxied in front of Coolify; see [trusted proxies](#trusted-proxies)) |
 
+   Optional (v0.5 integrations): `ENCRYPTION_KEY` = output of `openssl rand -base64 32`, marked
+   _secret/locked_ – needed before setting up email in the admin area, Discord, webhooks or
+   GitHub. Store a copy outside Coolify: backups can only be restored with the same key. SMTP can
+   also be configured here with `SMTP_HOST`, `SMTP_FROM`, … (see [email](email.md)).
+
    Leave everything else at its default. Tikket does **not** read Coolify's generated
    `SERVICE_FQDN_*` / `COOLIFY_*` variables; `ORIGIN` is always set explicitly.
 
@@ -318,6 +323,8 @@ listing every problem (visible in `docker compose logs` / Coolify deployment log
 | `ADDRESS_HEADER`                | empty                           | Header with the client IP, e.g. `X-Forwarded-For`. Empty → the TCP peer address is used.                                                                                                    |
 | `XFF_DEPTH`                     | `1`                             | Number of trusted proxies appending to `X-Forwarded-For`.                                                                                                                                   |
 | `APP_URL`                       | `ORIGIN`                        | Base for invitation/reset links if it must differ.                                                                                                                                          |
+| `ENCRYPTION_KEY`                | –                               | 32 random bytes (`openssl rand -base64 32`) for integration secrets. Never generated; back it up. See [integrations](integrations.md).                                                      |
+| `SMTP_*`                        | –                               | Optional email configuration, see [email](email.md).                                                                                                                                        |
 | `MAX_UPLOAD_SIZE`               | `10M`                           | Hard per-image limit (admins can lower it).                                                                                                                                                 |
 | `BODY_SIZE_LIMIT`               | `25M`                           | Max request body; must be ≥ `MAX_UPLOAD_SIZE`. Keep the proxy's limit ≥ this.                                                                                                               |
 | `LOGIN_RATE_LIMIT`              | `10`                            | Failed sign-ins per account per 15 min (per-IP: 3×).                                                                                                                                        |

@@ -14,6 +14,7 @@ import { pendingAttachmentsFor } from '../uploads';
 import { followerIds, notify } from './notifications';
 import { addActivity } from './tickets';
 import { ServiceError } from './users';
+import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 
 type ActiveActor = NonNullable<Actor>;
 
@@ -143,6 +144,26 @@ export function addComment(
 				},
 				tx
 			);
+			// Integrations only ever hear about public comments.
+			if (!internal)
+				emitProjectEvent(tx, access.project, 'comment.created', () => {
+					const snapshot = ticketSnapshot(tx, ticket.id);
+					const author = tx
+						.select({ username: schema.users.username, name: schema.users.displayName })
+						.from(schema.users)
+						.where(eq(schema.users.id, actor.id))
+						.get();
+					return {
+						ticket: snapshot,
+						comment: {
+							id: comment.id,
+							author: author ?? null,
+							body: body.text.slice(0, 4000),
+							created_at: comment.createdAt.toISOString(),
+							url: snapshot?.url ? `${snapshot.url}#comment-${comment.id}` : null
+						}
+					};
+				});
 			return comment;
 		},
 		{ behavior: 'immediate' }

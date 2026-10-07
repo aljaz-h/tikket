@@ -1,4 +1,5 @@
 import { parseSize } from './config';
+import { KEY_HINT, parseKey } from './secrets';
 
 /**
  * Start-up validation of deployment configuration. Errors abort the start (the container exits
@@ -91,6 +92,44 @@ export function validateEnvironment(env: Record<string, string | undefined>): En
 				'Set SESSION_SECRET explicitly to manage it yourself.'
 		);
 	}
+
+	// Integration secrets: never generated silently, so a typo must not go unnoticed.
+	if (env.ENCRYPTION_KEY !== undefined && env.ENCRYPTION_KEY.trim() !== '') {
+		if (!parseKey(env.ENCRYPTION_KEY)) errors.push(`ENCRYPTION_KEY is invalid. ${KEY_HINT}`);
+	}
+	for (const [i, raw] of (env.ENCRYPTION_KEY_PREVIOUS ?? '').split(',').entries())
+		if (raw.trim() && !parseKey(raw))
+			errors.push(`ENCRYPTION_KEY_PREVIOUS entry ${i + 1} is invalid. ${KEY_HINT}`);
+	if (env.ENCRYPTION_KEY_PREVIOUS?.trim() && !env.ENCRYPTION_KEY?.trim())
+		errors.push('ENCRYPTION_KEY_PREVIOUS is set but ENCRYPTION_KEY is not.');
+
+	// ── SMTP (optional; environment settings take precedence over the admin UI) ──
+	const smtpHost = env.SMTP_HOST?.trim();
+	if (smtpHost) {
+		if (!/^[a-z0-9.-]+$/i.test(smtpHost) && !/^\[[0-9a-f:]+\]$/i.test(smtpHost))
+			errors.push(`SMTP_HOST "${smtpHost}" is not a valid host name.`);
+		if (env.SMTP_PORT) {
+			const port = Number(env.SMTP_PORT);
+			if (!Number.isInteger(port) || port < 1 || port > 65535)
+				errors.push(`SMTP_PORT "${env.SMTP_PORT}" is not a valid port.`);
+		}
+		if (env.SMTP_SECURITY && !['none', 'starttls', 'tls'].includes(env.SMTP_SECURITY))
+			errors.push(`SMTP_SECURITY must be none, starttls or tls – got "${env.SMTP_SECURITY}".`);
+		if (!env.SMTP_FROM?.trim() || !/^[^\s@]+@[^\s@]+$/.test(env.SMTP_FROM.trim()))
+			errors.push('SMTP_FROM must be set to the sender address when SMTP_HOST is set.');
+		if (env.SMTP_SECURITY === 'none' && env.SMTP_PASSWORD)
+			warnings.push(
+				'SMTP_SECURITY=none sends the SMTP password unencrypted. Use starttls or tls unless the server is on a trusted local network.'
+			);
+	} else if (['SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM'].some((n) => env[n]))
+		warnings.push(
+			'SMTP_* variables are set but SMTP_HOST is not; email stays as configured in the admin area.'
+		);
+
+	if (env.OUTBOUND_ALLOW_PRIVATE_NETWORKS === 'true')
+		warnings.push(
+			'OUTBOUND_ALLOW_PRIVATE_NETWORKS=true: webhooks may target private and loopback addresses. Only enable this on trusted, single-tenant installations.'
+		);
 
 	// ── Trusted proxy / client IP ────────────────────────────────────────
 	const addressHeader = env.ADDRESS_HEADER?.trim();

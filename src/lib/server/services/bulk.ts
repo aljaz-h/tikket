@@ -13,7 +13,8 @@ import { getDb, schema } from '../db';
 import type { Ticket } from '../db/schema';
 import { followerIds, notify } from './notifications';
 import { isAssignable } from './projects';
-import { addActivity } from './tickets';
+import { addActivity, emitStatusEvents } from './tickets';
+import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 import { assignableMilestone } from './milestones';
 import { assignableRelease } from './releases';
 import { ServiceError } from './users';
@@ -223,6 +224,7 @@ export function bulkUpdate(
 							bulk: true
 						});
 						queue([...followerIds(t.id, tx), t.reporterId], t);
+						emitStatusEvents(tx, access.project, t.id, t.status, op.status, { bulk: true });
 						break;
 					}
 					case 'priority': {
@@ -239,6 +241,12 @@ export function bulkUpdate(
 							to: op.priority,
 							bulk: true
 						});
+						emitProjectEvent(tx, access.project, 'ticket.updated', () => ({
+							ticket: ticketSnapshot(tx, t.id),
+							changes: ['priority'],
+							priority: { from: t.priority, to: op.priority },
+							bulk: true
+						}));
 						break;
 					}
 					case 'assign': {
@@ -258,6 +266,10 @@ export function bulkUpdate(
 							assigneeName,
 							bulk: true
 						});
+						emitProjectEvent(tx, access.project, 'ticket.assigned', () => ({
+							ticket: ticketSnapshot(tx, t.id),
+							bulk: true
+						}));
 						if (op.assigneeId) {
 							tx.insert(schema.ticketFollowers)
 								.values({ ticketId: t.id, userId: op.assigneeId })

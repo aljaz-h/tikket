@@ -1,8 +1,16 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import { readableOn } from '$lib/shared/color';
 
 	interface Props {
-		project: { name: string; icon?: string | null; color?: string | null; logoId?: string | null };
+		project: {
+			name: string;
+			icon?: string | null;
+			color?: string | null;
+			logoId?: string | null;
+			/** Optional brand accent: used as the background of the letter/emoji fallback. */
+			accentColor?: string | null;
+		};
 		size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 		class?: string;
 		/** Preview a not-yet-saved logo (e.g. a fetched website icon). */
@@ -21,6 +29,9 @@
 	const image = $derived(src ?? (project.logoId ? `/api/project-logos/${project.logoId}` : null));
 	// A missing or broken image falls back to the letter/emoji without changing the layout.
 	let failed = $state<string | null>(null);
+	const accent = $derived(
+		project.accentColor && /^#[0-9a-f]{6}$/i.test(project.accentColor) ? project.accentColor : null
+	);
 </script>
 
 {#if image && failed !== image}
@@ -38,10 +49,12 @@
 		aria-hidden="true"
 		class={cn(
 			'swatch-bg inline-flex shrink-0 items-center justify-center font-semibold select-none',
-			`swatch-${project.color ?? 'indigo'}`,
+			!accent && `swatch-${project.color ?? 'indigo'}`,
 			sizes[size],
 			className
 		)}
+		style:background-color={accent}
+		style:color={accent ? readableOn(accent) : undefined}
 	>
 		{project.icon || project.name.slice(0, 1).toUpperCase()}
 	</span>

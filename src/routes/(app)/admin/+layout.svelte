@@ -9,6 +9,7 @@
 		{ href: '/admin/projects', label: 'Projects' },
 		{ href: '/admin/invitations', label: 'Invitations' },
 		{ href: '/admin/settings', label: 'Settings' },
+		{ href: '/admin/email', label: 'Email' },
 		{ href: '/admin/audit', label: 'Audit log' }
 	];
 	const active = (t: { href: string; exact?: boolean }) =>

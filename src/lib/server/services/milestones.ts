@@ -8,6 +8,8 @@ import { addProjectActivity } from './project-activity';
 import { progressFor } from './releases';
 import { addActivity } from './tickets';
 import { ServiceError } from './users';
+import { emitProjectEvent } from '../integrations/events';
+import { publicBaseUrl } from '../email/notifications';
 
 type ActiveActor = NonNullable<Actor>;
 const m = schema.milestones;
@@ -186,6 +188,18 @@ export function setMilestoneStatus(
 						},
 						tx
 					);
+				emitProjectEvent(tx, access.project, 'milestone.completed', () => {
+					const base = publicBaseUrl();
+					return {
+						milestone: {
+							id,
+							name: current.name,
+							completed_at: now.toISOString(),
+							ticket_count: tickets.length,
+							url: base ? `${base}/p/${access.project.key.toLowerCase()}/milestones/${id}` : null
+						}
+					};
+				});
 			}
 		},
 		{ behavior: 'immediate' }

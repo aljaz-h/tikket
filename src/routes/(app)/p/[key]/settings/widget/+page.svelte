@@ -168,6 +168,14 @@
 								class="font-mono"
 							/>
 						</div>
+						{#if data.project.accentColor && data.project.accentColor !== accent}
+							<button
+								type="button"
+								class="mt-1 text-xs text-link hover:underline"
+								onclick={() => (accent = data.project.accentColor!)}
+								>Use the project accent ({data.project.accentColor})</button
+							>
+						{/if}
 					</Field>
 					<Field label="Default report type" for="defaultType">
 						<Select

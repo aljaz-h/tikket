@@ -19,6 +19,8 @@ import { pruneOldNotifications } from '$lib/server/services/notifications';
 import { needsSetup } from '$lib/server/services/users';
 import { cleanupAbandonedUploads } from '$lib/server/uploads';
 import { findWidget, listAllowedOrigins } from '$lib/server/services/widget';
+import { pruneOutbound, startWorker, stopWorker, workerEnabled } from '$lib/server/outbound';
+import { checkStoredSecrets } from '$lib/server/stored-secrets';
 import { THEME_COOKIE, THEMES, type Theme } from '$lib/shared/constants';
 
 function maintenance() {
@@ -26,6 +28,7 @@ function maintenance() {
 		const uploads = cleanupAbandonedUploads();
 		const sessions = deleteExpiredSessions();
 		pruneOldNotifications();
+		pruneOutbound();
 		if (uploads || sessions)
 			console.info(
 				`[tikket] maintenance: removed ${uploads} abandoned uploads, ${sessions} expired sessions`
@@ -41,10 +44,19 @@ export const init: ServerInit = async () => {
 	checkConfiguration();
 	checkDataDirectory();
 	getInstance(); // opens the database and applies pending migrations under a cross-process lock
+	// Refuses to start with stored integration secrets but no ENCRYPTION_KEY; re-encrypts after
+	// a key rotation.
+	checkStoredSecrets();
 	maintenance();
 	setInterval(maintenance, 60 * 60 * 1000).unref();
-	// adapter-node emits this after draining connections on SIGTERM/SIGINT.
-	process.once('sveltekit:shutdown' as 'exit', () => closeDatabase());
+	// Outbound deliveries (email, Discord, webhooks) run in this process from a SQLite queue.
+	if (workerEnabled()) startWorker();
+	// adapter-node emits this after draining connections on SIGTERM/SIGINT: let running
+	// deliveries finish (bounded), then close the database. Unfinished jobs resume on next start.
+	process.once('sveltekit:shutdown' as 'exit', async () => {
+		await stopWorker();
+		closeDatabase();
+	});
 	markReady();
 	console.info(`[tikket] ready – serving ${process.env.ORIGIN || '(ORIGIN not set: development)'}`);
 };
@@ -75,7 +87,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Defence in depth on top of SvelteKit's form CSRF check: API mutations must be same-origin.
-	if (url.pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+	// GitHub webhooks are server-to-server and authenticated by their HMAC signature instead.
+	if (
+		url.pathname.startsWith('/api/') &&
+		!url.pathname.startsWith('/api/integrations/github/') &&
+		!['GET', 'HEAD', 'OPTIONS'].includes(request.method)
+	) {
 		const origin = request.headers.get('origin');
 		if (!origin || origin !== url.origin) error(403, 'Cross-origin request blocked');
 	}

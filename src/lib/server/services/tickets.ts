@@ -19,6 +19,7 @@ import { isAssignable, projectStaffIds } from './projects';
 import { ServiceError } from './users';
 import { saveTemplateResponse, type TemplateResponseInput } from './templates';
 import { shippedIn } from './releases';
+import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 
 type ActiveActor = NonNullable<Actor>;
 
@@ -165,6 +166,9 @@ export function createTicket(
 				},
 				tx
 			);
+			emitProjectEvent(tx, project, 'ticket.created', () => ({
+				ticket: ticketSnapshot(tx, created.id)
+			}));
 			return created;
 		},
 		{ behavior: 'immediate' }
@@ -228,6 +232,10 @@ export function updateTicketContent(
 				},
 				tx
 			);
+			emitProjectEvent(tx, access.project, 'ticket.updated', () => ({
+				ticket: ticketSnapshot(tx, ticket.id),
+				changes: changed
+			}));
 		},
 		{ behavior: 'immediate' }
 	);
@@ -355,9 +363,83 @@ export function changeStatus(
 				},
 				tx
 			);
+			emitStatusEvents(tx, access.project, ticket.id, from, to);
 		},
 		{ behavior: 'immediate' }
 	);
+}
+
+/**
+ * Status change made by an automation (GitHub merge rules), not by a person. Only moves
+ * unresolved tickets forward; records who/what did it in the activity history, notifies
+ * followers and emits the usual integration events. Returns true if the ticket changed.
+ */
+export function setStatusBySystem(
+	project: ProjectAccess['project'],
+	ticketId: number,
+	to: 'in_progress' | 'completed',
+	automation: Record<string, unknown>
+): boolean {
+	return getDb().transaction(
+		(tx) => {
+			const current = tx.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
+			if (!current || current.projectId !== project.id) return false;
+			const from = current.status;
+			if (STATUS_META[from].resolved || from === to) return false;
+			if (to === 'in_progress' && from === 'in_progress') return false;
+			const now = new Date();
+			tx.update(schema.tickets)
+				.set({
+					status: to,
+					completedAt: to === 'completed' ? now : null,
+					closedAt: to === 'completed' ? now : null,
+					updatedAt: now
+				})
+				.where(eq(schema.tickets.id, ticketId))
+				.run();
+			addActivity(tx, ticketId, null, 'status', {
+				from,
+				to,
+				effect: statusEffect(from, to),
+				automation
+			});
+			notify(
+				[...followerIds(ticketId, tx), current.reporterId],
+				{
+					type: 'status',
+					project,
+					ticketId,
+					actorId: null,
+					data: { from, to, automation: automation.source }
+				},
+				tx
+			);
+			emitStatusEvents(tx, project, ticketId, from, to, { automation });
+			return true;
+		},
+		{ behavior: 'immediate' }
+	);
+}
+
+/** Status change events for integrations (plus ticket.completed when it was completed). */
+export function emitStatusEvents(
+	tx: DB,
+	project: ProjectAccess['project'],
+	ticketId: number,
+	from: TicketStatus,
+	to: TicketStatus,
+	extra: Record<string, unknown> = {}
+) {
+	if (from === to) return;
+	const snapshot = () => ticketSnapshot(tx, ticketId);
+	emitProjectEvent(tx, project, 'ticket.status_changed', () => ({
+		ticket: snapshot(),
+		from,
+		to,
+		...extra
+	}));
+	if (to === 'completed')
+		emitProjectEvent(tx, project, 'ticket.completed', () => ({ ticket: snapshot(), ...extra }));
 }
 
 /**
@@ -420,6 +502,11 @@ export function changePriority(
 			},
 			tx
 		);
+		emitProjectEvent(tx, access.project, 'ticket.updated', () => ({
+			ticket: ticketSnapshot(tx, ticket.id),
+			changes: ['priority'],
+			priority: { from: ticket.priority, to: priority }
+		}));
 	});
 }
 
@@ -450,6 +537,9 @@ export function assignTicket(
 			assigneeId,
 			assigneeName: assignee?.displayName
 		});
+		emitProjectEvent(tx, access.project, 'ticket.assigned', () => ({
+			ticket: ticketSnapshot(tx, ticket.id)
+		}));
 		if (assigneeId) {
 			tx.insert(schema.ticketFollowers)
 				.values({ ticketId: ticket.id, userId: assigneeId })

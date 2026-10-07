@@ -13,6 +13,8 @@ import {
 } from '$lib/server/services/users';
 import { getSettings } from '$lib/server/settings';
 import { globalRoleSchema } from '$lib/server/validation';
+import { sendAdminResetEmail } from '$lib/server/email/account';
+import { emailEnabled } from '$lib/server/email/config';
 import type { Actions, PageServerLoad } from './$types';
 
 function target(id: string) {
@@ -96,9 +98,10 @@ export const actions: Actions = {
 	},
 	resetLink: async ({ locals, params, url }) => {
 		const admin = adminActor(locals);
-		const token = createPasswordReset(admin.id, target(params.id).id, locals.clientIp);
-		return {
-			resetLink: `${(getSettings().appUrl || url.origin).replace(/\/$/, '')}/reset/${token}`
-		};
+		const user = target(params.id);
+		const token = createPasswordReset(admin.id, user.id, locals.clientIp);
+		const resetLink = `${(getSettings().appUrl || url.origin).replace(/\/$/, '')}/reset/${token}`;
+		const emailResult = emailEnabled() ? await sendAdminResetEmail(user.id, resetLink) : null;
+		return { resetLink, emailResult };
 	}
 };

@@ -392,3 +392,116 @@ export const COLUMNS_COOKIE = 'tikket_cols';
 
 /** Remembers whether the desktop sidebar is collapsed (a preference, not a secret). */
 export const SIDEBAR_COOKIE = 'tikket_sidebar';
+
+// ── v0.5: integrations ─────────────────────────────────────────────────────
+
+/** Email defaults: the things people usually want in their inbox (only used when SMTP is on). */
+export const DEFAULT_EMAIL_PREFS: NotificationPrefs = {
+	new_ticket: false,
+	comment: true,
+	status: true,
+	mention: true,
+	assigned: true,
+	update: false,
+	release: true,
+	milestone: false
+};
+
+export const HOOK_KINDS = ['discord', 'webhook'] as const;
+export type HookKind = (typeof HOOK_KINDS)[number];
+export const JOB_KINDS = ['email', 'discord', 'webhook'] as const;
+export type JobKind = (typeof JOB_KINDS)[number];
+export const JOB_STATUSES = ['pending', 'running', 'done', 'dead'] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+/** Events of generic outbound webhooks (payload schema version 1). */
+export const WEBHOOK_EVENTS = [
+	'ticket.created',
+	'ticket.updated',
+	'ticket.status_changed',
+	'ticket.assigned',
+	'ticket.completed',
+	'comment.created',
+	'release.published',
+	'milestone.completed'
+] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+export const WEBHOOK_EVENT_META: Record<WebhookEvent, string> = {
+	'ticket.created': 'A ticket is submitted',
+	'ticket.updated': 'Title, description, type or priority changes',
+	'ticket.status_changed': 'The status of a ticket changes',
+	'ticket.assigned': 'A ticket is assigned or unassigned',
+	'ticket.completed': 'A ticket is marked completed',
+	'comment.created': 'A public comment is posted (never internal notes)',
+	'release.published': 'A release is published',
+	'milestone.completed': 'A milestone is completed'
+};
+
+/** Events a Discord destination can subscribe to. */
+export const DISCORD_EVENTS = [
+	'new_ticket',
+	'new_bug',
+	'new_feature',
+	'high_priority',
+	'status_changed',
+	'completed',
+	'public_comment',
+	'release_published'
+] as const;
+export type DiscordEvent = (typeof DISCORD_EVENTS)[number];
+export const DISCORD_EVENT_META: Record<DiscordEvent, string> = {
+	new_ticket: 'Any new ticket',
+	new_bug: 'New bug reports',
+	new_feature: 'New feature requests',
+	high_priority: 'High or critical priority tickets',
+	status_changed: 'Status changes',
+	completed: 'Completed tickets',
+	public_comment: 'New public comments',
+	release_published: 'Published releases'
+};
+
+export const MERGE_ACTIONS = ['none', 'in_progress', 'completed'] as const;
+export type MergeAction = (typeof MERGE_ACTIONS)[number];
+export const MERGE_ACTION_LABEL: Record<MergeAction, string> = {
+	none: 'Do nothing',
+	in_progress: 'Move the ticket to In Progress',
+	completed: 'Mark the ticket Completed'
+};
+export const DEV_LINK_KINDS = ['pull_request', 'commit', 'issue'] as const;
+export type DevLinkKind = (typeof DEV_LINK_KINDS)[number];
+
+export const SMTP_SECURITY = ['none', 'starttls', 'tls'] as const;
+export type SmtpSecurity = (typeof SMTP_SECURITY)[number];
+
+// ── v0.5: roadmap ──────────────────────────────────────────────────────────
+
+export const ROADMAP_AUDIENCES = ['staff', 'members', 'viewers'] as const;
+export type RoadmapAudience = (typeof ROADMAP_AUDIENCES)[number];
+export const ROADMAP_AUDIENCE_LABEL: Record<RoadmapAudience, string> = {
+	staff: 'Staff only',
+	members: 'Project members',
+	viewers: 'Anyone who can view the project'
+};
+export interface RoadmapSettings {
+	audience: RoadmapAudience;
+	showReleases: boolean;
+	showReleaseDates: boolean;
+	showMilestones: boolean;
+	showPriorities: boolean;
+	showVotes: boolean;
+	showAssignees: boolean;
+}
+/**
+ * Defaults keep exactly what the roadmap showed before v0.5 (ticket titles, types and votes to
+ * everyone who can view the project – the same tickets they can already open) and keep all
+ * planning details (releases, dates, milestones, priorities, assignees) private.
+ */
+export const DEFAULT_ROADMAP_SETTINGS: RoadmapSettings = {
+	audience: 'viewers',
+	showReleases: false,
+	showReleaseDates: false,
+	showMilestones: false,
+	showPriorities: false,
+	showVotes: true,
+	showAssignees: false
+};

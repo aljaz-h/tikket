@@ -10,6 +10,7 @@ import {
 	globalRoleSchema,
 	parseForm
 } from '$lib/server/validation';
+import { sendInvitationEmail } from '$lib/server/email/account';
 import type { Actions, PageServerLoad } from './$types';
 
 const PAGE_SIZE = 30;
@@ -62,8 +63,14 @@ export const actions: Actions = {
 			{ email: email?.success ? email.data : null, role, projectId: null, projectRole: null },
 			locals.clientIp
 		);
-		return {
-			inviteLink: `${(getSettings().appUrl || url.origin).replace(/\/$/, '')}/invite/${token}`
-		};
+		const inviteLink = `${(getSettings().appUrl || url.origin).replace(/\/$/, '')}/invite/${token}`;
+		// With email configured, the invitation is also emailed; the link is shown either way.
+		const emailResult = email?.success
+			? await sendInvitationEmail(email.data, inviteLink, {
+					inviterName: admin.displayName,
+					expiresAt: new Date(Date.now() + getSettings().invitationLifetimeDays * 864e5)
+				})
+			: null;
+		return { inviteLink, emailResult };
 	}
 };

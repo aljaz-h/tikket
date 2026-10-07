@@ -122,6 +122,21 @@ export const projectSchema = z.object({
 	icon: optionalText(16),
 	color: z.enum(PROJECT_COLORS).default('indigo'),
 	url: optionalUrl,
+	/** Optional support / documentation link. */
+	docsUrl: optionalUrl,
+	/** Optional brand accent (#rrggbb); text on it is chosen automatically for contrast. */
+	accentColor: z
+		.string()
+		.trim()
+		.optional()
+		.transform((v, ctx) => {
+			if (!v) return null;
+			if (!/^#[0-9a-f]{6}$/i.test(v)) {
+				ctx.addIssue({ code: 'custom', message: 'Use a hex colour such as #b8f779' });
+				return z.NEVER;
+			}
+			return v.toLowerCase();
+		}),
 	visibility: z.enum(VISIBILITIES),
 	allowAnonymousRead: checkbox
 });

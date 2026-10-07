@@ -9,7 +9,7 @@
 
 **Tikket** is a lightweight, self-hosted issue and feedback tracker. Users pick a project, choose what they want to report — a bug, a feature request, an improvement or general feedback — and describe it in their own words, with screenshots and links. Project owners triage, prioritise, discuss and resolve tickets, and publish a roadmap and changelog.
 
-It runs as a single Node.js container with an embedded SQLite database and a data volume. No Redis, no PostgreSQL, no SMTP required.
+It runs as a single Node.js container with an embedded SQLite database and a data volume. No Redis, no PostgreSQL, no SMTP required – email, Discord, webhooks and GitHub are optional [integrations](docs/integrations.md).
 
 ---
 
@@ -22,6 +22,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Configuration](#configuration)
 - [Reverse proxy](#reverse-proxy) · [Coolify & proxy deployment guide](docs/deployment-coolify.md)
 - [Feedback widget guide](docs/feedback-widget.md) · [Project management guide](docs/project-management.md)
+- [Integrations](docs/integrations.md): [Email](docs/email.md) · [Webhooks](docs/webhooks.md) · [GitHub](docs/github.md) · [Data export](docs/data-export.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
 - [Development](#development)
@@ -73,9 +74,20 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - Dashboards: personal (my submissions, following, recently updated, notifications) and staff (open/planned/in-progress counters, new reports to review, most requested, recent activity).
 - Automatic roadmap (Planned / In Progress / Completed) and a changelog of published releases.
 
+**Integrations & communication (all optional)**
+
+- **Email notifications** over SMTP (admin form or environment variables), with per-person in-app and email preferences, aggregation, emailed invitations and self-service password resets. Branded transactional emails without tracking. → [Email](docs/email.md)
+- **Discord** notifications per project (new tickets/bugs/features, high priority, status changes, completions, public comments, releases). → [Integrations](docs/integrations.md#discord)
+- **Signed webhooks** with a versioned JSON envelope, HMAC-SHA256 signatures, retries and delivery history. → [Webhooks](docs/webhooks.md)
+- **GitHub**: commits and pull requests that mention `SPL-42` appear on the ticket with their state; optional merge automation. → [GitHub](docs/github.md)
+- **Public roadmap controls**: staff only, project members or everyone who can view the project, with switches for releases, dates, milestones, priorities, votes and assignees.
+- **Exports**: versioned project JSON (standard or staff), formula-safe ticket CSV, and a personal export of your own submissions. → [Data export](docs/data-export.md)
+- Integration secrets are encrypted at rest with `ENCRYPTION_KEY`; deliveries run from a persistent SQLite queue inside the same container.
+
 **Projects, people and administration**
 
 - Multiple projects with unique keys (`SPL-1`, `SPL-2`, …), public/private visibility and optional anonymous read-only access.
+- **Project branding**: logo, optional accent colour (used sparingly on the project's icon, header action, roadmap and widget; text contrast is chosen automatically), short description, website and support/documentation link.
 - **Project logos**: upload a PNG, JPEG or WebP image (drag & drop or file picker, with preview), or fetch the project website's icon. Without a logo, the emoji or coloured initial is used. Logos appear wherever the project is shown (sidebar, lists, search, ticket pages).
 - Per-project roles: owner, moderator, member. Project settings are grouped under _General_ (general settings, members, labels, danger zone – picked from a dropdown that shows the current section, each with its own URL), _Feedback widget_ and _Ticket templates_. Settings for voting, attachments, comments, submission policy and author edit policy. Archiving keeps all history read-only.
 - Secure, single-use, expiring invitation links (optionally bound to an email) for the instance or a specific project.
@@ -142,22 +154,26 @@ start-up; invalid values (missing `ORIGIN`, short/placeholder `SESSION_SECRET`, 
 limits, malformed proxy settings, an unwritable data directory) stop the process with a message
 listing every problem.
 
-| Variable                                                       | Default                                            | Description                                                                                                                                                                                                                                               |
-| -------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ORIGIN`                                                       | — (**required** in production)                     | Public URL, e.g. `https://tikket.example.com` (no path, no trailing slash). Used for CSRF origin checks, `Secure` cookies, HSTS and every absolute link; forwarded `Host`/`Proto` headers are never trusted instead.                                      |
-| `APP_URL`                                                      | `ORIGIN`                                           | Base for invitation/reset links (also editable in System settings).                                                                                                                                                                                       |
-| `SESSION_SECRET`                                               | auto-generated                                     | ≥ 32 characters. Sessions are stored as an HMAC of the cookie token with this secret. If empty, a secret is generated once and stored in `DATA_DIR/.session-secret` (logged as a warning). Changing it signs everyone out.                                |
-| `PORT` / `HOST`                                                | `3000` / `0.0.0.0`                                 | Listen address inside the container.                                                                                                                                                                                                                      |
-| `DATA_DIR`                                                     | `./data` (`/data` in Docker)                       | Database, uploads and generated secret.                                                                                                                                                                                                                   |
-| `DATABASE_PATH`                                                | `$DATA_DIR/tikket.db`                              | SQLite file.                                                                                                                                                                                                                                              |
-| `UPLOADS_DIR`                                                  | `$DATA_DIR/uploads`                                | Attachment storage.                                                                                                                                                                                                                                       |
-| `MAX_UPLOAD_SIZE`                                              | `10M`                                              | Hard per-image limit (admins can set a lower limit in the UI).                                                                                                                                                                                            |
-| `BODY_SIZE_LIMIT`                                              | `25M` in Docker (`512K` adapter default otherwise) | Max request body. Must be ≥ `MAX_UPLOAD_SIZE`; the no-JS form can send several images at once.                                                                                                                                                            |
-| `SHUTDOWN_TIMEOUT`                                             | `10` in Docker (`30` adapter default otherwise)    | Seconds to let in-flight requests finish after `SIGTERM` before remaining connections are closed. Keep it below the container stop grace period (30 s in the Compose files) so shutdown is always clean.                                                  |
-| `ADDRESS_HEADER` / `XFF_DEPTH`                                 | empty / `1`                                        | Set to `X-Forwarded-For` / number of trusted proxy hops when Tikket is only reachable through your proxy, so rate limiting and audit logs see real client IPs. Leave empty otherwise — see [trusted proxies](docs/deployment-coolify.md#trusted-proxies). |
-| `LOGIN_RATE_LIMIT`                                             | `10`                                               | Failed sign-ins per account per 15 min (per-IP limit is 3×).                                                                                                                                                                                              |
-| `MIGRATIONS_DIR`                                               | `./drizzle`                                        | Location of SQL migrations.                                                                                                                                                                                                                               |
-| `PROXY_NETWORK` / `PROXY_ALIAS` / `HOST_PORT` / `TIKKET_IMAGE` |                                                    | Only used by the matching Compose file/override.                                                                                                                                                                                                          |
+| Variable                                                                                                                                                | Default                                            | Description                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ORIGIN`                                                                                                                                                | — (**required** in production)                     | Public URL, e.g. `https://tikket.example.com` (no path, no trailing slash). Used for CSRF origin checks, `Secure` cookies, HSTS and every absolute link; forwarded `Host`/`Proto` headers are never trusted instead.                                      |
+| `APP_URL`                                                                                                                                               | `ORIGIN`                                           | Base for invitation/reset links (also editable in System settings).                                                                                                                                                                                       |
+| `SESSION_SECRET`                                                                                                                                        | auto-generated                                     | ≥ 32 characters. Sessions are stored as an HMAC of the cookie token with this secret. If empty, a secret is generated once and stored in `DATA_DIR/.session-secret` (logged as a warning). Changing it signs everyone out.                                |
+| `PORT` / `HOST`                                                                                                                                         | `3000` / `0.0.0.0`                                 | Listen address inside the container.                                                                                                                                                                                                                      |
+| `DATA_DIR`                                                                                                                                              | `./data` (`/data` in Docker)                       | Database, uploads and generated secret.                                                                                                                                                                                                                   |
+| `DATABASE_PATH`                                                                                                                                         | `$DATA_DIR/tikket.db`                              | SQLite file.                                                                                                                                                                                                                                              |
+| `UPLOADS_DIR`                                                                                                                                           | `$DATA_DIR/uploads`                                | Attachment storage.                                                                                                                                                                                                                                       |
+| `MAX_UPLOAD_SIZE`                                                                                                                                       | `10M`                                              | Hard per-image limit (admins can set a lower limit in the UI).                                                                                                                                                                                            |
+| `BODY_SIZE_LIMIT`                                                                                                                                       | `25M` in Docker (`512K` adapter default otherwise) | Max request body. Must be ≥ `MAX_UPLOAD_SIZE`; the no-JS form can send several images at once.                                                                                                                                                            |
+| `SHUTDOWN_TIMEOUT`                                                                                                                                      | `10` in Docker (`30` adapter default otherwise)    | Seconds to let in-flight requests finish after `SIGTERM` before remaining connections are closed. Keep it below the container stop grace period (30 s in the Compose files) so shutdown is always clean.                                                  |
+| `ADDRESS_HEADER` / `XFF_DEPTH`                                                                                                                          | empty / `1`                                        | Set to `X-Forwarded-For` / number of trusted proxy hops when Tikket is only reachable through your proxy, so rate limiting and audit logs see real client IPs. Leave empty otherwise — see [trusted proxies](docs/deployment-coolify.md#trusted-proxies). |
+| `LOGIN_RATE_LIMIT`                                                                                                                                      | `10`                                               | Failed sign-ins per account per 15 min (per-IP limit is 3×).                                                                                                                                                                                              |
+| `MIGRATIONS_DIR`                                                                                                                                        | `./drizzle`                                        | Location of SQL migrations.                                                                                                                                                                                                                               |
+| `ENCRYPTION_KEY`                                                                                                                                        | —                                                  | 32 random bytes (`openssl rand -base64 32`). Required to store integration secrets; never generated automatically. **Back it up** – see [encryption key](docs/integrations.md#the-encryption-key-encryption_key).                                         |
+| `ENCRYPTION_KEY_PREVIOUS`                                                                                                                               | —                                                  | Old key(s) during a key rotation (comma-separated).                                                                                                                                                                                                       |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_FROM_NAME`, `SMTP_REPLY_TO`, `SMTP_TIMEOUT`, `SMTP_ENABLED` | —                                                  | Optional email configuration; when `SMTP_HOST` is set it takes precedence over Administration → Email. See [Email](docs/email.md).                                                                                                                        |
+| `OUTBOUND_ALLOW_PRIVATE_NETWORKS`                                                                                                                       | `false`                                            | Allow webhooks to private addresses (trusted single-tenant setups only).                                                                                                                                                                                  |
+| `PROXY_NETWORK` / `PROXY_ALIAS` / `HOST_PORT` / `TIKKET_IMAGE`                                                                                          |                                                    | Only used by the matching Compose file/override.                                                                                                                                                                                                          |
 
 ## Reverse proxy
 
@@ -190,6 +206,12 @@ Project logos are stored in the same uploads directory, so they survive containe
 Attachments are never served from a static directory: `/api/files/<id>` checks that the viewer can access the attachment's project (pending uploads are visible only to the uploader). Display names are stored separately from the random file names.
 
 ### Backup
+
+> **⚠️ Back up `ENCRYPTION_KEY` separately (e.g. in your password manager).** The database contains
+> integration configuration, encrypted integration secrets, the delivery queue/history, GitHub
+> references and project branding. Restoring it needs the **same** `ENCRYPTION_KEY`; without it the
+> encrypted secrets (SMTP password, Discord/webhook URLs, signing secrets, GitHub secrets) cannot be
+> recovered and must be re-entered – see [lost encryption key](docs/integrations.md#lost-encryption-key).
 
 The database must be copied consistently — don't just copy `tikket.db` while the app is running. Use the included online backup script (SQLite backup API; safe while running):
 
@@ -316,12 +338,20 @@ Key decisions:
 - **Quick actions reuse bulk editing** (one ticket, same action), so authorisation, transactions, history and notification grouping are identical.
 - **Progress is derived**: release and milestone progress is a grouped count over tickets, computed for all items in one query.
 
-### v0.5 design notes
+### v0.5 design notes (UI refinements and logos)
 
 - **Logos are attachments** of kind `project_logo` referenced by `projects.logo_id` (migration `0004_project_logos`, additive; `ON DELETE SET NULL`). Every logo is decoded and re-encoded to a 256 × 256 PNG (`fit: contain` on transparent), which validates the content and strips metadata. Fetched icons are stored as pending previews owned by the requester until applied; unapplied previews are removed by the regular pending-upload cleanup. Replacing or removing a logo deletes the old file.
 - **One `ProjectIcon` component** renders logos everywhere, falling back to the emoji/initial if there is no logo or the image fails to load.
 - **Settings sections are routes** (`/p/<KEY>/settings`, `/members`, `/labels`, `/danger`), so the dropdown label, deep links and back/forward all follow the URL. Old `#members`/`#labels`/`#danger-zone` links redirect.
 - **Tab rows** share one `TabNav` component. The active underline is an inset shadow instead of a negative margin (the old cause of a needless scrollbar); on narrow screens rows scroll horizontally without a visible scrollbar.
+
+### Integrations design notes
+
+- **One outbound queue** (`outbound_jobs`) for email, Discord and webhooks: transactional enqueue, lease-based claiming, capped exponential backoff, dead state, pruning, graceful shutdown. Synchronous sending would have tied request latency and reliability to third-party servers, so a small persistent queue was justified; it stays inside the existing container and database.
+- **One event bus** (`integrations/events.ts`): services emit `ticket.*`, `comment.created`, `release.published` and `milestone.completed` inside their transaction; payloads are built once, never contain internal notes, and are shared by webhooks and Discord.
+- **Email mirrors notifications**: `notify()` decides who may hear about something (active, can view the project, staff for internal notes); email preferences are applied on top, and everything is re-checked when the email is sent.
+- **Secrets** live in their own encrypted columns bound to their purpose (AES-GCM additional data); the start-up check refuses stored secrets without a key and re-encrypts after rotation.
+- **Roadmap settings** default to what the roadmap already showed (ticket titles, types, votes to project viewers); every planning detail is opt-in and omitted from the server response when off. Migration `0005_integrations` only adds tables and nullable columns.
 
 ### Phase 2 design notes
 
@@ -342,7 +372,8 @@ Key decisions:
 - Invitation and reset tokens are random, stored hashed, single-use, expiring and revocable; the granted role always comes from the stored record.
 - Security-relevant actions are written to the audit log (admins only).
 - The feedback widget never exposes credentials in host pages; see the [widget security model](docs/feedback-widget.md#security-model).
-- The only outbound requests to user-supplied URLs are project owners' _Fetch website icon_ requests. They go through an SSRF guard (`src/lib/server/safe-fetch.ts`): http/https on ports 80/443 only, no credentials in URLs, every DNS answer must be a public address (loopback, private, link-local/cloud metadata, CGNAT, multicast, reserved and IPv4-mapped forms are refused), the connection is pinned to the validated address, redirects (max 3) are re-validated, and requests have strict time and size limits. SVG is never accepted; fetched icons are decoded and re-encoded like uploads, shown as a preview first and stored locally (never hot-linked or refetched).
+- Outbound requests to user-supplied URLs (webhooks, Discord, GitHub API, _Fetch website icon_) all go through the same SSRF guard; webhooks never follow redirects and private destinations need the explicit `OUTBOUND_ALLOW_PRIVATE_NETWORKS` opt-in. Integration secrets are encrypted at rest (AES-256-GCM, `ENCRYPTION_KEY`), never returned to the browser and never logged; webhooks are signed (HMAC-SHA256 with timestamp); GitHub deliveries are verified (`X-Hub-Signature-256`), checked against the connected repository and replay-protected; exports are owner-only and audit-logged, and CSV cells are protected against formula injection. Details in [docs/integrations.md](docs/integrations.md).
+- _Fetch website icon_ additionally uses only ports 80/443, no credentials in URLs, every DNS answer must be a public address (loopback, private, link-local/cloud metadata, CGNAT, multicast, reserved and IPv4-mapped forms are refused), the connection is pinned to the validated address, redirects (max 3) are re-validated, and requests have strict time and size limits. SVG is never accepted; fetched icons are decoded and re-encoded like uploads, shown as a preview first and stored locally (never hot-linked or refetched).
 - Project logos can only be changed by project owners and administrators on non-archived projects; changes are audit-logged.
 - The container runs as the non-root `node` user with a read-only root filesystem in the provided Compose file.
 
@@ -361,7 +392,10 @@ Key decisions:
 
 ## Known limitations
 
-- **Email notifications are not implemented** — notifications are in-app only (by design no SMTP is required). Invitation and reset links are shown to the admin/owner to share manually.
+- Email, Discord, webhooks and GitHub were tested against local mock servers (an SMTP sink, a local HTTP receiver, signed fake GitHub deliveries) – not against the real services.
+- GitHub uses a repository webhook plus an optional read-only token; a GitHub App installation flow is not implemented. One repository per project; no issue synchronisation.
+- No email-to-ticket ingestion; replies to notification emails are not read.
+- The JSON export is designed for a future import, but import/restore is not implemented yet.
 - Website-icon fetching supports PNG, JPEG, WebP and GIF icons and PNG images inside `.ico` files; SVG-only icons and BMP-only `.ico` files are not supported (upload a logo instead). Only the standard ports 80/443 are fetched.
 - Single-instance design (in-memory rate limiting, SQLite). Run one container per data volume.
 - The UI is English only.

@@ -17,6 +17,9 @@ export function describeActivity(type: string, data: Record<string, unknown>): s
 		case 'status': {
 			const to = data.to as TicketStatus;
 			const from = data.from as TicketStatus;
+			const via = data.automation as { pr?: number } | undefined;
+			if (via?.pr)
+				return `${data.effect === 'completed' ? 'marked this as completed' : `moved this to ${STATUS_META[to]?.label}`} after pull request #${via.pr} was merged`;
 			if (data.effect === 'completed') return 'marked this as completed';
 			if (data.effect === 'reopened') return `reopened this (${STATUS_META[to]?.label})`;
 			if (to === 'duplicate') return 'marked this as a duplicate';

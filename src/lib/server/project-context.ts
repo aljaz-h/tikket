@@ -26,6 +26,8 @@ export function clientProject(access: ProjectAccess) {
 		logoId: p.logoId,
 		color: p.color,
 		url: p.url,
+		docsUrl: p.docsUrl,
+		accentColor: p.accentColor,
 		visibility: p.visibility,
 		allowAnonymousRead: p.allowAnonymousRead,
 		submissionPolicy: p.submissionPolicy,

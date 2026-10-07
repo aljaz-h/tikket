@@ -15,6 +15,7 @@ import {
 import { findUserByIdentifier } from '$lib/server/services/users';
 import { getSettings } from '$lib/server/settings';
 import { email as emailSchema, projectRoleSchema } from '$lib/server/validation';
+import { sendInvitationEmail } from '$lib/server/email/account';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -112,7 +113,15 @@ export const actions: Actions = {
 			locals.clientIp
 		);
 		const base = getSettings().appUrl || url.origin;
-		return { inviteLink: `${base.replace(/\/$/, '')}/invite/${token}` };
+		const inviteLink = `${base.replace(/\/$/, '')}/invite/${token}`;
+		const emailResult = email?.success
+			? await sendInvitationEmail(email.data, inviteLink, {
+					inviterName: user.displayName,
+					projectName: access.project.name,
+					expiresAt: new Date(Date.now() + getSettings().invitationLifetimeDays * 864e5)
+				})
+			: null;
+		return { inviteLink, emailResult };
 	},
 
 	revokeInvite: async ({ locals, params, request }) => {

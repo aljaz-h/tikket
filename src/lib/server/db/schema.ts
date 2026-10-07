@@ -29,7 +29,13 @@ import type {
 	TicketPriority,
 	TicketStatus,
 	TicketType,
-	Visibility
+	Visibility,
+	HookKind,
+	JobKind,
+	JobStatus,
+	MergeAction,
+	DevLinkKind,
+	RoadmapSettings
 } from '../../shared/constants';
 
 /** Unix epoch milliseconds stored as INTEGER, exposed as Date. */
@@ -56,6 +62,8 @@ export const users = sqliteTable(
 		bio: text('bio'),
 		theme: text('theme').$type<Theme>(),
 		notificationPrefs: text('notification_prefs', { mode: 'json' }).$type<NotificationPrefs>(),
+		/** Email notification categories (null = defaults). Only used when SMTP is configured. */
+		emailPrefs: text('email_prefs', { mode: 'json' }).$type<NotificationPrefs>(),
 		createdAt: timestamp('created_at').notNull().default(now),
 		updatedAt: timestamp('updated_at').notNull().default(now),
 		lastLoginAt: timestamp('last_login_at'),
@@ -100,6 +108,12 @@ export const projects = sqliteTable(
 		}),
 		color: text('color').notNull().default('indigo'),
 		url: text('url'),
+		/** Optional brand colour (#rrggbb) used sparingly: header, roadmap, widget, project CTAs. */
+		accentColor: text('accent_color'),
+		/** Optional support / documentation link shown in the project header. */
+		docsUrl: text('docs_url'),
+		/** Who may see the roadmap and which planning details it shows (null = defaults). */
+		roadmapSettings: text('roadmap_settings', { mode: 'json' }).$type<RoadmapSettings>(),
 		visibility: text('visibility').$type<Visibility>().notNull().default('private'),
 		allowAnonymousRead: integer('allow_anonymous_read', { mode: 'boolean' })
 			.notNull()
@@ -662,6 +676,178 @@ export const appSettings = sqliteTable('app_settings', {
 	updatedAt: timestamp('updated_at').notNull().default(now)
 });
 
+// ── v0.5: integrations ─────────────────────────────────────────────────────
+
+/**
+ * Project notification destinations: Discord webhooks and generic signed webhooks. The
+ * destination URL (a secret for Discord) and the signing secret are encrypted at rest
+ * (see secrets.ts); `urlHint` is a masked form that is safe to show.
+ */
+export const projectHooks = sqliteTable(
+	'project_hooks',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		kind: text('kind').$type<HookKind>().notNull(),
+		name: text('name').notNull(),
+		urlEnc: text('url_enc').notNull(),
+		urlHint: text('url_hint').notNull(),
+		secretEnc: text('secret_enc'),
+		events: text('events', { mode: 'json' }).$type<string[]>().notNull().default([]),
+		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+		lastSuccessAt: timestamp('last_success_at'),
+		lastFailureAt: timestamp('last_failure_at'),
+		lastError: text('last_error'),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now)
+	},
+	(t) => [
+		index('project_hooks_project_idx').on(t.projectId, t.kind),
+		check('project_hooks_kind_check', sql`${t.kind} in ('discord','webhook')`)
+	]
+);
+
+/**
+ * Persistent outbound delivery queue (email, Discord, webhooks). Jobs are inserted in the same
+ * transaction as the action that caused them, claimed with a lease, retried with capped
+ * exponential backoff and finally marked dead. Successful jobs are pruned after a few days.
+ */
+export const outboundJobs = sqliteTable(
+	'outbound_jobs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		kind: text('kind').$type<JobKind>().notNull(),
+		status: text('status').$type<JobStatus>().notNull().default('pending'),
+		payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+		/** Prevents the same event from being delivered twice to the same destination. */
+		dedupeKey: text('dedupe_key'),
+		projectId: integer('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+		hookId: integer('hook_id').references(() => projectHooks.id, { onDelete: 'cascade' }),
+		attempts: integer('attempts').notNull().default(0),
+		maxAttempts: integer('max_attempts').notNull().default(6),
+		nextAttemptAt: timestamp('next_attempt_at').notNull().default(now),
+		leaseUntil: timestamp('lease_until'),
+		lastError: text('last_error'),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now),
+		finishedAt: timestamp('finished_at')
+	},
+	(t) => [
+		uniqueIndex('outbound_jobs_dedupe_unique').on(t.dedupeKey),
+		index('outbound_jobs_due_idx').on(t.status, t.nextAttemptAt),
+		index('outbound_jobs_kind_idx').on(t.kind, t.status, t.updatedAt),
+		check('outbound_jobs_status_check', sql`${t.status} in ('pending','running','done','dead')`),
+		check('outbound_jobs_kind_check', sql`${t.kind} in ('email','discord','webhook')`)
+	]
+);
+
+/** Small, bounded delivery history per destination (no bodies, no secret headers). */
+export const hookDeliveries = sqliteTable(
+	'hook_deliveries',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		hookId: integer('hook_id')
+			.notNull()
+			.references(() => projectHooks.id, { onDelete: 'cascade' }),
+		jobId: integer('job_id').references(() => outboundJobs.id, { onDelete: 'set null' }),
+		event: text('event').notNull(),
+		eventId: text('event_id').notNull(),
+		attempt: integer('attempt').notNull(),
+		statusCode: integer('status_code'),
+		durationMs: integer('duration_ms').notNull().default(0),
+		success: integer('success', { mode: 'boolean' }).notNull(),
+		/** Short, sanitised error excerpt. */
+		error: text('error'),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [index('hook_deliveries_hook_idx').on(t.hookId, t.createdAt)]
+);
+
+/** A GitHub repository connected to a project (one per project for now; the schema allows more). */
+export const githubConnections = sqliteTable(
+	'github_connections',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		/** Random identifier used in the webhook URL (never the numeric id). */
+		publicId: text('public_id').notNull(),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		owner: text('owner').notNull(),
+		repo: text('repo').notNull(),
+		/** GitHub's numeric repository id, learned from the first verified event. */
+		repoId: integer('repo_id'),
+		webhookSecretEnc: text('webhook_secret_enc').notNull(),
+		/** Optional read-only token (fine-grained PAT) for private repositories. */
+		tokenEnc: text('token_enc'),
+		mergeAction: text('merge_action').$type<MergeAction>().notNull().default('none'),
+		lastEventAt: timestamp('last_event_at'),
+		lastEventType: text('last_event_type'),
+		lastErrorAt: timestamp('last_error_at'),
+		lastError: text('last_error'),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now)
+	},
+	(t) => [
+		uniqueIndex('github_connections_public_unique').on(t.publicId),
+		index('github_connections_project_idx').on(t.projectId),
+		check(
+			'github_connections_merge_check',
+			sql`${t.mergeAction} in ('none','in_progress','completed')`
+		)
+	]
+);
+
+/** Processed GitHub webhook deliveries (replay protection); pruned after 30 days. */
+export const githubDeliveries = sqliteTable(
+	'github_deliveries',
+	{
+		id: text('id').primaryKey(),
+		connectionId: integer('connection_id')
+			.notNull()
+			.references(() => githubConnections.id, { onDelete: 'cascade' }),
+		event: text('event').notNull(),
+		receivedAt: timestamp('received_at').notNull().default(now)
+	},
+	(t) => [index('github_deliveries_received_idx').on(t.receivedAt)]
+);
+
+/** Development references of a ticket: pull requests, commits and (manually added) issues. */
+export const ticketDevLinks = sqliteTable(
+	'ticket_dev_links',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		ticketId: integer('ticket_id')
+			.notNull()
+			.references(() => tickets.id, { onDelete: 'cascade' }),
+		connectionId: integer('connection_id')
+			.notNull()
+			.references(() => githubConnections.id, { onDelete: 'cascade' }),
+		kind: text('kind').$type<DevLinkKind>().notNull(),
+		/** PR/issue number or full commit SHA. */
+		ref: text('ref').notNull(),
+		title: text('title').notNull().default(''),
+		url: text('url').notNull(),
+		/** open | merged | closed for PRs and issues; null for commits. */
+		state: text('state'),
+		author: text('author'),
+		externalUpdatedAt: timestamp('external_updated_at'),
+		source: text('source').$type<'auto' | 'manual'>().notNull().default('auto'),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now)
+	},
+	(t) => [
+		uniqueIndex('ticket_dev_links_unique').on(t.ticketId, t.connectionId, t.kind, t.ref),
+		index('ticket_dev_links_ref_idx').on(t.connectionId, t.kind, t.ref),
+		check('ticket_dev_links_kind_check', sql`${t.kind} in ('pull_request','commit','issue')`)
+	]
+);
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Project = typeof projects.$inferSelect;
@@ -680,3 +866,8 @@ export type WidgetSettings = typeof widgetSettings.$inferSelect;
 export type TicketTemplate = typeof ticketTemplates.$inferSelect;
 export type TicketTemplateField = typeof ticketTemplateFields.$inferSelect;
 export type TicketRelationship = typeof ticketRelationships.$inferSelect;
+export type ProjectHook = typeof projectHooks.$inferSelect;
+export type OutboundJob = typeof outboundJobs.$inferSelect;
+export type HookDelivery = typeof hookDeliveries.$inferSelect;
+export type GithubConnection = typeof githubConnections.$inferSelect;
+export type TicketDevLink = typeof ticketDevLinks.$inferSelect;
