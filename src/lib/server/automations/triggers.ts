@@ -86,6 +86,43 @@ function chainEvents(tx: DB, root: string) {
 	);
 }
 
+export const LIMIT_MESSAGE = `Automation stopped after reaching the ${MAX_CHAIN_EVENTS}-event safety limit.`;
+
+/**
+ * Records (once per chain) that the fan-out guard dropped events, as a staff-visible entry in the
+ * automation history – so a bad combination of rules can be found without reading server logs.
+ */
+function recordLimitReached(
+	tx: DB,
+	projectId: number,
+	trigger: AutomationTrigger,
+	ticketId: number | null,
+	chain: Chain
+) {
+	const eventId = `limit_${chain.root}`;
+	const exists = tx
+		.select({ id: schema.automationRuns.id })
+		.from(schema.automationRuns)
+		.where(eq(schema.automationRuns.eventId, eventId))
+		.get();
+	if (exists) return;
+	tx.insert(schema.automationRuns)
+		.values({
+			automationId: null,
+			automationName: 'Safety limit',
+			projectId,
+			ticketId,
+			trigger,
+			eventId,
+			status: 'skipped',
+			depth: chain.depth,
+			protection: 'fanout',
+			error: LIMIT_MESSAGE
+		})
+		.run();
+	console.warn(`[tikket] automation chain=${chain.root} project=${projectId}: ${LIMIT_MESSAGE}`);
+}
+
 /** Queues automation processing for an event if any enabled rule listens to it. */
 export function fireTrigger(
 	tx: DB,
@@ -98,9 +135,7 @@ export function fireTrigger(
 	// Fan-out guard: one person's change may cause at most MAX_CHAIN_EVENTS automated events in
 	// total (many rules reacting to each other's changes would otherwise multiply jobs).
 	if (current && chainEvents(tx, current.root) >= MAX_CHAIN_EVENTS) {
-		console.warn(
-			`[tikket] automation chain ${current.root} reached ${MAX_CHAIN_EVENTS} events; stopped`
-		);
+		recordLimitReached(tx, projectId, trigger, ticketId, current);
 		return false;
 	}
 	const eventId = `aev_${randomId(12)}`;

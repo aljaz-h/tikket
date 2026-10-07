@@ -41,6 +41,8 @@ import type {
 	AutomationAction,
 	AutomationRunStatus,
 	AutomationRunAction,
+	AutomationProtection,
+	AutomationConditionSummary,
 	ApiScope,
 	TokenKind,
 	WorkflowSettings
@@ -260,6 +262,8 @@ export const tickets = sqliteTable(
 		index('tickets_assignee_idx').on(t.assigneeId),
 		index('tickets_release_idx').on(t.releaseId, t.status),
 		index('tickets_milestone_idx').on(t.milestoneId, t.status),
+		index('tickets_project_created_idx').on(t.projectId, t.createdAt),
+		index('tickets_duplicate_of_idx').on(t.duplicateOfId),
 		check(
 			'tickets_status_check',
 			sql`${t.status} in ('open','planned','in_progress','completed','on_hold','declined','duplicate')`
@@ -755,6 +759,7 @@ export const outboundJobs = sqliteTable(
 		uniqueIndex('outbound_jobs_dedupe_unique').on(t.dedupeKey),
 		index('outbound_jobs_due_idx').on(t.status, t.nextAttemptAt),
 		index('outbound_jobs_kind_idx').on(t.kind, t.status, t.updatedAt),
+		index('outbound_jobs_project_idx').on(t.projectId, t.status),
 		check('outbound_jobs_status_check', sql`${t.status} in ('pending','running','done','dead')`),
 		check('outbound_jobs_kind_check', sql`${t.kind} in ('email','discord','webhook','automation')`)
 	]
@@ -922,6 +927,10 @@ export const automationRuns = sqliteTable(
 		actions: text('actions', { mode: 'json' }).$type<AutomationRunAction[]>().notNull().default([]),
 		error: text('error'),
 		durationMs: integer('duration_ms').notNull().default(0),
+		/** Safety mechanism that stopped this run: 'loop', 'depth' or 'fanout' (v0.7). */
+		protection: text('protection').$type<AutomationProtection>(),
+		/** Condition evaluation summary shown in the run details (v0.7). */
+		conditions: text('conditions', { mode: 'json' }).$type<AutomationConditionSummary>(),
 		createdAt: timestamp('created_at').notNull().default(now)
 	},
 	(t) => [
@@ -1010,6 +1019,28 @@ export const imports = sqliteTable(
 	(t) => [
 		index('imports_project_idx').on(t.projectId, t.createdAt),
 		check('imports_status_check', sql`${t.status} in ('review','running','completed','failed')`)
+	]
+);
+
+/** Personal "remind me about this ticket" reminders (v0.7): one-off, no recurrence. */
+export const ticketReminders = sqliteTable(
+	'ticket_reminders',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		ticketId: integer('ticket_id')
+			.notNull()
+			.references(() => tickets.id, { onDelete: 'cascade' }),
+		remindAt: timestamp('remind_at').notNull(),
+		note: text('note'),
+		sentAt: timestamp('sent_at'),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [
+		index('ticket_reminders_due_idx').on(t.sentAt, t.remindAt),
+		index('ticket_reminders_user_idx').on(t.userId, t.ticketId)
 	]
 );
 

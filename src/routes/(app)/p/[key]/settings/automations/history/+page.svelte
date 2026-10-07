@@ -12,7 +12,12 @@
 	import Card from '$lib/components/ui/card.svelte';
 	import Input from '$lib/components/ui/input.svelte';
 	import Select from '$lib/components/ui/select.svelte';
-	import { AUTOMATION_TRIGGER_META } from '$lib/shared/constants';
+	import ShieldAlert from '@lucide/svelte/icons/shield-alert';
+	import {
+		AUTOMATION_PROTECTION_LABEL,
+		AUTOMATION_TRIGGER_META,
+		type AutomationProtection
+	} from '$lib/shared/constants';
 	import { formatDateTime, projectPath, ticketPath } from '$lib/shared/format';
 	import { cn } from '$lib/utils';
 
@@ -80,7 +85,8 @@
 					{ value: '', label: 'All results' },
 					{ value: 'success', label: 'Success' },
 					{ value: 'failed', label: 'Failed' },
-					{ value: 'skipped', label: 'Skipped (loop)' }
+					{ value: 'skipped', label: 'Skipped' },
+					{ value: 'protected', label: 'Stopped by a safety limit' }
 				]}
 			/>
 			<Input
@@ -108,6 +114,10 @@
 						>
 							<IntegrationStatus state={runState(run.status)} label={label(run.status)} />
 							<span class="min-w-0 flex-1 text-sm">
+								{#if run.protection}<ShieldAlert
+										class="mr-1 inline size-3.5 align-[-2px] text-warning"
+										aria-label={AUTOMATION_PROTECTION_LABEL[run.protection as AutomationProtection]}
+									/>{/if}
 								<span class="font-medium [overflow-wrap:anywhere]">{run.automationName}</span>
 								<span class="text-muted-foreground">
 									· {AUTOMATION_TRIGGER_META[run.trigger]?.label ?? run.trigger}
@@ -132,8 +142,11 @@
 										{#if run.automationId}<a
 												href="{base}/{run.automationId}"
 												class="text-link hover:underline">{run.automationName}</a
-											>{:else}{run.automationName} (deleted){/if}
+											>{:else if run.protection === 'fanout'}Several rules{:else}{run.automationName}
+											(deleted){/if}
 									</dd>
+									<dt class="text-muted-foreground">Duration</dt>
+									<dd>{run.durationMs} ms</dd>
 									<dt class="text-muted-foreground">Ticket</dt>
 									<dd>
 										{#if run.ticketNumber}<a
@@ -150,6 +163,12 @@
 											? 'Direct (caused by a person or integration)'
 											: `${run.depth} (caused by another automation)`}
 									</dd>
+									{#if run.protection}
+										<dt class="text-muted-foreground">Protection</dt>
+										<dd class="text-warning">
+											{AUTOMATION_PROTECTION_LABEL[run.protection as AutomationProtection]} intervened
+										</dd>
+									{/if}
 									{#if run.error}
 										<dt class="text-muted-foreground">
 											{run.status === 'skipped' ? 'Reason' : 'Error'}
@@ -157,13 +176,58 @@
 										<dd class={run.status === 'failed' ? 'text-destructive' : ''}>{run.error}</dd>
 									{/if}
 								</dl>
+								{#if run.conditions}
+									{@const conds = run.conditions.conditions}
+									<div class="grid gap-1">
+										<p class="text-xs font-medium text-muted-foreground">
+											Conditions {run.conditions.matched ? 'matched' : 'did not match'}
+										</p>
+										{#if conds.length}
+											<ul class="grid gap-1 text-xs" aria-label="Conditions">
+												{#each conds as c, i (i)}
+													<li class="flex items-start gap-1.5">
+														{#if i > 0 && c.group !== conds[i - 1].group}<span
+																class="font-semibold text-link">OR</span
+															>{/if}
+														{#if c.passed}<CircleCheck
+																class="mt-0.5 size-3.5 shrink-0 text-success"
+																aria-label="Passed"
+															/>{:else}<CircleX
+																class="mt-0.5 size-3.5 shrink-0 text-destructive"
+																aria-label="Not passed"
+															/>{/if}
+														<span class="[overflow-wrap:anywhere]">{c.text}</span>
+													</li>
+												{/each}
+											</ul>
+										{:else}
+											<p class="text-xs text-muted-foreground">
+												No conditions – the rule runs for every ticket.
+											</p>
+										{/if}
+									</div>
+								{/if}
 								{#if run.actions.length}
-									<ul class="grid gap-1 text-xs">
+									{@const notRun = run.actions.filter((a) => a.skipped).length}
+									<p class="text-xs font-medium text-muted-foreground">
+										Actions: {run.actions.length - notRun} attempted{notRun
+											? `, ${notRun} not run`
+											: ''}
+									</p>
+									<ul class="grid gap-1 text-xs" aria-label="Actions">
 										{#each run.actions as a, i (i)}
 											<li class="flex items-start gap-1.5">
-												{#if !a.ok}<CircleX class="mt-0.5 size-3.5 shrink-0 text-destructive" />
+												{#if !a.ok}<CircleX
+														class="mt-0.5 size-3.5 shrink-0 text-destructive"
+														aria-label="Failed"
+													/>
+												{:else if a.skipped}<CircleMinus
+														class="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+														aria-label="Not run"
+													/>
 												{:else if a.changed}<CircleCheck
 														class="mt-0.5 size-3.5 shrink-0 text-success"
+														aria-label="Changed"
 													/>
 												{:else}<CircleMinus
 														class="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
@@ -193,7 +257,9 @@
 		<p
 			class="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
 		>
-			{page.url.search ? 'No runs match these filters.' : 'No automation has run yet.'}
+			{page.url.search
+				? 'No runs match these filters. Clear a filter to see more.'
+				: 'No automation has run yet. Runs appear here when an enabled rule reacts to a ticket change.'}
 		</p>
 	{/if}
 </div>

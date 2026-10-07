@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { requireProject } from '$lib/server/authz';
 import { handleServiceError, intParam, requireActionUser } from '$lib/server/http';
 import {
+	automationHealth,
 	createFromTemplate,
 	deleteRule,
 	listRules,
@@ -28,6 +29,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			lastError: r.lastError
 		})),
 		templates: TEMPLATES,
+		health: automationHealth(access.project.id),
 		archived: access.archived
 	};
 };

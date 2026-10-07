@@ -1,10 +1,21 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
-import type { AutomationRunAction, AutomationRunStatus } from '../../shared/constants';
+import {
+	ACTION_META,
+	type AutomationConditionSummary,
+	type AutomationProtection,
+	type AutomationRunAction,
+	type AutomationRunStatus
+} from '../../shared/constants';
 import { getDb, schema } from '../db';
 import type { Automation, OutboundJob, Project, Ticket } from '../db/schema';
 import { registerHandler } from '../outbound/queue';
 import { ActionError, firstOwner, runAction, type ActionContext } from './actions';
-import { evaluateConditions, loadFacts, type ConditionReport } from './conditions';
+import {
+	evaluateConditions,
+	loadFacts,
+	summarizeConditions,
+	type ConditionReport
+} from './conditions';
 import { withChain, type AutomationJob, type Chain } from './triggers';
 
 /**
@@ -98,7 +109,8 @@ function record(
 	actions: AutomationRunAction[],
 	error: string | null,
 	started: number,
-	tx = getDb()
+	tx = getDb(),
+	extra: { protection?: AutomationProtection; conditions?: AutomationConditionSummary } = {}
 ) {
 	const inserted = tx
 		.insert(schema.automationRuns)
@@ -113,7 +125,9 @@ function record(
 			depth: job.chain.depth,
 			actions,
 			error: error?.slice(0, 500) ?? null,
-			durationMs: Date.now() - started
+			durationMs: Date.now() - started,
+			protection: extra.protection ?? null,
+			conditions: extra.conditions ?? null
 		})
 		.onConflictDoNothing()
 		.run().changes;
@@ -161,17 +175,17 @@ export function processEvent(job: AutomationJob) {
 			const reason = job.chain.rules.includes(rule.id)
 				? 'Skipped to prevent a loop: this rule already ran earlier in the same chain of automated changes.'
 				: `Skipped to prevent a loop: more than ${MAX_DEPTH} automated changes in a row.`;
-			record(rule, job, 'skipped', [], reason, started);
+			record(rule, job, 'skipped', [], reason, started, getDb(), {
+				protection: job.chain.rules.includes(rule.id) ? 'loop' : 'depth'
+			});
 			outcomes.push({ ruleId: rule.id, status: 'skipped' });
 			continue;
 		}
 		// Fresh data for every rule: earlier rules may have changed the ticket.
 		const facts = loadFacts(job.ticketId);
 		if (!facts || facts.ticket.projectId !== project.id) break;
-		if (
-			!triggerOptionsMatch(rule, job.data) ||
-			!evaluateConditions(rule.conditions, facts).matched
-		) {
+		const report = evaluateConditions(rule.conditions, facts);
+		if (!triggerOptionsMatch(rule, job.data) || !report.matched) {
 			outcomes.push({ ruleId: rule.id, status: 'no_match' });
 			continue;
 		}
@@ -182,6 +196,7 @@ export function processEvent(job: AutomationJob) {
 			root: job.chain.root
 		};
 		const actions: AutomationRunAction[] = [];
+		const conditionSummary = summarizeConditions(report, project.id);
 		try {
 			getDb().transaction(
 				(tx) => {
@@ -216,7 +231,9 @@ export function processEvent(job: AutomationJob) {
 							}
 						}
 					});
-					record(rule, job, 'success', actions, null, started, tx);
+					record(rule, job, 'success', actions, null, started, tx, {
+						conditions: conditionSummary
+					});
 				},
 				{ behavior: 'immediate' }
 			);
@@ -229,16 +246,41 @@ export function processEvent(job: AutomationJob) {
 				rule,
 				job,
 				'failed',
-				actions.map((a) =>
-					a.ok ? { ...a, summary: `${a.summary} (rolled back)`, changed: false } : a
-				),
-				message,
-				started
+				[
+					...actions.map((a) =>
+						a.ok ? { ...a, summary: `${a.summary} (rolled back)`, changed: false } : a
+					),
+					// Actions after the failing one were never attempted.
+					...rule.actions.slice(actions.length).map((a): AutomationRunAction => ({
+						type: a.type,
+						summary: `${ACTION_META[a.type]?.label ?? a.type} – not run`,
+						ok: true,
+						changed: false,
+						skipped: true
+					}))
+				],
+				sanitizeRunError(message),
+				started,
+				getDb(),
+				{ conditions: conditionSummary }
 			);
 			outcomes.push({ ruleId: rule.id, status: 'failed' });
 		}
 	}
 	return outcomes;
+}
+
+/**
+ * Error text shown in the run history: rule-level messages are kept, but anything that looks
+ * like a URL, a token or a stack trace is removed (destinations and secrets never leak).
+ */
+export function sanitizeRunError(message: string) {
+	return message
+		.split('\n')[0]
+		.replace(/https?:\/\/\S+/gi, '[url]')
+		.replace(/\b(tkt_(?:pat|prj)_|ghp_|gho_|xox[bp]-)[A-Za-z0-9_-]+/g, '[secret]')
+		.replace(/\b[A-Za-z0-9+/_-]{32,}={0,2}/g, '[redacted]')
+		.slice(0, 500);
 }
 
 /** Busy/locked database and similar: worth retrying the whole job later. */

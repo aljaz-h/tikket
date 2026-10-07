@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			? (status as AutomationRunStatus)
 			: null,
 		ticketId: ticketRef ? (ticket?.id ?? -1) : null,
+		protected: status === 'protected',
 		from: date(q.get('from')),
 		to: date(q.get('to'), true),
 		before: intParam(q.get('before'))

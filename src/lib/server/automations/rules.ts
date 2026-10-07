@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, lte, max } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
 	ACTION_TYPES,
@@ -488,6 +488,8 @@ export interface RunFilters {
 	from?: Date | null;
 	to?: Date | null;
 	before?: number | null;
+	/** Only runs where loop, depth or fan-out protection intervened. */
+	protected?: boolean;
 }
 
 export const RUN_PAGE = 25;
@@ -506,6 +508,8 @@ export function listRuns(projectId: number, f: RunFilters = {}) {
 			actions: r.actions,
 			error: r.error,
 			durationMs: r.durationMs,
+			protection: r.protection,
+			conditions: r.conditions,
 			createdAt: r.createdAt,
 			ticketNumber: schema.tickets.number,
 			ticketTitle: schema.tickets.title
@@ -520,6 +524,7 @@ export function listRuns(projectId: number, f: RunFilters = {}) {
 					? eq(r.status, f.status)
 					: undefined,
 				f.ticketId ? eq(r.ticketId, f.ticketId) : undefined,
+				f.protected ? isNotNull(r.protection) : undefined,
 				f.from ? gte(r.createdAt, f.from) : undefined,
 				f.to ? lte(r.createdAt, f.to) : undefined,
 				f.before ? lt(r.id, f.before) : undefined
@@ -529,6 +534,47 @@ export function listRuns(projectId: number, f: RunFilters = {}) {
 		.limit(RUN_PAGE + 1)
 		.all();
 	return { runs: rows.slice(0, RUN_PAGE), more: rows.length > RUN_PAGE };
+}
+
+/**
+ * Compact health summary for the Automations page (v0.7): rule counts, runs and failures in the
+ * last 24 hours, safety-limit interventions and the most recent failure. Two small queries.
+ */
+export function automationHealth(projectId: number, now = Date.now()) {
+	const r = schema.automationRuns;
+	const since = new Date(now - 864e5);
+	const rules = getDb()
+		.select({ enabled: schema.automations.enabled, n: count() })
+		.from(schema.automations)
+		.where(eq(schema.automations.projectId, projectId))
+		.groupBy(schema.automations.enabled)
+		.all();
+	const runs = getDb()
+		.select({
+			total: count(),
+			failed: sql<number>`sum(case when ${r.status} = 'failed' then 1 else 0 end)`,
+			protected: sql<number>`sum(case when ${r.protection} is not null then 1 else 0 end)`,
+			dropped: sql<number>`sum(case when ${r.protection} = 'fanout' then 1 else 0 end)`
+		})
+		.from(r)
+		.where(and(eq(r.projectId, projectId), gte(r.createdAt, since)))
+		.get();
+	const lastFailure = getDb()
+		.select({ name: r.automationName, error: r.error, createdAt: r.createdAt })
+		.from(r)
+		.where(and(eq(r.projectId, projectId), eq(r.status, 'failed')))
+		.orderBy(desc(r.id))
+		.limit(1)
+		.get();
+	return {
+		enabled: rules.find((x) => x.enabled)?.n ?? 0,
+		disabled: rules.find((x) => !x.enabled)?.n ?? 0,
+		runs24h: runs?.total ?? 0,
+		failed24h: Number(runs?.failed ?? 0),
+		protected24h: Number(runs?.protected ?? 0),
+		dropped24h: Number(runs?.dropped ?? 0),
+		lastFailure: lastFailure ?? null
+	};
 }
 
 /** Runs per rule for the list page (one grouped query). */

@@ -1,11 +1,17 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
 	PRIORITY_META,
+	STATUS_META,
 	TICKET_PRIORITIES,
+	TYPE_META,
 	type AutomationCondition,
 	type AutomationConditions,
-	type TicketPriority
+	type AutomationConditionSummary,
+	type TicketPriority,
+	type TicketStatus,
+	type TicketType
 } from '../../shared/constants';
+import { FIELD_LABEL, OP_LABEL } from '../../shared/automation';
 import { getDb, schema, type DB } from '../db';
 import type { Ticket } from '../db/schema';
 
@@ -147,3 +153,89 @@ export function evaluateConditions(
 }
 
 export const priorityLabel = (p: string) => PRIORITY_META[p as TicketPriority]?.label ?? p;
+
+const NO_VALUE_OPS = new Set(['is_empty', 'is_not_empty']);
+
+/**
+ * Human-readable summary of a condition evaluation for the run history: field, operator and
+ * value with ids resolved to names (labels, milestones, releases, people) of this project.
+ */
+export function summarizeConditions(
+	report: ConditionReport,
+	projectId: number,
+	tx: Pick<DB, 'select'> = getDb()
+): AutomationConditionSummary {
+	const name = (field: string, value: unknown): string => {
+		const id = Number(value);
+		const lookup = (table: 'labels' | 'milestones' | 'releases' | 'users') => {
+			if (!Number.isInteger(id)) return null;
+			if (table === 'users')
+				return (
+					tx
+						.select({ n: schema.users.displayName })
+						.from(schema.users)
+						.where(eq(schema.users.id, id))
+						.get()?.n ?? null
+				);
+			const t =
+				table === 'labels'
+					? {
+							tbl: schema.ticketLabels,
+							col: schema.ticketLabels.name,
+							p: schema.ticketLabels.projectId,
+							id: schema.ticketLabels.id
+						}
+					: table === 'milestones'
+						? {
+								tbl: schema.milestones,
+								col: schema.milestones.name,
+								p: schema.milestones.projectId,
+								id: schema.milestones.id
+							}
+						: {
+								tbl: schema.changelogEntries,
+								col: schema.changelogEntries.version,
+								p: schema.changelogEntries.projectId,
+								id: schema.changelogEntries.id
+							};
+			return (
+				tx
+					.select({ n: t.col })
+					.from(t.tbl)
+					.where(and(eq(t.id, id), eq(t.p, projectId)))
+					.get()?.n ?? null
+			);
+		};
+		switch (field) {
+			case 'label':
+				return lookup('labels') ?? String(value);
+			case 'milestone':
+				return lookup('milestones') ?? String(value);
+			case 'release':
+				return lookup('releases') ?? String(value);
+			case 'assignee':
+			case 'reporter':
+				return lookup('users') ?? String(value);
+			case 'status':
+				return STATUS_META[value as TicketStatus]?.label ?? String(value);
+			case 'priority':
+				return PRIORITY_META[value as TicketPriority]?.label ?? String(value);
+			case 'type':
+				return TYPE_META[value as TicketType]?.label ?? String(value);
+			default:
+				return String(value ?? '');
+		}
+	};
+	return {
+		matched: report.matched,
+		conditions: report.groups.flatMap((g, group) =>
+			g.conditions.map(({ condition: c, passed }) => ({
+				group,
+				passed,
+				text: `${FIELD_LABEL[c.field]} ${OP_LABEL[c.op]}${
+					NO_VALUE_OPS.has(c.op) ? '' : ` ${name(c.field, c.value)}`
+				}`.slice(0, 200)
+			}))
+		)
+	};
+}

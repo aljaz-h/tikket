@@ -31,8 +31,9 @@ import { createLabel } from '../../src/lib/server/services/projects';
 import type { AutomationJob } from '../../src/lib/server/automations/triggers';
 import { connectRepository, handleGithubWebhook } from '../../src/lib/server/integrations/github';
 import { createHook } from '../../src/lib/server/integrations/hooks';
-import { MAX_CHAIN_EVENTS } from '../../src/lib/server/automations/triggers';
-import { MAX_RULES } from '../../src/lib/server/automations/rules';
+import { LIMIT_MESSAGE, MAX_CHAIN_EVENTS } from '../../src/lib/server/automations/triggers';
+import { sanitizeRunError } from '../../src/lib/server/automations/engine';
+import { MAX_RULES, automationHealth } from '../../src/lib/server/automations/rules';
 
 let owner: User, mod: User, member: User, project: Project, other: Project;
 const fresh = () => findProjectById(project.id)!;
@@ -175,6 +176,7 @@ describe('automation rules', () => {
 		const skipped = all.find((r) => r.status === 'skipped')!;
 		expect(skipped.automationId).toBe(a.id);
 		expect(skipped.error).toMatch(/already ran earlier in the same chain/);
+		expect(skipped.protection).toBe('loop');
 
 		// Depth limit, independent of rule ids.
 		const job: AutomationJob = {
@@ -188,6 +190,7 @@ describe('automation rules', () => {
 		};
 		expect(processEvent(job)).toEqual([{ ruleId: b.id, status: 'skipped' }]);
 		expect(runs().find((r) => r.eventId === 'aev_depth')!.error).toMatch(/more than 5/);
+		expect(runs().find((r) => r.eventId === 'aev_depth')!.protection).toBe('depth');
 	});
 
 	it('is idempotent per event (a retried job never repeats actions)', async () => {
@@ -209,9 +212,11 @@ describe('automation rules', () => {
 		const label = createLabel(project.id, 'Gone', 'slate');
 		const broken = rule({
 			name: 'Broken',
+			conditions: { any: [{ all: [{ field: 'type', op: 'is', value: 'bug' }] }] },
 			actions: [
 				{ type: 'set_priority', value: 'critical' },
-				{ type: 'add_label', value: label.id }
+				{ type: 'add_label', value: label.id },
+				{ type: 'internal_note', text: 'Never written' }
 			]
 		});
 		rule({ name: 'Fine', actions: [{ type: 'internal_note', text: 'Triage me' }] });
@@ -225,6 +230,13 @@ describe('automation rules', () => {
 		expect(failed.status).toBe('failed');
 		expect(failed.error).toMatch(/label no longer exists/);
 		expect(failed.actions[0].summary).toMatch(/rolled back/);
+		// v0.7 diagnostics: the condition summary and the action that never ran.
+		expect(failed.conditions).toEqual({
+			matched: true,
+			conditions: [{ group: 0, passed: true, text: 'Type is Bug Report' }]
+		});
+		expect(failed.actions[2]).toMatchObject({ skipped: true, changed: false });
+		expect(failed.actions[2].summary).toMatch(/not run/);
 		expect(getRule(project.id, broken.id)!.lastError).toMatch(/label/);
 		expect(runs().find((r) => r.automationName === 'Fine')!.status).toBe('success');
 	});
@@ -445,6 +457,16 @@ describe('automation rules', () => {
 			.all();
 		// Without the guard this would be tens of thousands of jobs (10·9·8·7·6 at depth 5).
 		expect(jobs.length).toBeLessThanOrEqual(MAX_CHAIN_EVENTS);
+		// The intervention is visible to staff in the history (once per chain) and the summary.
+		const limits = runs().filter((r) => r.protection === 'fanout');
+		expect(limits).toHaveLength(1);
+		expect(limits[0]).toMatchObject({
+			status: 'skipped',
+			error: LIMIT_MESSAGE,
+			automationId: null
+		});
+		expect(automationHealth(project.id)).toMatchObject({ enabled: 10, dropped24h: 1 });
+		expect(listRuns(project.id, { protected: true }).runs.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it('limits who rules can reach: members only, hooks for owners, a rule cap', async () => {
@@ -483,5 +505,12 @@ describe('automation rules', () => {
 		expect(() =>
 			rule({ name: 'One too many', actions: [{ type: 'set_priority', value: 'low' }] })
 		).toThrow(/at most/);
+	});
+
+	it('never shows secrets or destinations in run errors', () => {
+		const msg = sanitizeRunError(
+			'Webhook https://hooks.example.com/abc?key=1 failed with tkt_pat_abcdefghijklmnopqrstuvwxyz0123456789ABCD\n    at stack (file.ts:1)'
+		);
+		expect(msg).toBe('Webhook [url] failed with [secret]');
 	});
 });

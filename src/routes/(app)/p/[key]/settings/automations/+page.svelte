@@ -43,6 +43,43 @@
 	</Card>
 
 	{#if data.rules.length}
+		{@const h = data.health}
+		<section aria-label="Automation health" class="grid gap-3">
+			<dl class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+				{#each [{ label: 'Enabled rules', value: h.enabled }, { label: 'Disabled rules', value: h.disabled }, { label: 'Runs (24 h)', value: h.runs24h }, { label: 'Failed (24 h)', value: h.failed24h, bad: h.failed24h > 0, href: `${base}/history?status=failed` }, { label: 'Safety limits (24 h)', value: h.protected24h, bad: h.dropped24h > 0, href: `${base}/history?status=protected` }] as stat (stat.label)}
+					<div class="rounded-lg border border-border bg-surface px-3 py-2">
+						<dt class="text-xs text-muted-foreground">{stat.label}</dt>
+						<dd
+							class={stat.bad ? 'text-lg font-semibold text-destructive' : 'text-lg font-semibold'}
+						>
+							{#if stat.href && stat.value}<a href={stat.href} class="hover:underline"
+									>{stat.value}</a
+								>{:else}{stat.value}{/if}
+						</dd>
+					</div>
+				{/each}
+			</dl>
+			{#if h.lastFailure}
+				<p class="text-xs [overflow-wrap:anywhere] text-muted-foreground">
+					Last failure: <span class="font-medium text-foreground">{h.lastFailure.name}</span>
+					· <TimeAgo date={h.lastFailure.createdAt} />{#if h.lastFailure.error}
+						– {h.lastFailure.error}{/if}
+				</p>
+			{/if}
+			{#if h.dropped24h}
+				<p
+					class="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs"
+					role="status"
+				>
+					Some automated changes were stopped by the 50-event safety limit in the last 24 hours.
+					Rules that react to each other's changes probably keep triggering one another –
+					<a href="{base}/history?status=protected" class="text-link hover:underline">see which</a>.
+				</p>
+			{/if}
+		</section>
+	{/if}
+
+	{#if data.rules.length}
 		<ul class="grid gap-3" aria-label="Automation rules">
 			{#each data.rules as rule (rule.id)}
 				<li>

@@ -659,6 +659,20 @@ export interface AutomationRunAction {
 	ok: boolean;
 	changed: boolean;
 	error?: string;
+	/** Not attempted (an earlier action of the run failed). v0.7 */
+	skipped?: boolean;
+}
+/** Safety mechanism that stopped an automation run (v0.7). */
+export type AutomationProtection = 'loop' | 'depth' | 'fanout';
+export const AUTOMATION_PROTECTION_LABEL: Record<AutomationProtection, string> = {
+	loop: 'Loop protection',
+	depth: 'Depth limit',
+	fanout: 'Event safety limit'
+};
+/** How the conditions of a run were evaluated (v0.7): one entry per condition. */
+export interface AutomationConditionSummary {
+	matched: boolean;
+	conditions: { text: string; passed: boolean; group: number }[];
 }
 
 // ── v0.6: API tokens ───────────────────────────────────────────────────────

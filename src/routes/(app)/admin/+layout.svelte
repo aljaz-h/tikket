@@ -10,6 +10,9 @@
 		{ href: '/admin/invitations', label: 'Invitations' },
 		{ href: '/admin/settings', label: 'Settings' },
 		{ href: '/admin/email', label: 'Email' },
+		{ href: '/admin/health', label: 'Health' },
+		{ href: '/admin/queue', label: 'Delivery queue' },
+		{ href: '/admin/backups', label: 'Backups' },
 		{ href: '/admin/audit', label: 'Audit log' }
 	];
 	const active = (t: { href: string; exact?: boolean }) =>
