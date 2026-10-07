@@ -120,8 +120,11 @@ step "Caddy → Tikket (after re-creation)"
 node tests/deployment/check.mjs verify caddy
 
 step "Backup and verification inside the running container (v0.7)"
-docker exec "$CID" node scripts/backup.js /data/backups 3 >/dev/null && ok "online backup with metadata"
-SNAP=$(docker exec "$CID" sh -c 'ls -1 /data/backups/tikket-*.db | tail -1')
+CID=$("${COMPOSE[@]}" ps -q tikket)
+docker exec "$CID" node scripts/backup.js /data/backups 3 >/dev/null || fail "backup.js failed"
+ok "online backup with metadata"
+SNAP=$(docker exec "$CID" sh -c 'ls -1 /data/backups/tikket-*.db | tail -1') || fail "no snapshot written"
+[ -n "$SNAP" ] || fail "no snapshot written"
 docker exec "$CID" node scripts/backup-verify.js "$SNAP" --uploads /data/uploads >"$WORK/verify.txt" \
 	&& grep -q 'Restorable: yes' "$WORK/verify.txt" && ok "backup:verify: restorable" || { cat "$WORK/verify.txt"; fail "backup:verify"; }
 docker exec "$CID" node scripts/restore-verify.js "$SNAP" >"$WORK/restore.txt" \
