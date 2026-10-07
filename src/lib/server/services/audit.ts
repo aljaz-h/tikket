@@ -50,6 +50,9 @@ export type AuditAction =
 	| 'automation.deleted'
 	| 'token.created'
 	| 'token.revoked'
+	| 'queue.retried'
+	| 'queue.discarded'
+	| 'reminder.created'
 	| 'api.ticket_created'
 	| 'api.ticket_updated'
 	| 'api.comment_created';

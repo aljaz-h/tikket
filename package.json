@@ -1,6 +1,6 @@
 {
 	"name": "tikket",
-	"version": "1.0.0",
+	"version": "0.7.0",
 	"private": true,
 	"type": "module",
 	"description": "Lightweight self-hosted issue & feedback tracker",
@@ -23,6 +23,9 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "node scripts/migrate.js",
 		"db:studio": "drizzle-kit studio",
+		"db:check": "node scripts/db-check.js",
+		"backup:verify": "node scripts/backup-verify.js",
+		"restore:verify": "node scripts/restore-verify.js",
 		"check:compose": "node scripts/check-compose.mjs",
 		"test:deployment": "bash tests/deployment/run.sh"
 	},

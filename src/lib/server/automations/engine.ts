@@ -7,6 +7,7 @@ import {
 	type AutomationRunStatus
 } from '../../shared/constants';
 import { getDb, schema } from '../db';
+import { redact } from '../redact';
 import type { Automation, OutboundJob, Project, Ticket } from '../db/schema';
 import { registerHandler } from '../outbound/queue';
 import { ActionError, firstOwner, runAction, type ActionContext } from './actions';
@@ -275,12 +276,7 @@ export function processEvent(job: AutomationJob) {
  * like a URL, a token or a stack trace is removed (destinations and secrets never leak).
  */
 export function sanitizeRunError(message: string) {
-	return message
-		.split('\n')[0]
-		.replace(/https?:\/\/\S+/gi, '[url]')
-		.replace(/\b(tkt_(?:pat|prj)_|ghp_|gho_|xox[bp]-)[A-Za-z0-9_-]+/g, '[secret]')
-		.replace(/\b[A-Za-z0-9+/_-]{32,}={0,2}/g, '[redacted]')
-		.slice(0, 500);
+	return redact(message);
 }
 
 /** Busy/locked database and similar: worth retrying the whole job later. */

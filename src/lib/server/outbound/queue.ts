@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { JobKind } from '../../shared/constants';
 import { config } from '../config';
 import { getDb, schema, type DB } from '../db';
+import { redact } from '../redact';
 import type { OutboundJob } from '../db/schema';
 
 /**
@@ -277,7 +278,8 @@ export function recentProblems(kind: JobKind, limit = 10) {
 		)
 		.orderBy(desc(schema.outboundJobs.updatedAt))
 		.limit(limit)
-		.all();
+		.all()
+		.map((p) => ({ ...p, lastError: p.lastError ? redact(p.lastError, 300) : null }));
 }
 
 /** Puts a dead job back in the queue (administrator action). */

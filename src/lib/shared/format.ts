@@ -54,3 +54,26 @@ export function projectPath(projectKey: string, sub = ''): string {
 export function plural(count: number, one: string, many = `${one}s`): string {
 	return `${count} ${count === 1 ? one : many}`;
 }
+
+/** 1536 → "1.5 KB" (binary units, one decimal). */
+export function formatBytes(bytes: number): string {
+	if (!Number.isFinite(bytes) || bytes < 1024) return `${Math.max(0, Math.round(bytes || 0))} B`;
+	const units = ['KB', 'MB', 'GB', 'TB'];
+	let v = bytes / 1024;
+	let i = 0;
+	while (v >= 1024 && i < units.length - 1) {
+		v /= 1024;
+		i++;
+	}
+	return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
+}
+
+/** 93784 → "1 d 2 h", 3720 → "1 h 2 min". */
+export function formatDuration(seconds: number): string {
+	const d = Math.floor(seconds / 86400);
+	const h = Math.floor((seconds % 86400) / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	if (d) return `${d} d ${h} h`;
+	if (h) return `${h} h ${m} min`;
+	return `${m} min`;
+}
