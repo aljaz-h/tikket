@@ -132,4 +132,43 @@ describe('database migrations', () => {
 		upgraded.close();
 		useDatabase(null);
 	});
+	it('upgrade a v0.6 database to v0.7 keeping automation history', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tikket-mig-'));
+		const migrations = path.join(dir, 'migrations');
+		fs.cpSync('drizzle', migrations, { recursive: true });
+		const journalFile = path.join(migrations, 'meta/_journal.json');
+		const full = fs.readFileSync(journalFile, 'utf8');
+		const journal = JSON.parse(full);
+		journal.entries = journal.entries.filter((e: { tag: string }) => e.tag < '0007');
+		fs.writeFileSync(journalFile, JSON.stringify(journal));
+		const file = path.join(dir, 'tikket.db');
+		const old = openDatabase(file, migrations).sqlite;
+		old.exec(`
+			insert into users(id,username,email,display_name,password_hash) values (1,'owner','o@x','Owner','h');
+			insert into projects(id,key,name,created_by_id) values (1,'OLD','Old project',1);
+			insert into tickets(id,project_id,number,type,title,description_html,description_text,reporter_id)
+				values (1,1,1,'bug','Kept ticket','<p>x</p>','x',1);
+			insert into automation_runs(automation_name,project_id,ticket_id,trigger,event_id,status,actions)
+				values ('Old rule',1,1,'ticket.created','aev_old','success','[]');
+		`);
+		old.close();
+		fs.writeFileSync(journalFile, full);
+		const upgraded = openDatabase(file, migrations).sqlite;
+		expect(
+			upgraded.prepare('select automation_name, protection, conditions from automation_runs').get()
+		).toEqual({ automation_name: 'Old rule', protection: null, conditions: null });
+		upgraded
+			.prepare('insert into ticket_reminders(user_id, ticket_id, remind_at) values (1, 1, ?)')
+			.run(Date.now());
+		expect(upgraded.pragma('foreign_key_check')).toEqual([]);
+		expect(
+			upgraded
+				.prepare(
+					"select count(*) as n from sqlite_master where name = 'tickets_project_created_idx'"
+				)
+				.get()
+		).toEqual({ n: 1 });
+		upgraded.close();
+		useDatabase(null);
+	});
 });

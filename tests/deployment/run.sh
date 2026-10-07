@@ -119,6 +119,16 @@ start_proxy caddy
 step "Caddy → Tikket (after re-creation)"
 node tests/deployment/check.mjs verify caddy
 
+step "Backup and verification inside the running container (v0.7)"
+docker exec "$CID" node scripts/backup.js /data/backups 3 >/dev/null && ok "online backup with metadata"
+SNAP=$(docker exec "$CID" sh -c 'ls -1 /data/backups/tikket-*.db | tail -1')
+docker exec "$CID" node scripts/backup-verify.js "$SNAP" --uploads /data/uploads >"$WORK/verify.txt" \
+	&& grep -q 'Restorable: yes' "$WORK/verify.txt" && ok "backup:verify: restorable" || { cat "$WORK/verify.txt"; fail "backup:verify"; }
+docker exec "$CID" node scripts/restore-verify.js "$SNAP" >"$WORK/restore.txt" \
+	&& grep -q 'Dry-run restore' "$WORK/restore.txt" && ok "restore:verify: dry run on a temporary copy" || { cat "$WORK/restore.txt"; fail "restore:verify"; }
+docker exec "$CID" node scripts/db-check.js >"$WORK/dbcheck.txt" && grep -q 'Integrity check: ok' "$WORK/dbcheck.txt" \
+	&& ok "db:check: integrity ok" || { cat "$WORK/dbcheck.txt"; fail "db:check"; }
+
 step "Simulated upgrade: new image ID, container replaced"
 printf 'FROM %s\nLABEL org.tikket.test-upgrade="%s"\n' "$IMAGE" "$(date +%s)" | docker build -q -t "$IMAGE:upgrade" - >/dev/null
 docker tag "$IMAGE:upgrade" "$IMAGE"
