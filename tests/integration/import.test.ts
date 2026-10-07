@@ -261,4 +261,85 @@ describe('imports', () => {
 				.all()
 		).toHaveLength(1);
 	});
+
+	it('v0.7 CSV: updated date, row issues, duplicates and mapping warnings', () => {
+		createTicket(owner, access(owner, fresh(target)), input('Login fails'));
+		const csv = [
+			'Key,Summary,Issue Type,Created,Last Modified,Notes',
+			'A-1,Login fails,Bug,2025-01-02T10:00:00Z,2025-03-04T10:00:00Z,',
+			'A-2,Dark mode,Feature,2025-01-05,not a date,',
+			'A-3,dark   MODE,Story,2025-01-06,2024-01-01,'
+		].join('\n');
+		const id = upload('jira.csv', csv);
+		const row = getImport(access(owner, fresh(target)), id);
+		const r = reviewImport(access(owner, fresh(target)), row);
+		expect((row.options as { mapping: Record<string, number> }).mapping).toMatchObject({
+			ref: 0,
+			title: 1,
+			type: 2,
+			created: 3,
+			updated: 4
+		});
+		expect(r.rowIssues).toEqual(
+			expect.arrayContaining([
+				{ row: 3, message: 'Invalid updated date “not a date”' },
+				{ row: 4, message: 'Unknown type “Story” – imported as Bug' }
+			])
+		);
+		expect(r.duplicates).toEqual([
+			{ row: 2, title: 'Login fails', existing: 1, sameAsRow: null },
+			{ row: 4, title: 'dark MODE', existing: null, sameAsRow: 3 }
+		]);
+		updateImportOptions(access(owner, fresh(target)), id, {
+			mapping: {
+				...guessMapping(['Key', 'Summary', 'Issue Type', 'Created', 'Last Modified', 'Notes']),
+				description: 5,
+				type: 1
+			}
+		});
+		const again = reviewImport(
+			access(owner, fresh(target)),
+			getImport(access(owner, fresh(target)), id)
+		);
+		expect(again.mappingWarnings).toEqual(
+			expect.arrayContaining([
+				expect.stringMatching(/“Summary” is used for Title and Type/),
+				'“Notes” is empty in every row.'
+			])
+		);
+		updateImportOptions(access(owner, fresh(target)), id, {
+			mapping: guessMapping(['Key', 'Summary', 'Issue Type', 'Created', 'Last Modified', 'Notes'])
+		});
+		confirmImport(owner.id, access(owner, fresh(target)), id, null);
+		const imported = tickets(target)
+			.filter((t) => t.source === 'import')
+			.sort((a, b) => a.number - b.number);
+		expect(imported[0].updatedAt.toISOString()).toBe('2025-03-04T10:00:00.000Z');
+		// An update before creation is clamped to the creation date.
+		expect(imported[2].updatedAt.getTime()).toBe(imported[2].createdAt.getTime());
+	});
+
+	it('guesses common header variants', () => {
+		expect(
+			guessMapping([
+				'Issue key',
+				'Summary',
+				'Assignee Email',
+				'Reporter Email',
+				'Tags',
+				'Fix Version',
+				'Date Created',
+				'Updated At'
+			])
+		).toMatchObject({
+			ref: 0,
+			title: 1,
+			assignee: 2,
+			reporter: 3,
+			labels: 4,
+			release: 5,
+			created: 6,
+			updated: 7
+		});
+	});
 });

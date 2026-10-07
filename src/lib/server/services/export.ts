@@ -34,7 +34,7 @@ export function requireExporter(access: ProjectAccess) {
 export function recordExport(
 	actorId: number,
 	project: Project,
-	format: 'json' | 'csv',
+	format: 'json' | 'csv' | 'bundle',
 	scope: ExportScope,
 	ip: string | null
 ) {

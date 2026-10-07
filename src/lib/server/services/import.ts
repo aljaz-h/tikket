@@ -17,7 +17,20 @@ import {
 	type TicketType
 } from '../../shared/constants';
 import type { ProjectAccess } from '../authz';
+import fs from 'node:fs';
+import path from 'node:path';
+import { config } from '../config';
 import { getDb, schema } from '../db';
+import { getSettings, maxAttachmentBytes } from '../settings';
+import {
+	cleanDisplayName,
+	detectImageType,
+	IMAGE_EXTENSIONS,
+	removeFiles,
+	writeStoredFile
+} from '../uploads';
+import { readZipDirectory, readZipEntry, ZipError, type ZipEntry } from '../zip';
+import { BUNDLE_FORMAT, BUNDLE_VERSION, type BundleManifest } from './bundle';
 import { normaliseRichInput } from '../sanitize';
 import { audit } from './audit';
 import { EXPORT_FORMAT } from './export';
@@ -41,6 +54,8 @@ import { ServiceError } from './users';
 
 export const IMPORT_LIMITS = {
 	bytes: 10 * 1024 * 1024,
+	/** Project bundles (.zip with images). Needs a matching BODY_SIZE_LIMIT. */
+	bundleBytes: 200 * 1024 * 1024,
 	tickets: 5000,
 	commentsPerTicket: 500,
 	title: 200,
@@ -50,7 +65,7 @@ export const IMPORT_LIMITS = {
 	csvColumns: 100
 };
 
-export type ImportFormat = 'tikket-json' | 'csv';
+export type ImportFormat = 'tikket-json' | 'csv' | 'tikket-bundle';
 
 export interface ImportComment {
 	author: string | null;
@@ -59,6 +74,8 @@ export interface ImportComment {
 	body: string;
 	format: 'html' | 'text';
 	createdAt: string | null;
+	/** Comment id in the source export (links bundle attachments to their comment). */
+	originalId?: number | null;
 }
 
 export interface ImportTicket {
@@ -80,8 +97,11 @@ export interface ImportTicket {
 	reporterName: string | null;
 	assignee: string | null;
 	createdAt: string | null;
+	updatedAt?: string | null;
 	completedAt: string | null;
 	duplicateOf: string | null;
+	/** Attachments listed in a Tikket export (bundles carry the files). */
+	attachments?: { id: string; commentId: number | null }[];
 	relationships: { kind: string; ticket: string }[];
 	comments: ImportComment[];
 }
@@ -97,6 +117,26 @@ interface JsonPayload {
 		status: string;
 		targetDate: string | null;
 	}[];
+	bundle?: BundleInfo;
+}
+/** What a project bundle carries besides project.json (files stay in the stored zip). */
+interface BundleInfo {
+	/** Valid attachment files, keyed by original attachment id. */
+	files: BundleFileInfo[];
+	/** Attachments that are missing or invalid (never imported). */
+	problems: { name: string; reason: string }[];
+	bytes: number;
+}
+interface BundleFileInfo {
+	attachmentId: string;
+	path: string;
+	sha256: string;
+	size: number;
+	name: string;
+	mimeType: string;
+	extension: string;
+	width: number | null;
+	height: number | null;
 }
 interface CsvPayload {
 	kind: 'csv';
@@ -117,6 +157,7 @@ export const CSV_FIELDS = [
 	'release',
 	'milestone',
 	'created',
+	'updated',
 	'ref'
 ] as const;
 export type CsvField = (typeof CSV_FIELDS)[number];
@@ -132,6 +173,7 @@ export const CSV_FIELD_LABELS: Record<CsvField, string> = {
 	release: 'Release (version)',
 	milestone: 'Milestone (name)',
 	created: 'Created date',
+	updated: 'Updated date',
 	ref: 'Original ID / reference'
 };
 /** CSV field → column index (or -1 = not imported). */
@@ -238,6 +280,7 @@ function fromTikketJson(data: Record<string, unknown>): JsonPayload {
 			reporterName: reporter?.n ?? reporter?.u ?? null,
 			assignee: person(t.assignee)?.u ?? null,
 			createdAt: str(t.created_at, 40),
+			updatedAt: str(t.updated_at, 40),
 			completedAt: str(t.completed_at, 40),
 			duplicateOf: str(t.duplicate_of, 40),
 			relationships: Array.isArray(t.relationships)
@@ -258,9 +301,19 @@ function fromTikketJson(data: Record<string, unknown>): JsonPayload {
 						internal: c.internal === true,
 						body: body ?? str(c.body_text, IMPORT_LIMITS.comment) ?? '',
 						format: body !== null ? ('html' as const) : ('text' as const),
-						createdAt: str(c.created_at, 40)
+						createdAt: str(c.created_at, 40),
+						originalId: Number.isInteger(c.id) ? (c.id as number) : null
 					};
-				})
+				}),
+			attachments: Array.isArray(t.attachments)
+				? t.attachments
+						.filter(isRecord)
+						.map((a) => ({
+							id: str(a.id, 64) ?? '',
+							commentId: Number.isInteger(a.comment_id) ? (a.comment_id as number) : null
+						}))
+						.filter((a) => a.id)
+				: []
 		};
 	});
 	const list = (v: unknown) => (Array.isArray(v) ? v.filter(isRecord) : []);
@@ -304,20 +357,36 @@ function fromCsv(text: string): CsvPayload {
 /** Guesses the column of each field from the header names (Tikket's own CSV export maps fully). */
 export function guessMapping(headers: string[]): CsvMapping {
 	const norm = headers.map((h) => h.toLowerCase().replace(/[^a-z]/g, ''));
-	const find = (...names: string[]) => norm.findIndex((h) => names.includes(h));
+	const used = new Set<number>();
+	// Each column is used for at most one field (first match wins, in this order).
+	const find = (...names: string[]) => {
+		const i = norm.findIndex((h, idx) => !used.has(idx) && names.includes(h));
+		if (i >= 0) used.add(i);
+		return i;
+	};
+	const title = find('title', 'summary', 'subject', 'name', 'issuetitle', 'tickettitle');
 	return {
-		title: find('title', 'summary', 'subject', 'name'),
-		description: find('description', 'body', 'details', 'descriptiontext'),
-		type: find('type', 'tickettype', 'issuetype', 'kind'),
+		title,
+		description: find('description', 'body', 'details', 'descriptiontext', 'content', 'text'),
+		type: find('type', 'tickettype', 'issuetype', 'kind', 'category'),
 		status: find('status', 'state'),
-		priority: find('priority'),
-		labels: find('labels', 'label', 'tags'),
-		assignee: find('assignee', 'assignedto', 'owner'),
-		reporter: find('reporter', 'author', 'createdby', 'submitter'),
-		release: find('release', 'version', 'fixversion'),
-		milestone: find('milestone'),
-		created: find('created', 'createdat', 'createdon', 'date'),
-		ref: find('ticketid', 'id', 'key', 'issuekey', 'ref', 'reference')
+		priority: find('priority', 'severity'),
+		labels: find('labels', 'label', 'tags', 'tag', 'components'),
+		assignee: find('assignee', 'assignedto', 'owner', 'assigneeemail', 'assigneeusername'),
+		reporter: find('reporter', 'author', 'createdby', 'submitter', 'reporteremail', 'requester'),
+		release: find('release', 'version', 'fixversion', 'fixversions', 'targetversion'),
+		milestone: find('milestone', 'sprint', 'goal'),
+		created: find('created', 'createdat', 'createdon', 'datecreated', 'creationdate', 'date'),
+		updated: find(
+			'updated',
+			'updatedat',
+			'updatedon',
+			'lastmodified',
+			'modified',
+			'lastupdated',
+			'dateupdated'
+		),
+		ref: find('ticketid', 'id', 'key', 'issuekey', 'issueid', 'ref', 'reference', 'number')
 	};
 }
 
@@ -350,6 +419,7 @@ function csvTickets(payload: CsvPayload, mapping: CsvMapping): ImportTicket[] {
 			reporterName: get('reporter') || null,
 			assignee: get('assignee') || null,
 			createdAt: get('created') || null,
+			updatedAt: get('updated') || null,
 			completedAt: null,
 			duplicateOf: null,
 			relationships: [],
@@ -365,20 +435,162 @@ function requireImporter(access: ProjectAccess) {
 	if (access.archived) throw new ServiceError('Archived projects cannot import tickets', 'form');
 }
 
+// ── Bundles ────────────────────────────────────────────────────────────────
+
+/** Where uploaded bundles wait for confirmation (next to the uploads, on the data volume). */
+export function importsDir() {
+	return path.join(path.dirname(config.uploadsDir), 'imports');
+}
+const bundlePath = (id: string) => path.join(importsDir(), `${id}.zip`);
+const sha256 = (b: Buffer) => crypto.createHash('sha256').update(b).digest('hex');
+const isZip = (b: Buffer) => b.length >= 4 && b.readUInt32LE(0) === 0x04034b50;
+
+/**
+ * Validates a project bundle and returns the parsed project.json plus the attachment files that
+ * passed every check (manifest entry, size, SHA-256, real image content of an allowed type).
+ * Anything outside manifest.json, project.json and attachments/ is rejected.
+ */
+function parseBundle(buf: Buffer): JsonPayload {
+	let entries: ZipEntry[];
+	try {
+		entries = readZipDirectory(buf);
+	} catch (err) {
+		throw new ServiceError(
+			err instanceof ZipError ? err.message : 'The bundle cannot be read',
+			'file'
+		);
+	}
+	const byName = new Map(entries.map((e) => [e.name, e]));
+	for (const e of entries)
+		if (
+			e.name !== 'manifest.json' &&
+			e.name !== 'project.json' &&
+			!/^attachments\/[^/]+$/.test(e.name)
+		)
+			throw new ServiceError(`Unexpected file in the bundle: ${e.name.slice(0, 120)}`, 'file');
+	const read = (name: string) => {
+		const e = byName.get(name);
+		if (!e) return null;
+		try {
+			return readZipEntry(buf, e);
+		} catch (err) {
+			throw new ServiceError(err instanceof ZipError ? err.message : 'Corrupt bundle', 'file');
+		}
+	};
+	const manifestBuf = read('manifest.json');
+	const projectBuf = read('project.json');
+	if (!manifestBuf || !projectBuf)
+		throw new ServiceError(
+			'Not a Tikket project bundle (manifest.json or project.json missing)',
+			'file'
+		);
+	let manifest: BundleManifest;
+	try {
+		manifest = JSON.parse(manifestBuf.toString('utf8'));
+	} catch {
+		throw new ServiceError('The bundle manifest is not valid JSON', 'file');
+	}
+	if (manifest?.format !== BUNDLE_FORMAT || manifest.version !== BUNDLE_VERSION)
+		throw new ServiceError(
+			`Unsupported bundle (expected ${BUNDLE_FORMAT} version ${BUNDLE_VERSION})`,
+			'file'
+		);
+	if (manifest.projectJson?.sha256 !== sha256(projectBuf))
+		throw new ServiceError(
+			'project.json does not match the bundle checksum – the bundle was modified or damaged',
+			'file'
+		);
+	let data: unknown;
+	try {
+		data = JSON.parse(projectBuf.toString('utf8'));
+	} catch {
+		throw new ServiceError('project.json is not valid JSON', 'file');
+	}
+	if (!isRecord(data)) throw new ServiceError('project.json must contain an object', 'file');
+	const payload = fromTikketJson(data);
+	const allowed = getSettings().allowedImageTypes as string[];
+	const files: BundleFileInfo[] = [];
+	const problems: { name: string; reason: string }[] = [];
+	const listed = new Map(
+		(Array.isArray(manifest.files) ? manifest.files : []).map((f) => [String(f.attachmentId), f])
+	);
+	let bytes = 0;
+	for (const t of payload.tickets)
+		for (const a of t.attachments ?? []) {
+			const f = listed.get(a.id);
+			const label = f?.name ?? a.id;
+			if (!f || typeof f.path !== 'string' || !/^attachments\/[^/]+$/.test(f.path)) {
+				problems.push({ name: label, reason: 'not included in the bundle' });
+				continue;
+			}
+			const entry = byName.get(f.path);
+			if (!entry) {
+				problems.push({ name: label, reason: 'file missing from the bundle' });
+				continue;
+			}
+			let content: Buffer;
+			try {
+				content = readZipEntry(buf, entry);
+			} catch {
+				problems.push({ name: label, reason: 'file is damaged' });
+				continue;
+			}
+			if (content.length !== f.size || sha256(content) !== f.sha256) {
+				problems.push({ name: label, reason: 'checksum mismatch' });
+				continue;
+			}
+			const mime = detectImageType(content);
+			if (!mime || !allowed.includes(mime)) {
+				problems.push({ name: label, reason: 'not an allowed image' });
+				continue;
+			}
+			if (content.length > maxAttachmentBytes()) {
+				problems.push({ name: label, reason: 'larger than the upload limit' });
+				continue;
+			}
+			bytes += content.length;
+			files.push({
+				attachmentId: a.id,
+				path: f.path,
+				sha256: f.sha256,
+				size: f.size,
+				name: String(f.name ?? 'image').slice(0, 200),
+				mimeType: mime,
+				extension: IMAGE_EXTENSIONS[mime],
+				width: Number.isInteger(f.width) ? f.width : null,
+				height: Number.isInteger(f.height) ? f.height : null
+			});
+		}
+	return { ...payload, bundle: { files, problems, bytes } };
+}
+
 /** Parses an uploaded file and stores it for review. Nothing is imported yet. */
 export function createImport(
 	actorId: number,
 	access: ProjectAccess,
-	file: { name: string; text: string; size: number }
+	file: { name: string; size: number; text?: string; data?: Buffer }
 ) {
 	requireImporter(access);
-	if (file.size > IMPORT_LIMITS.bytes)
-		throw new ServiceError('The file is larger than 10 MB', 'file');
-	if (!file.text.trim()) throw new ServiceError('The file is empty', 'file');
 	const name = file.name.replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'import';
+	const data = file.data ?? Buffer.from(file.text ?? '', 'utf8');
+	const bundle = /\.zip$/i.test(name) || isZip(data);
+	const limit = bundle ? IMPORT_LIMITS.bundleBytes : IMPORT_LIMITS.bytes;
+	if (file.size > limit || data.length > limit)
+		throw new ServiceError(`The file is larger than ${limit / 1024 / 1024} MB`, 'file');
+	if (!data.length) throw new ServiceError('The file is empty', 'file');
+	const id = crypto.randomBytes(12).toString('base64url');
+	if (bundle) {
+		const payload = parseBundle(data);
+		fs.mkdirSync(importsDir(), { recursive: true, mode: 0o750 });
+		fs.writeFileSync(bundlePath(id), data, { mode: 0o640 });
+		insertImport(id, actorId, access, 'tikket-bundle', name, payload, { ...DEFAULT_OPTIONS });
+		return id;
+	}
+	const text = file.text ?? data.toString('utf8');
+	if (!text.trim()) throw new ServiceError('The file is empty', 'file');
 	let format: ImportFormat;
 	let payload: Payload;
-	const trimmed = file.text.replace(/^\uFEFF/, '').trimStart();
+	const trimmed = text.replace(/^\uFEFF/, '').trimStart();
 	if (/\.json$/i.test(name) || trimmed.startsWith('{')) {
 		let data: unknown;
 		try {
@@ -391,13 +603,29 @@ export function createImport(
 		payload = fromTikketJson(data);
 	} else if (/\.csv$/i.test(name) || /\.txt$/i.test(name)) {
 		format = 'csv';
-		payload = fromCsv(file.text);
-	} else throw new ServiceError('Upload a Tikket JSON export (.json) or a CSV file (.csv)', 'file');
+		payload = fromCsv(text);
+	} else
+		throw new ServiceError(
+			'Upload a Tikket JSON export (.json), a project bundle (.zip) or a CSV file (.csv)',
+			'file'
+		);
 	const options: ImportOptions = {
 		...DEFAULT_OPTIONS,
 		...(payload.kind === 'csv' ? { mapping: guessMapping(payload.headers) } : {})
 	};
-	const id = crypto.randomBytes(12).toString('base64url');
+	insertImport(id, actorId, access, format, name, payload, options);
+	return id;
+}
+
+function insertImport(
+	id: string,
+	actorId: number,
+	access: ProjectAccess,
+	format: ImportFormat,
+	name: string,
+	payload: Payload,
+	options: ImportOptions
+) {
 	getDb()
 		.insert(schema.imports)
 		.values({
@@ -411,7 +639,6 @@ export function createImport(
 			options: options as unknown as Record<string, unknown>
 		})
 		.run();
-	return id;
 }
 
 export function getImport(access: ProjectAccess, id: string) {
@@ -520,6 +747,7 @@ interface Prepared {
 	reporterName: string | null;
 	assigneeId: number | null;
 	createdAt: Date | null;
+	updatedAt: Date | null;
 	completedAt: Date | null;
 	duplicateOf: string | null;
 	relationships: { kind: 'relates' | 'blocks' | 'blocked_by'; ticket: string }[];
@@ -530,7 +758,9 @@ interface Prepared {
 		html: string;
 		text: string;
 		createdAt: Date | null;
+		originalId: number | null;
 	}[];
+	attachments: { id: string; commentId: number | null }[];
 }
 
 export interface ImportReview {
@@ -545,6 +775,18 @@ export interface ImportReview {
 	unmatchedUsers: string[];
 	keptNumbers: number;
 	renumbered: number;
+	/** Problems of individual rows that don't block the import (bad dates, unknown values). */
+	rowIssues: { row: number; message: string }[];
+	/** Rows whose title matches an existing ticket or another row of the file. */
+	duplicates: { row: number; title: string; existing: number | null; sameAsRow: number | null }[];
+	/** CSV mapping problems (a column used twice, a mapped column that is always empty). */
+	mappingWarnings: string[];
+	/** Project bundles: attachments that will be imported and those that can't be. */
+	attachments: {
+		count: number;
+		bytes: number;
+		problems: { name: string; reason: string }[];
+	} | null;
 	preview: {
 		row: number;
 		ref: string | null;
@@ -595,6 +837,10 @@ function prepare(access: ProjectAccess, payload: Payload, options: ImportOptions
 	};
 	const skipped: { row: number; reason: string }[] = [];
 	const warnings = new Set<string>();
+	const rowIssues: { row: number; message: string }[] = [];
+	const issue = (row: number, message: string) => {
+		if (rowIssues.length < 200) rowIssues.push({ row, message });
+	};
 	const prepared: Prepared[] = [];
 	for (const r of records) {
 		const title = r.title.replace(/\s+/g, ' ').trim();
@@ -608,19 +854,36 @@ function prepare(access: ProjectAccess, payload: Payload, options: ImportOptions
 		if (title.length > IMPORT_LIMITS.title)
 			warnings.add(`Titles longer than ${IMPORT_LIMITS.title} characters are shortened.`);
 		const type = lookup(TICKET_TYPES, TYPE_META, r.type);
-		if (r.type && !type) warnings.add(`Unknown type “${r.type.slice(0, 40)}” → Bug.`);
+		if (r.type && !type) {
+			warnings.add(`Unknown type “${r.type.slice(0, 40)}” → Bug.`);
+			issue(r.row, `Unknown type “${r.type.slice(0, 40)}” – imported as Bug`);
+		}
 		const status = lookup(TICKET_STATUSES, STATUS_META, r.status);
-		if (r.status && !status) warnings.add(`Unknown status “${r.status.slice(0, 40)}” → Open.`);
+		if (r.status && !status) {
+			warnings.add(`Unknown status “${r.status.slice(0, 40)}” → Open.`);
+			issue(r.row, `Unknown status “${r.status.slice(0, 40)}” – imported as Open`);
+		}
 		const priority = lookup(TICKET_PRIORITIES, PRIORITY_META, r.priority);
-		if (r.priority && !priority)
+		if (r.priority && !priority) {
 			warnings.add(`Unknown priority “${r.priority.slice(0, 40)}” → Medium.`);
+			issue(r.row, `Unknown priority “${r.priority.slice(0, 40)}” – imported as Medium`);
+		}
 		const rich = normaliseRichInput(
 			r.description.slice(0, IMPORT_LIMITS.description),
 			r.descriptionFormat
 		);
 		const created = validDate(r.createdAt);
-		if (r.createdAt && !created)
+		if (r.createdAt && !created) {
 			warnings.add('Some dates were invalid; the import time is used instead.');
+			issue(r.row, `Invalid created date “${r.createdAt.slice(0, 40)}”`);
+		}
+		let updated = validDate(r.updatedAt ?? null);
+		if (r.updatedAt && !updated) {
+			warnings.add('Some dates were invalid; the import time is used instead.');
+			issue(r.row, `Invalid updated date “${r.updatedAt.slice(0, 40)}”`);
+		}
+		// An update can't be older than the creation.
+		if (updated && created && updated < created) updated = created;
 		prepared.push({
 			row: r.row,
 			ref: r.ref,
@@ -641,6 +904,7 @@ function prepare(access: ProjectAccess, payload: Payload, options: ImportOptions
 			reporterName: r.reporterName,
 			assigneeId: memberId(r.assignee, true),
 			createdAt: created,
+			updatedAt: updated,
 			completedAt: validDate(r.completedAt),
 			duplicateOf: r.duplicateOf,
 			relationships: r.relationships.filter(
@@ -657,11 +921,13 @@ function prepare(access: ProjectAccess, payload: Payload, options: ImportOptions
 								internal: c.internal,
 								html: body.html,
 								text: body.text,
-								createdAt: validDate(c.createdAt)
+								createdAt: validDate(c.createdAt),
+								originalId: c.originalId ?? null
 							};
 						})
 						.filter((c) => c.text.trim())
-				: []
+				: [],
+			attachments: r.attachments ?? []
 		});
 	}
 	if (payload.kind === 'csv' && (options.mapping?.title ?? -1) < 0)
@@ -669,9 +935,10 @@ function prepare(access: ProjectAccess, payload: Payload, options: ImportOptions
 			prepared: [],
 			skipped: [{ row: 0, reason: 'Choose the column that holds the title' }],
 			warnings: [...warnings],
-			unmatched: []
+			unmatched: [],
+			rowIssues: []
 		};
-	return { prepared, skipped, warnings: [...warnings], unmatched: [...unmatched] };
+	return { prepared, skipped, warnings: [...warnings], unmatched: [...unmatched], rowIssues };
 }
 
 function existing(projectId: number) {
@@ -739,7 +1006,7 @@ export function reviewImport(
 ): ImportReview {
 	const payload = row.payload as Payload;
 	const options = { ...DEFAULT_OPTIONS, ...(row.options as Partial<ImportOptions>) };
-	const { prepared, skipped, warnings, unmatched } = prepare(access, payload, options);
+	const { prepared, skipped, warnings, unmatched, rowIssues } = prepare(access, payload, options);
 	const have = existing(access.project.id);
 	const distinct = (values: (string | null)[], map: Map<string, number>) => [
 		...new Map(
@@ -792,6 +1059,23 @@ export function reviewImport(
 		unmatchedUsers: unmatched.slice(0, 50),
 		keptNumbers: keptCount,
 		renumbered: prepared.length - keptCount,
+		rowIssues,
+		duplicates: findDuplicates(access.project.id, prepared),
+		mappingWarnings: payload.kind === 'csv' ? mappingWarnings(payload, options.mapping) : [],
+		attachments:
+			payload.kind === 'records' && payload.bundle
+				? {
+						count: options.importComments
+							? payload.bundle.files.length
+							: payload.bundle.files.filter((f) =>
+									prepared.some((p) =>
+										p.attachments.some((a) => a.id === f.attachmentId && !a.commentId)
+									)
+								).length,
+						bytes: payload.bundle.bytes,
+						problems: payload.bundle.problems.slice(0, 100)
+					}
+				: null,
 		preview: prepared.slice(0, 10).map((p) => ({
 			row: p.row,
 			ref: p.ref,
@@ -802,6 +1086,60 @@ export function reviewImport(
 			labels: p.labels
 		}))
 	};
+}
+
+/** Titles that already exist in the project, or appear twice in the file (warnings only). */
+function findDuplicates(projectId: number, prepared: Prepared[]) {
+	const key = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+	const titles = [...new Set(prepared.map((p) => key(p.title)))];
+	const existingByTitle = new Map<string, number>();
+	// Chunked lookup (SQLite parameter limit).
+	for (let i = 0; i < titles.length; i += 500) {
+		const chunk = titles.slice(i, i + 500);
+		for (const t of getDb()
+			.select({ number: schema.tickets.number, title: schema.tickets.title })
+			.from(schema.tickets)
+			.where(
+				and(
+					eq(schema.tickets.projectId, projectId),
+					inArray(sql`lower(trim(${schema.tickets.title}))`, chunk)
+				)
+			)
+			.all())
+			if (!existingByTitle.has(key(t.title))) existingByTitle.set(key(t.title), t.number);
+	}
+	const firstRow = new Map<string, number>();
+	const out: ImportReview['duplicates'] = [];
+	for (const p of prepared) {
+		const k = key(p.title);
+		const existingNumber = existingByTitle.get(k) ?? null;
+		const sameAsRow = firstRow.get(k) ?? null;
+		if (existingNumber !== null || sameAsRow !== null)
+			out.push({ row: p.row, title: p.title, existing: existingNumber, sameAsRow });
+		if (!firstRow.has(k)) firstRow.set(k, p.row);
+	}
+	return out.slice(0, 100);
+}
+
+function mappingWarnings(payload: CsvPayload, mapping: CsvMapping | undefined): string[] {
+	if (!mapping) return [];
+	const out: string[] = [];
+	const byColumn = new Map<number, CsvField[]>();
+	for (const f of CSV_FIELDS) {
+		const c = mapping[f];
+		if (c >= 0) byColumn.set(c, [...(byColumn.get(c) ?? []), f]);
+	}
+	for (const [c, fields] of byColumn) {
+		const header = payload.headers[c] || `Column ${c + 1}`;
+		if (fields.length > 1)
+			out.push(
+				`“${header}” is used for ${fields.map((f) => CSV_FIELD_LABELS[f].replace(' (required)', '')).join(' and ')}.`
+			);
+		if (payload.rows.every((r) => !(r[c] ?? '').trim()))
+			out.push(`“${header}” is empty in every row.`);
+	}
+	if (mapping.title < 0) out.push('No column is mapped to the title – choose one to import.');
+	return out;
 }
 
 // ── Confirm ────────────────────────────────────────────────────────────────
@@ -841,11 +1179,21 @@ export function confirmImport(
 		);
 	}
 	const options = { ...DEFAULT_OPTIONS, ...(claimed.options as Partial<ImportOptions>) };
+	// Attachment files written during the import: removed again if it fails (no orphans).
+	const written: { id: string; extension: string }[] = [];
 	try {
 		const { prepared } = prepare(access, claimed.payload as Payload, options);
 		if (!prepared.length) throw new ServiceError('Nothing to import: no valid tickets', 'form');
+		const files =
+			claimed.format === 'tikket-bundle'
+				? loadBundleFiles(id, claimed.payload as Payload)
+				: new Map<string, Buffer>();
 		const result = db.transaction(
-			(tx) => apply(tx as unknown as typeof db, actorId, access, claimed, prepared, options),
+			(tx) =>
+				apply(tx as unknown as typeof db, actorId, access, claimed, prepared, options, {
+					files,
+					written
+				}),
 			{
 				behavior: 'immediate'
 			}
@@ -866,16 +1214,40 @@ export function confirmImport(
 	} catch (err) {
 		const message =
 			err instanceof ServiceError ? err.message : 'The import failed; nothing was imported.';
-		if (!(err instanceof ServiceError)) console.error('[tikket] import failed', err);
+		if (!(err instanceof ServiceError)) console.error(`[tikket] import failed id=${id}`, err);
+		for (const f of written) removeFiles(f);
 		db.update(schema.imports)
 			.set({ status: 'failed', error: message, payload: null, completedAt: new Date() })
 			.where(eq(schema.imports.id, id))
 			.run();
 		throw new ServiceError(message, 'form');
+	} finally {
+		fs.rmSync(bundlePath(id), { force: true });
 	}
 }
 
+/** Reads the validated attachment files of a stored bundle again (checksums re-verified). */
+function loadBundleFiles(id: string, payload: Payload) {
+	const files = new Map<string, Buffer>();
+	if (payload.kind !== 'records' || !payload.bundle?.files.length) return files;
+	let buf: Buffer;
+	try {
+		buf = fs.readFileSync(bundlePath(id));
+	} catch {
+		throw new ServiceError('The uploaded bundle is no longer available – upload it again', 'form');
+	}
+	const entries = new Map(readZipDirectory(buf).map((e) => [e.name, e]));
+	for (const f of payload.bundle.files) {
+		const e = entries.get(f.path);
+		if (!e) continue;
+		const data = readZipEntry(buf, e);
+		if (sha256(data) === f.sha256) files.set(f.attachmentId, data);
+	}
+	return files;
+}
+
 type DB = ReturnType<typeof getDb>;
+const payload_ = (imp: typeof schema.imports.$inferSelect) => imp.payload as Payload;
 
 function apply(
 	tx: DB,
@@ -883,9 +1255,20 @@ function apply(
 	access: ProjectAccess,
 	imp: typeof schema.imports.$inferSelect,
 	prepared: Prepared[],
-	options: ImportOptions
+	options: ImportOptions,
+	bundle: { files: Map<string, Buffer>; written: { id: string; extension: string }[] } = {
+		files: new Map(),
+		written: []
+	}
 ) {
 	const projectId = access.project.id;
+	const fileInfo = new Map(
+		(payload_(imp).kind === 'records'
+			? ((payload_(imp) as JsonPayload).bundle?.files ?? [])
+			: []
+		).map((f) => [f.attachmentId, f])
+	);
+	let attachmentCount = 0;
 	const have = existing(projectId);
 	const payload = imp.payload as Payload;
 	const created = { labels: 0, releases: 0, milestones: 0 };
@@ -1027,7 +1410,7 @@ function apply(
 				completedAt: p.status === 'completed' ? (p.completedAt ?? createdAt) : null,
 				closedAt: resolved ? (p.completedAt ?? createdAt) : null,
 				createdAt,
-				updatedAt: createdAt
+				updatedAt: p.updatedAt && p.updatedAt > createdAt ? p.updatedAt : createdAt
 			})
 			.returning({ id: schema.tickets.id })
 			.get();
@@ -1050,9 +1433,11 @@ function apply(
 			originalReporter: !p.reporterId && p.reporterName ? p.reporterName : undefined
 		});
 		let publicComments = 0;
+		const commentIds = new Map<number, number>();
 		for (const c of p.comments) {
 			const at = c.createdAt ?? now;
-			tx.insert(schema.ticketComments)
+			const inserted = tx
+				.insert(schema.ticketComments)
 				.values({
 					ticketId: ticket.id,
 					authorId: c.authorId ?? actorId,
@@ -1065,8 +1450,39 @@ function apply(
 					createdAt: at,
 					updatedAt: at
 				})
-				.run();
+				.returning({ id: schema.ticketComments.id })
+				.get();
+			if (c.originalId) commentIds.set(c.originalId, inserted.id);
 			if (!c.internal) publicComments++;
+		}
+		// Bundle attachments: linked to the new ticket or to the new copy of their comment.
+		for (const a of p.attachments) {
+			const data = bundle.files.get(a.id);
+			const info = fileInfo.get(a.id);
+			if (!data || !info) continue;
+			const commentId = a.commentId ? commentIds.get(a.commentId) : null;
+			if (a.commentId && !commentId) continue; // its comment wasn't imported
+			const fileId = writeStoredFile(data, info.extension);
+			bundle.written.push({ id: fileId, extension: info.extension });
+			tx.insert(schema.attachments)
+				.values({
+					id: fileId,
+					uploaderId: actorId,
+					projectId,
+					ticketId: ticket.id,
+					commentId: commentId ?? null,
+					kind: commentId ? 'comment' : 'ticket',
+					originalName: cleanDisplayName(info.name, info.extension),
+					mimeType: info.mimeType,
+					extension: info.extension,
+					size: data.length,
+					width: info.width,
+					height: info.height,
+					hasThumbnail: false,
+					attachedAt: now
+				})
+				.run();
+			attachmentCount++;
 		}
 		if (publicComments)
 			tx.update(schema.tickets)
@@ -1121,6 +1537,7 @@ function apply(
 		releasesCreated: created.releases,
 		milestonesCreated: created.milestones,
 		relationships: links,
+		attachments: attachmentCount,
 		keptNumbers: prepared.filter((p) => p.number && kept.has(p.number)).length,
 		firstNumber: numbers[0] ?? null,
 		lastNumber: numbers[numbers.length - 1] ?? null
@@ -1129,10 +1546,13 @@ function apply(
 
 /** Removes reviewed-but-never-confirmed imports after a day (they hold the parsed file). */
 export function pruneImports(now = Date.now()) {
-	return getDb()
+	const stale = getDb()
 		.delete(schema.imports)
 		.where(
 			and(eq(schema.imports.status, 'review'), lt(schema.imports.createdAt, new Date(now - 864e5)))
 		)
-		.run().changes;
+		.returning({ id: schema.imports.id })
+		.all();
+	for (const s of stale) fs.rmSync(bundlePath(s.id), { force: true });
+	return stale.length;
 }

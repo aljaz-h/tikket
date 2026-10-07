@@ -998,7 +998,7 @@ export const imports = sqliteTable(
 			.notNull()
 			.references(() => projects.id, { onDelete: 'cascade' }),
 		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
-		format: text('format').$type<'tikket-json' | 'csv'>().notNull(),
+		format: text('format').$type<'tikket-json' | 'csv' | 'tikket-bundle'>().notNull(),
 		status: text('status').$type<'review' | 'running' | 'completed' | 'failed'>().notNull(),
 		fileName: text('file_name').notNull(),
 		/** Parsed records awaiting confirmation; cleared once the import is done. */

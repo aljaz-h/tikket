@@ -11,7 +11,7 @@ import type { Attachment } from './db/schema';
 import { getSettings, maxAttachmentBytes } from './settings';
 
 const ID_RE = /^[a-f0-9]{32}$/;
-const EXTENSIONS: Record<ImageMimeType, string> = {
+export const IMAGE_EXTENSIONS: Record<ImageMimeType, string> = {
 	'image/png': 'png',
 	'image/jpeg': 'jpg',
 	'image/webp': 'webp',
@@ -89,7 +89,7 @@ export async function storeImage(file: File, opts: StoreOptions): Promise<Attach
 	if (!mime)
 		throw new UploadError(`“${file.name}” is not a supported image (PNG, JPEG, WebP or GIF).`);
 	if (!settings.allowedImageTypes.includes(mime))
-		throw new UploadError(`${EXTENSIONS[mime].toUpperCase()} images are not allowed.`);
+		throw new UploadError(`${IMAGE_EXTENSIONS[mime].toUpperCase()} images are not allowed.`);
 
 	let output: Buffer = input;
 	let width: number | undefined;
@@ -119,7 +119,7 @@ export async function storeImage(file: File, opts: StoreOptions): Promise<Attach
 	}
 
 	const id = randomId(16);
-	const ext = EXTENSIONS[mime];
+	const ext = IMAGE_EXTENSIONS[mime];
 	const record = { id, extension: ext };
 	fs.mkdirSync(shard(id), { recursive: true });
 	fs.writeFileSync(originalPath(record), output, { mode: 0o640 });

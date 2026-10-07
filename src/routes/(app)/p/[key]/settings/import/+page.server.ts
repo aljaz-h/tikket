@@ -13,7 +13,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		title: `Import · Settings · ${access.project.name}`,
 		imports: listImports(access.project.id),
-		limits: { tickets: IMPORT_LIMITS.tickets, megabytes: IMPORT_LIMITS.bytes / 1024 / 1024 }
+		limits: {
+			tickets: IMPORT_LIMITS.tickets,
+			megabytes: IMPORT_LIMITS.bytes / 1024 / 1024,
+			bundleMegabytes: IMPORT_LIMITS.bundleBytes / 1024 / 1024
+		}
 	};
 };
 
@@ -27,14 +31,18 @@ export const actions: Actions = {
 		const file = (await request.formData()).get('file');
 		if (!(file instanceof File) || !file.size)
 			return fail(400, { errors: { file: 'Choose a file to import' } });
-		if (file.size > IMPORT_LIMITS.bytes)
-			return fail(400, { errors: { file: 'The file is larger than 10 MB' } });
+		const zip = /\.zip$/i.test(file.name);
+		const limit = zip ? IMPORT_LIMITS.bundleBytes : IMPORT_LIMITS.bytes;
+		if (file.size > limit)
+			return fail(400, {
+				errors: { file: `The file is larger than ${limit / 1024 / 1024} MB` }
+			});
 		let id: string;
 		try {
 			id = createImport(user.id, access, {
 				name: file.name,
 				size: file.size,
-				text: await file.text()
+				data: Buffer.from(await file.arrayBuffer())
 			});
 		} catch (err) {
 			return handleServiceError(err);

@@ -26,18 +26,24 @@
 	<div>
 		<h2 class="text-base font-semibold">Import tickets</h2>
 		<p class="text-sm text-muted-foreground">
-			Bring tickets into this project from a Tikket JSON export (another Tikket project or instance)
-			or a CSV file from a spreadsheet or another tracker. You review everything before anything is
-			created, and the import runs all-or-nothing.
+			Bring tickets into this project from a Tikket export – JSON, or a project bundle (.zip) that
+			also carries the images – or from a CSV file of a spreadsheet or another tracker. You review
+			everything before anything is created, and the import runs all-or-nothing.
 		</p>
 	</div>
 	<ul class="grid gap-1 text-xs text-muted-foreground">
-		<li>• Up to {data.limits.tickets} tickets and {data.limits.megabytes} MB per file.</li>
+		<li>
+			• Up to {data.limits.tickets} tickets; {data.limits.megabytes} MB per JSON/CSV file, {data
+				.limits.bundleMegabytes} MB per bundle (and within the server's upload limit).
+		</li>
 		<li>
 			• Accounts, passwords, tokens and integration secrets are never imported. People can be
 			matched to existing project members if you choose to.
 		</li>
-		<li>• Attachments and votes are not imported. Original ticket IDs are kept as references.</li>
+		<li>
+			• Images are imported from bundles (checked against their checksums); votes never are.
+			Original ticket IDs are kept as references.
+		</li>
 	</ul>
 	<form
 		method="POST"
@@ -56,13 +62,13 @@
 			label="File"
 			for="import-file"
 			error={errors.file}
-			hint="Tikket JSON (.json) or CSV (.csv)"
+			hint="Tikket JSON (.json), project bundle (.zip) or CSV (.csv)"
 		>
 			<input
 				id="import-file"
 				name="file"
 				type="file"
-				accept=".json,.csv,application/json,text/csv"
+				accept=".json,.zip,.csv,application/json,application/zip,text/csv"
 				required
 				class="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-border file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-hover"
 			/>

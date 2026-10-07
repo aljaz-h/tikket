@@ -13,7 +13,7 @@
 	import Select from '$lib/components/ui/select.svelte';
 	import Switch from '$lib/components/ui/switch.svelte';
 	import { PRIORITY_META, TYPE_META } from '$lib/shared/constants';
-	import { projectPath } from '$lib/shared/format';
+	import { formatBytes, projectPath, ticketPath } from '$lib/shared/format';
 
 	let { data, form } = $props();
 	const base = $derived(projectPath(data.project.key, 'settings/import'));
@@ -117,6 +117,12 @@
 				<dt class="text-xs text-muted-foreground">Links between tickets</dt>
 				<dd>{result.relationships}</dd>
 			</div>
+			{#if result.attachments}
+				<div>
+					<dt class="text-xs text-muted-foreground">Images</dt>
+					<dd>{result.attachments}</dd>
+				</div>
+			{/if}
 			{#if result.firstNumber}
 				<div class="col-span-2">
 					<dt class="text-xs text-muted-foreground">Ticket numbers</dt>
@@ -270,6 +276,37 @@
 					<dd class="[overflow-wrap:anywhere]">{r.newMilestones.join(', ') || '—'}</dd>
 				</div>
 			</dl>
+			{#if r.mappingWarnings.length}
+				<ul
+					class="grid gap-1 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-xs"
+					aria-label="Column mapping"
+				>
+					{#each r.mappingWarnings as w (w)}
+						<li class="flex items-start gap-2">
+							<TriangleAlert class="mt-0.5 size-3.5 shrink-0 text-warning" />{w}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if r.attachments}
+				<div class="grid gap-1 rounded-lg border border-border px-3 py-2.5 text-xs">
+					<p class="font-medium">
+						{r.attachments.count} image{r.attachments.count === 1 ? '' : 's'} will be imported ({formatBytes(
+							r.attachments.bytes
+						)})
+					</p>
+					{#if r.attachments.problems.length}
+						<p class="text-warning">
+							{r.attachments.problems.length} can't be imported and will be left out:
+						</p>
+						<ul class="grid gap-0.5 text-muted-foreground">
+							{#each r.attachments.problems.slice(0, 20) as pr, i (i)}
+								<li class="[overflow-wrap:anywhere]">{pr.name} – {pr.reason}</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			{/if}
 			{#if r.skipped.length}
 				<div
 					class="grid gap-1 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
@@ -303,6 +340,37 @@
 						</li>
 					{/if}
 				</ul>
+			{/if}
+			{#if r.duplicates.length}
+				<details class="rounded-lg border border-border px-3 py-2.5 text-xs">
+					<summary class="cursor-pointer font-medium">
+						{r.duplicates.length} possible duplicate{r.duplicates.length === 1 ? '' : 's'} (imported anyway)
+					</summary>
+					<ul class="mt-2 grid gap-1">
+						{#each r.duplicates as d (d.row)}
+							<li class="[overflow-wrap:anywhere]">
+								Row {d.row} “{d.title}” –
+								{#if d.existing}same title as
+									<a
+										href={ticketPath(data.project.key, d.existing)}
+										class="text-link hover:underline">{data.project.key}-{d.existing}</a
+									>{:else}same title as row {d.sameAsRow}{/if}
+							</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+			{#if r.rowIssues.length}
+				<details class="rounded-lg border border-border px-3 py-2.5 text-xs">
+					<summary class="cursor-pointer font-medium">
+						{r.rowIssues.length} row issue{r.rowIssues.length === 1 ? '' : 's'} (defaults used)
+					</summary>
+					<ul class="mt-2 grid gap-1 text-muted-foreground">
+						{#each r.rowIssues.slice(0, 50) as ri, i (i)}
+							<li class="[overflow-wrap:anywhere]">Row {ri.row}: {ri.message}</li>
+						{/each}
+					</ul>
+				</details>
 			{/if}
 			{#if r.preview.length}
 				<div class="overflow-x-auto rounded-lg border border-border">
