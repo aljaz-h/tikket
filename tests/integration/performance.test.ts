@@ -69,7 +69,7 @@ describe('query counts do not grow with the data (no N+1)', () => {
 				boardTickets({
 					scope: eq(schema.tickets.projectId, project.id),
 					filters: parseTicketFilters(new URLSearchParams()),
-					pageSize: 50,
+
 					projectKey: 'PRF',
 					staff: true
 				})
