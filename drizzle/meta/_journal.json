@@ -29,6 +29,13 @@
       "when": 1791306415489,
       "tag": "0003_v04_management",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791324058522,
+      "tag": "0004_project_logos",
+      "breakpoints": true
     }
   ]
 }

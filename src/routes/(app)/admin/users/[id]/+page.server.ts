@@ -31,6 +31,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			key: schema.projects.key,
 			name: schema.projects.name,
 			icon: schema.projects.icon,
+			logoId: schema.projects.logoId,
 			color: schema.projects.color
 		})
 		.from(schema.projectMembers)

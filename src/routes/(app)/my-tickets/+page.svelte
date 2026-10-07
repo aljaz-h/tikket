@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TabNav from '$lib/components/ui/tab-nav.svelte';
 	import Inbox from '@lucide/svelte/icons/inbox';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { page } from '$app/state';
@@ -9,7 +10,6 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import { filtersToParams } from '$lib/shared/filters';
-	import { cn } from '$lib/utils';
 
 	let { data } = $props();
 	const tabs = [
@@ -27,23 +27,10 @@
 	>
 		{#snippet actions()}<Button href="/new"><Plus /> New ticket</Button>{/snippet}
 	</PageHeader>
-	<nav
-		class="-mx-4 flex scrollbar-thin gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0"
-		aria-label="My tickets"
-	>
-		{#each tabs as tab (tab.id)}
-			<a
-				href="?tab={tab.id}"
-				aria-current={data.tab === tab.id ? 'page' : undefined}
-				class={cn(
-					'-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap',
-					data.tab === tab.id
-						? 'border-primary-border font-medium'
-						: 'border-transparent text-muted-foreground hover:text-foreground'
-				)}>{tab.label}</a
-			>
-		{/each}
-	</nav>
+	<TabNav
+		label="My tickets"
+		tabs={tabs.map((t) => ({ href: `?tab=${t.id}`, label: t.label, active: data.tab === t.id }))}
+	/>
 	<TicketFilters
 		filters={data.filters}
 		showReporter={data.tab !== 'created'}

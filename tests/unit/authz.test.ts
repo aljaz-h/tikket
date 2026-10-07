@@ -13,6 +13,7 @@ const project = (over: Partial<Project> = {}): Project => ({
 	name: 'Spool',
 	description: null,
 	icon: null,
+	logoId: null,
 	color: 'indigo',
 	url: null,
 	visibility: 'private',

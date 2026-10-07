@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TabNav from '$lib/components/ui/tab-nav.svelte';
 	import { page } from '$app/state';
 	import Plus from '@lucide/svelte/icons/plus';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -7,7 +8,6 @@
 	import ProjectIcon from '$lib/components/ProjectIcon.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import { projectPath } from '$lib/shared/format';
-	import { cn } from '$lib/utils';
 
 	let { children, data } = $props();
 	const base = $derived(projectPath(data.project.key));
@@ -72,23 +72,7 @@
 				<Archive class="size-4" /> This project is archived. Its history is preserved and read-only.
 			</div>
 		{/if}
-		<nav
-			class="-mx-4 flex scrollbar-thin gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0"
-			aria-label="Project"
-		>
-			{#each tabs as tab (tab.href)}
-				<a
-					href={tab.href}
-					aria-current={isActive(tab) ? 'page' : undefined}
-					class={cn(
-						'-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors',
-						isActive(tab)
-							? 'border-primary-border font-medium text-foreground'
-							: 'border-transparent text-muted-foreground hover:text-foreground'
-					)}>{tab.label}</a
-				>
-			{/each}
-		</nav>
+		<TabNav label="Project" tabs={tabs.map((t) => ({ ...t, active: isActive(t) }))} />
 	</div>
 {/if}
 

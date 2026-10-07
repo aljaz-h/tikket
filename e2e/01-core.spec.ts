@@ -69,7 +69,7 @@ test('3. project creation', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Spool' })).toBeVisible();
 	await hydrated(page);
 	// A label for later triage.
-	await goto(page, '/p/spl/settings');
+	await goto(page, '/p/spl/settings/labels');
 	await page.getByLabel('Label name').first().fill('Playback');
 	await page.getByRole('button', { name: 'Add label' }).click();
 	await expect(page.getByText('Label created')).toBeVisible();
@@ -77,7 +77,7 @@ test('3. project creation', async ({ page }) => {
 
 test('4. user invitation and membership', async ({ page, browser }) => {
 	await login(page, ADMIN);
-	await goto(page, '/p/spl/settings');
+	await goto(page, '/p/spl/settings/members');
 	await page.getByRole('button', { name: 'Create link' }).click();
 	const linkInput = page.getByLabel('Invitation link');
 	await expect(linkInput).toBeVisible();

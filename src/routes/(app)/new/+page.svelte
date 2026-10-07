@@ -350,14 +350,16 @@
 						>
 						What would you like to report?
 					</h2>
-					<div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Ticket type">
+					<!-- A balanced 2 × 2 grid: equal widths and (via auto-rows-fr) equal heights. -->
+					<div
+						class="grid gap-2 sm:auto-rows-fr sm:grid-cols-2"
+						role="radiogroup"
+						aria-label="Ticket type"
+					>
 						{#each TICKET_TYPES as t (t)}
 							{@const Icon = TYPE_ICONS[t]}
 							<label
-								class={cn(
-									'flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-border-strong has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring',
-									t === 'feedback' && 'sm:col-span-2 sm:py-2.5'
-								)}
+								class="flex h-full cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-3.5 transition-colors hover:border-border-strong has-[:checked]:border-primary-border has-[:checked]:bg-primary-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
 							>
 								<input
 									type="radio"
@@ -371,11 +373,10 @@
 								<span
 									class={cn(
 										'tone flex size-9 shrink-0 items-center justify-center rounded-lg border',
-										TYPE_TONES[t],
-										t === 'feedback' && 'size-7'
+										TYPE_TONES[t]
 									)}
 								>
-									<Icon class={t === 'feedback' ? 'size-4' : 'size-[1.125rem]'} />
+									<Icon class="size-[1.125rem]" />
 								</span>
 								<span class="min-w-0">
 									<span class="block font-medium">{TYPE_META[t].label}</span>

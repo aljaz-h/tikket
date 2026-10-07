@@ -389,3 +389,6 @@ export const DEFAULT_TICKET_COLUMNS: TicketColumn[] = [
 
 /** Remembers the last chosen ticket list columns (a preference, not a secret). */
 export const COLUMNS_COOKIE = 'tikket_cols';
+
+/** Remembers whether the desktop sidebar is collapsed (a preference, not a secret). */
+export const SIDEBAR_COOKIE = 'tikket_sidebar';

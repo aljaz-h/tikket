@@ -29,12 +29,12 @@
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger
 		class={cn(
-			'flex w-full items-center gap-2 rounded-md p-1.5 text-left transition-colors hover:bg-hover data-[state=open]:bg-hover',
-			collapsed && 'justify-center'
+			'flex items-center gap-2 rounded-md text-left transition-colors hover:bg-hover data-[state=open]:bg-hover',
+			collapsed ? 'size-9 justify-center' : 'w-full p-1.5'
 		)}
 		aria-label="Account menu"
 	>
-		<UserAvatar {user} size="md" />
+		<UserAvatar {user} size={collapsed ? 'sm' : 'md'} />
 		{#if !collapsed}
 			<span class="min-w-0 flex-1">
 				<span class="block truncate text-sm font-medium">{user.displayName}</span>

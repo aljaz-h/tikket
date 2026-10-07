@@ -23,6 +23,7 @@ export function clientProject(access: ProjectAccess) {
 		name: p.name,
 		description: p.description,
 		icon: p.icon,
+		logoId: p.logoId,
 		color: p.color,
 		url: p.url,
 		visibility: p.visibility,

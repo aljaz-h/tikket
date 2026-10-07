@@ -26,7 +26,8 @@ export type AuditAction =
 	| 'invitation.revoked'
 	| 'invitation.accepted'
 	| 'settings.updated'
-	| 'widget.updated';
+	| 'widget.updated'
+	| 'project.logo';
 
 export interface AuditEntry {
 	actorId: number | null;

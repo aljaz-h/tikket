@@ -218,3 +218,11 @@ export function cleanupAbandonedUploads(maxAgeMs = 24 * 60 * 60 * 1000): number 
 	}
 	return stale.length;
 }
+
+/** Writes an already validated and re-encoded file into the uploads volume; returns its new id. */
+export function writeStoredFile(data: Buffer, extension: string): string {
+	const id = randomId(16);
+	fs.mkdirSync(shard(id), { recursive: true });
+	fs.writeFileSync(originalPath({ id, extension }), data, { mode: 0o640 });
+	return id;
+}

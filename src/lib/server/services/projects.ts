@@ -197,6 +197,7 @@ export function listProjects(actor: Actor, opts: { archived?: boolean | 'all' } 
 			name: schema.projects.name,
 			description: schema.projects.description,
 			icon: schema.projects.icon,
+			logoId: schema.projects.logoId,
 			color: schema.projects.color,
 			url: schema.projects.url,
 			visibility: schema.projects.visibility,

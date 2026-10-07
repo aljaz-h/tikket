@@ -159,6 +159,7 @@ const listColumns = {
 	projectKey: schema.projects.key,
 	projectName: schema.projects.name,
 	projectIcon: schema.projects.icon,
+	projectLogoId: schema.projects.logoId,
 	projectColor: schema.projects.color,
 	assignee: { id: assignee.id, displayName: assignee.displayName, avatarId: assignee.avatarId },
 	reporter: { id: reporter.id, displayName: reporter.displayName, avatarId: reporter.avatarId },
@@ -377,6 +378,7 @@ export function globalSearch(actor: Actor, q: string, limit = 8) {
 			key: schema.projects.key,
 			name: schema.projects.name,
 			icon: schema.projects.icon,
+			logoId: schema.projects.logoId,
 			color: schema.projects.color
 		})
 		.from(schema.projects)

@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import ProjectFields from '$lib/components/ProjectFields.svelte';
+	import Checkbox from '$lib/components/ui/checkbox.svelte';
 	import FormMessage from '$lib/components/FormMessage.svelte';
 	import Button from '$lib/components/ui/button.svelte';
 	import Card from '$lib/components/ui/card.svelte';
@@ -22,6 +23,7 @@
 	<Card class="p-5 sm:p-6">
 		<form
 			method="POST"
+			enctype="multipart/form-data"
 			class="grid gap-5"
 			use:enhance={() => {
 				pending = true;
@@ -52,6 +54,25 @@
 					/>
 				</Field>
 			{/if}
+			<fieldset class="grid gap-2 border-t border-border pt-5">
+				<legend class="text-[0.8125rem] font-medium">
+					Logo <span class="font-normal text-muted-foreground">(optional)</span>
+				</legend>
+				<p class="text-xs text-muted-foreground">
+					PNG, JPEG or WebP up to 5 MB. You can also change it later in the project settings.
+				</p>
+				<input
+					type="file"
+					name="logo"
+					accept="image/png,image/jpeg,image/webp"
+					aria-label="Logo image"
+					class="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-hover"
+				/>
+				<label class="flex items-center gap-2 text-sm">
+					<Checkbox name="fetchIcon" />
+					Otherwise use the website's icon (if a website is set)
+				</label>
+			</fieldset>
 			<div class="flex justify-end gap-2 border-t border-border pt-5">
 				<Button href="/projects" variant="ghost">Cancel</Button>
 				<Button type="submit" loading={pending}>Create project</Button>

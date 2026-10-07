@@ -1,5 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
-import { canCreateProjects } from '$lib/server/authz';
+import { accessForProject, canCreateProjects } from '$lib/server/authz';
+import { fetchWebsiteIcon, setProjectLogo, storeLogo } from '$lib/server/services/project-logos';
+import type { Project } from '$lib/server/db/schema';
 import { handleServiceError, intParam, requireActionUser, requireUser } from '$lib/server/http';
 import { createProject } from '$lib/server/services/projects';
 import { listUsers } from '$lib/server/services/users';
@@ -32,15 +34,43 @@ export const actions: Actions = {
 		// Only administrators may make someone else the owner.
 		const requestedOwner = intParam(String(form.get('ownerId') ?? ''));
 		const ownerId = user.role === 'admin' && requestedOwner ? requestedOwner : user.id;
-		let key: string;
+		let project: Project;
 		try {
-			key = createProject(user.id, parsed.data, ownerId, locals.clientIp).key;
+			project = createProject(user.id, parsed.data, ownerId, locals.clientIp);
 		} catch (err) {
 			return handleServiceError(
 				err,
 				Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]))
 			);
 		}
-		redirect(303, projectPath(key));
+		// Optional logo: never blocks creating the project; problems are explained in its settings.
+		const file = form.get('logo');
+		let logoProblem = false;
+		const access = accessForProject(user, project);
+		try {
+			if (file instanceof File && file.size) {
+				const att = await storeLogo(Buffer.from(await file.arrayBuffer()), {
+					uploaderId: user.id,
+					projectId: project.id,
+					name: file.name,
+					pending: true
+				});
+				setProjectLogo(user.id, access, att.id, locals.clientIp);
+			} else if (form.get('fetchIcon') === 'on' && project.url) {
+				const att = await storeLogo(await fetchWebsiteIcon(project.url), {
+					uploaderId: user.id,
+					projectId: project.id,
+					name: 'website-icon.png',
+					pending: true
+				});
+				setProjectLogo(user.id, access, att.id, locals.clientIp);
+			}
+		} catch {
+			logoProblem = true;
+		}
+		redirect(
+			303,
+			logoProblem ? `${projectPath(project.key, 'settings')}?logo=failed` : projectPath(project.key)
+		);
 	}
 };

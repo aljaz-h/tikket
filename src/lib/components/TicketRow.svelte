@@ -25,6 +25,7 @@
 			projectKey: string;
 			projectName: string;
 			projectIcon: string | null;
+			projectLogoId?: string | null;
 			projectColor: string;
 			assignee: { displayName: string; avatarId: string | null } | null;
 			labels?: { id: number; name: string; color: string }[];
@@ -92,6 +93,7 @@
 								project={{
 									name: ticket.projectName,
 									icon: ticket.projectIcon,
+									logoId: ticket.projectLogoId,
 									color: ticket.projectColor
 								}}
 								size="xs"

@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				key: p.key,
 				name: p.name,
 				icon: p.icon,
+				logoId: p.logoId,
 				color: p.color,
 				description: p.description,
 				canSubmit: access.canSubmit,

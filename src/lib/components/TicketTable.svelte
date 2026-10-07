@@ -220,7 +220,12 @@
 								{:else if c === 'priority'}<PriorityBadge priority={t.priority} />
 								{:else if c === 'project'}<span class="flex min-w-0 items-center gap-1.5"
 										><ProjectIcon
-											project={{ name: t.projectName, icon: t.projectIcon, color: t.projectColor }}
+											project={{
+												name: t.projectName,
+												icon: t.projectIcon,
+												color: t.projectColor,
+												logoId: t.projectLogoId
+											}}
 											size="xs"
 										/><span class="truncate">{t.projectName}</span></span
 									>

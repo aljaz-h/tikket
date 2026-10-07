@@ -75,11 +75,13 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 
 **Projects, people and administration**
 
-- Multiple projects with unique keys (`SPL-1`, `SPL-2`, …), emoji icon and colour, public/private visibility and optional anonymous read-only access.
-- Per-project roles: owner, moderator, member. Settings for voting, attachments, comments, submission policy and author edit policy. Archiving keeps all history read-only.
+- Multiple projects with unique keys (`SPL-1`, `SPL-2`, …), public/private visibility and optional anonymous read-only access.
+- **Project logos**: upload a PNG, JPEG or WebP image (drag & drop or file picker, with preview), or fetch the project website's icon. Without a logo, the emoji or coloured initial is used. Logos appear wherever the project is shown (sidebar, lists, search, ticket pages).
+- Per-project roles: owner, moderator, member. Project settings are grouped under _General_ (general settings, members, labels, danger zone – picked from a dropdown that shows the current section, each with its own URL), _Feedback widget_ and _Ticket templates_. Settings for voting, attachments, comments, submission policy and author edit policy. Archiving keeps all history read-only.
 - Secure, single-use, expiring invitation links (optionally bound to an email) for the instance or a specific project.
-- Admin area: users (search, create, invite, roles, disable/reactivate, revoke sessions, password-reset links), projects, invitations, system settings and an audit log.
+- Admin area (opened from the account menu): users (search, create, invite, roles, disable/reactivate, revoke sessions, password-reset links), projects, invitations, system settings and an audit log.
 - Dark (default), light and system themes in the Tikket charcoal-and-lime palette.
+- Collapsible sidebar: collapse or expand it with its toggle button (keyboard accessible), or click empty space in the collapsed rail to expand it. The choice is remembered in a cookie, so it survives reloads without flashing.
 
 ## Technology
 
@@ -178,9 +180,12 @@ Everything lives in the data volume:
 /data/tikket.db (+ -wal, -shm)   SQLite database (WAL mode)
 /data/uploads/ab/<id>.<ext>      Original images (random IDs, sharded)
 /data/uploads/ab/<id>.thumb.webp Thumbnails
+/data/uploads/ab/<id>.png         Project logos (256 × 256 PNG)
 /data/.session-secret            Only if SESSION_SECRET is not set
 /data/backups/                   Database backups created by the backup script
 ```
+
+Project logos are stored in the same uploads directory, so they survive container restarts and redeploys and are part of every backup of the volume. They are served by `/api/project-logos/<id>` with the project's visibility.
 
 Attachments are never served from a static directory: `/api/files/<id>` checks that the viewer can access the attachment's project (pending uploads are visible only to the uploader). Display names are stored separately from the random file names.
 
@@ -311,6 +316,13 @@ Key decisions:
 - **Quick actions reuse bulk editing** (one ticket, same action), so authorisation, transactions, history and notification grouping are identical.
 - **Progress is derived**: release and milestone progress is a grouped count over tickets, computed for all items in one query.
 
+### v0.5 design notes
+
+- **Logos are attachments** of kind `project_logo` referenced by `projects.logo_id` (migration `0004_project_logos`, additive; `ON DELETE SET NULL`). Every logo is decoded and re-encoded to a 256 × 256 PNG (`fit: contain` on transparent), which validates the content and strips metadata. Fetched icons are stored as pending previews owned by the requester until applied; unapplied previews are removed by the regular pending-upload cleanup. Replacing or removing a logo deletes the old file.
+- **One `ProjectIcon` component** renders logos everywhere, falling back to the emoji/initial if there is no logo or the image fails to load.
+- **Settings sections are routes** (`/p/<KEY>/settings`, `/members`, `/labels`, `/danger`), so the dropdown label, deep links and back/forward all follow the URL. Old `#members`/`#labels`/`#danger-zone` links redirect.
+- **Tab rows** share one `TabNav` component. The active underline is an inset shadow instead of a negative margin (the old cause of a needless scrollbar); on narrow screens rows scroll horizontally without a visible scrollbar.
+
 ### Phase 2 design notes
 
 - **Internal notes** are ordinary comments with an immutable `internal` flag. Visibility is decided in one place (`canViewInternalNotes` / `canWriteInternalNotes` in `authz.ts`): only project owners, moderators and administrators can read or write them, in any project they can manage. They are filtered out of ticket pages, attachment downloads (`/api/files` answers 404 for others), activity history and notifications. Notifications about notes go to staff only and never include the note's text. Notes don't change the public comment count or "updated" time, and comments are not part of the search index. A note cannot be turned into a public comment (or vice versa) – write a new one instead.
@@ -330,7 +342,8 @@ Key decisions:
 - Invitation and reset tokens are random, stored hashed, single-use, expiring and revocable; the granted role always comes from the stored record.
 - Security-relevant actions are written to the audit log (admins only).
 - The feedback widget never exposes credentials in host pages; see the [widget security model](docs/feedback-widget.md#security-model).
-- Server URLs submitted by users are never fetched.
+- The only outbound requests to user-supplied URLs are project owners' _Fetch website icon_ requests. They go through an SSRF guard (`src/lib/server/safe-fetch.ts`): http/https on ports 80/443 only, no credentials in URLs, every DNS answer must be a public address (loopback, private, link-local/cloud metadata, CGNAT, multicast, reserved and IPv4-mapped forms are refused), the connection is pinned to the validated address, redirects (max 3) are re-validated, and requests have strict time and size limits. SVG is never accepted; fetched icons are decoded and re-encoded like uploads, shown as a preview first and stored locally (never hot-linked or refetched).
+- Project logos can only be changed by project owners and administrators on non-archived projects; changes are audit-logged.
 - The container runs as the non-root `node` user with a read-only root filesystem in the provided Compose file.
 
 ## Troubleshooting
@@ -349,7 +362,7 @@ Key decisions:
 ## Known limitations
 
 - **Email notifications are not implemented** — notifications are in-app only (by design no SMTP is required). Invitation and reset links are shown to the admin/owner to share manually.
-- Project icons are emoji or a coloured initial; uploading a custom project logo is not supported.
+- Website-icon fetching supports PNG, JPEG, WebP and GIF icons and PNG images inside `.ico` files; SVG-only icons and BMP-only `.ico` files are not supported (upload a logo instead). Only the standard ports 80/443 are fetched.
 - Single-instance design (in-memory rate limiting, SQLite). Run one container per data volume.
 - The UI is English only.
 - The feedback widget requires reporters to sign in; anonymous widget submissions are not supported.

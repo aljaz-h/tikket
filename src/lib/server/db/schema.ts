@@ -94,6 +94,10 @@ export const projects = sqliteTable(
 		name: text('name').notNull(),
 		description: text('description'),
 		icon: text('icon'),
+		/** Uploaded or fetched project logo (an attachment of kind 'project_logo'). */
+		logoId: text('logo_id').references((): AnySQLiteColumn => attachments.id, {
+			onDelete: 'set null'
+		}),
 		color: text('color').notNull().default('indigo'),
 		url: text('url'),
 		visibility: text('visibility').$type<Visibility>().notNull().default('private'),
@@ -276,7 +280,7 @@ export const attachments = sqliteTable(
 			onDelete: 'restrict'
 		}),
 		/** 'ticket' | 'comment' | 'avatar' | null while still pending. */
-		kind: text('kind').$type<'ticket' | 'comment' | 'avatar'>(),
+		kind: text('kind').$type<'ticket' | 'comment' | 'avatar' | 'project_logo'>(),
 		originalName: text('original_name').notNull(),
 		mimeType: text('mime_type').notNull(),
 		extension: text('extension').notNull(),

@@ -1,7 +1,7 @@
 <script lang="ts">
+	import TabNav from '$lib/components/ui/tab-nav.svelte';
 	import { page } from '$app/state';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import { cn } from '$lib/utils';
 	let { children } = $props();
 	const tabs = [
 		{ href: '/admin', label: 'Overview', exact: true },
@@ -20,22 +20,6 @@
 		title="Administration"
 		description="Manage users, projects and system-wide settings."
 	/>
-	<nav
-		class="-mx-4 flex scrollbar-thin gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0"
-		aria-label="Administration"
-	>
-		{#each tabs as tab (tab.href)}
-			<a
-				href={tab.href}
-				aria-current={active(tab) ? 'page' : undefined}
-				class={cn(
-					'-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap',
-					active(tab)
-						? 'border-primary-border font-medium'
-						: 'border-transparent text-muted-foreground hover:text-foreground'
-				)}>{tab.label}</a
-			>
-		{/each}
-	</nav>
+	<TabNav label="Administration" tabs={tabs.map((t) => ({ ...t, active: active(t) }))} />
 	{@render children()}
 </div>

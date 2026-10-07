@@ -10,18 +10,15 @@
 	import Logo from '$lib/components/Logo.svelte';
 	import Sheet from '$lib/components/ui/sheet.svelte';
 	import { cn } from '$lib/utils';
+	import { SIDEBAR_COOKIE } from '$lib/shared/constants';
 
 	let { children, data } = $props();
-	let collapsed = $state(false);
+	// Writable derived: starts from the server-rendered preference, then follows the toggle.
+	let collapsed = $derived(data.sidebarCollapsed);
 	let mobileOpen = $state(false);
 	let searchOpen = $state(false);
 
 	onMount(() => {
-		try {
-			collapsed = localStorage.getItem('tikket:sidebar') === 'collapsed';
-		} catch {
-			/* storage unavailable */
-		}
 		const onKey = (e: KeyboardEvent) => {
 			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
 				e.preventDefault();
@@ -38,11 +35,7 @@
 
 	function toggleCollapse() {
 		collapsed = !collapsed;
-		try {
-			localStorage.setItem('tikket:sidebar', collapsed ? 'collapsed' : 'expanded');
-		} catch {
-			/* ignore */
-		}
+		document.cookie = `${SIDEBAR_COOKIE}=${collapsed ? 'collapsed' : 'expanded'}; path=/; max-age=31536000; samesite=lax`;
 	}
 
 	const sidebarProps = $derived({

@@ -297,6 +297,16 @@
 	}
 }
 
+/* Horizontal rows that may scroll but shouldn't show a scrollbar (e.g. tab bars). */
+@layer components {
+	.scroll-quiet {
+		scrollbar-width: none;
+	}
+	.scroll-quiet::-webkit-scrollbar {
+		display: none;
+	}
+}
+
 /*
  * ── Checkboxes and radios ──
  * Native inputs (so forms work without JavaScript and keep their semantics), drawn in the

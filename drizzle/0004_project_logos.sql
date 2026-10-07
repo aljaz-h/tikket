@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `logo_id` text REFERENCES attachments(id) ON DELETE set null;
