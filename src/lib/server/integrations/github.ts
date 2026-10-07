@@ -13,6 +13,7 @@ import { audit } from '../services/audit';
 import { setStatusBySystem } from '../services/tickets';
 import { ServiceError } from '../services/users';
 import { requireIntegrationManager } from './hooks';
+import { fireTriggerNow } from '../automations/triggers';
 
 /**
  * GitHub integration: links pull requests and commits to tickets.
@@ -316,8 +317,21 @@ interface LinkInput {
 	createdById?: number | null;
 }
 
-function upsertLink(ticketId: number, connId: number, link: LinkInput) {
+/** Creates or refreshes a link. A newly linked pull request is an automation event. */
+function upsertLink(ticketId: number, connId: number, link: LinkInput, projectId?: number) {
 	const now = new Date();
+	const existed = !!getDb()
+		.select({ id: schema.ticketDevLinks.id })
+		.from(schema.ticketDevLinks)
+		.where(
+			and(
+				eq(schema.ticketDevLinks.ticketId, ticketId),
+				eq(schema.ticketDevLinks.connectionId, connId),
+				eq(schema.ticketDevLinks.kind, link.kind),
+				eq(schema.ticketDevLinks.ref, link.ref)
+			)
+		)
+		.get();
 	getDb()
 		.insert(schema.ticketDevLinks)
 		.values({
@@ -350,6 +364,12 @@ function upsertLink(ticketId: number, connId: number, link: LinkInput) {
 			}
 		})
 		.run();
+	if (!existed && link.kind === 'pull_request' && projectId)
+		fireTriggerNow(projectId, 'github.pull_request.linked', ticketId, {
+			pr: Number(link.ref),
+			state: link.state,
+			title: link.title.slice(0, 200)
+		});
 }
 
 /** Development references of a ticket (cached metadata – nothing is fetched here). */
@@ -443,17 +463,22 @@ export async function addManualLink(
 	} catch {
 		/* keep the link without a title */
 	}
-	upsertLink(ticket.id, conn.id, {
-		kind,
-		ref,
-		title: title || (kind === 'commit' ? ref.slice(0, 7) : `#${ref}`),
-		url: `${repoUrl}/${path}/${ref}`,
-		state,
-		author,
-		externalUpdatedAt: null,
-		source: 'manual',
-		createdById: actorId
-	});
+	upsertLink(
+		ticket.id,
+		conn.id,
+		{
+			kind,
+			ref,
+			title: title || (kind === 'commit' ? ref.slice(0, 7) : `#${ref}`),
+			url: `${repoUrl}/${path}/${ref}`,
+			state,
+			author,
+			externalUpdatedAt: null,
+			source: 'manual',
+			createdById: actorId
+		},
+		access.project.id
+	);
 }
 
 export function removeDevLink(access: ProjectAccess, ticket: Ticket, linkId: number) {
@@ -626,7 +651,7 @@ function handlePullRequest(
 		project.id,
 		findTicketRefs(`${pr.title ?? ''}\n${pr.body ?? ''}`, project.key)
 	);
-	for (const t of referenced) upsertLink(t.id, conn.id, link);
+	for (const t of referenced) upsertLink(t.id, conn.id, link, project.id);
 	// Tickets linked earlier (e.g. manually) get the new state too.
 	const db = getDb();
 	db.update(schema.ticketDevLinks)
@@ -645,7 +670,7 @@ function handlePullRequest(
 		)
 		.run();
 	let moved = 0;
-	if (action === 'closed' && pr.merged && conn.mergeAction !== 'none') {
+	if (action === 'closed' && pr.merged) {
 		const linkedIds = db
 			.select({ ticketId: schema.ticketDevLinks.ticketId })
 			.from(schema.ticketDevLinks)
@@ -659,9 +684,15 @@ function handlePullRequest(
 			.all()
 			.map((r) => r.ticketId);
 		const fullProject = findProjectById(project.id)!;
+		// Automation rules ("Pull request merged") run for every linked ticket.
 		for (const ticketId of linkedIds)
+			fireTriggerNow(project.id, 'github.pull_request.merged', ticketId, {
+				pr: pr.number,
+				title: link.title.slice(0, 200)
+			});
+		for (const ticketId of conn.mergeAction === 'none' ? [] : linkedIds)
 			if (
-				setStatusBySystem(fullProject, ticketId, conn.mergeAction, {
+				setStatusBySystem(fullProject, ticketId, conn.mergeAction as 'in_progress' | 'completed', {
 					source: 'github',
 					pr: pr.number,
 					url: link.url

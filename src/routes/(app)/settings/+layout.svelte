@@ -7,7 +7,8 @@
 		{ href: '/settings/profile', label: 'Profile' },
 		{ href: '/settings/security', label: 'Password & sessions' },
 		{ href: '/settings/notifications', label: 'Notifications' },
-		{ href: '/settings/data', label: 'Your data' }
+		{ href: '/settings/data', label: 'Your data' },
+		{ href: '/settings/developer', label: 'Developer' }
 	];
 </script>
 

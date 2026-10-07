@@ -43,6 +43,13 @@
       "when": 1791350648012,
       "tag": "0005_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791377362381,
+      "tag": "0006_automation_api",
+      "breakpoints": true
     }
   ]
 }

@@ -409,7 +409,7 @@ export const DEFAULT_EMAIL_PREFS: NotificationPrefs = {
 
 export const HOOK_KINDS = ['discord', 'webhook'] as const;
 export type HookKind = (typeof HOOK_KINDS)[number];
-export const JOB_KINDS = ['email', 'discord', 'webhook'] as const;
+export const JOB_KINDS = ['email', 'discord', 'webhook', 'automation'] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 export const JOB_STATUSES = ['pending', 'running', 'done', 'dead'] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -504,4 +504,217 @@ export const DEFAULT_ROADMAP_SETTINGS: RoadmapSettings = {
 	showPriorities: false,
 	showVotes: true,
 	showAssignees: false
+};
+
+// ── v0.6: automations ──────────────────────────────────────────────────────
+
+/** Stable identifiers of automation triggers. Never rename: rules store them. */
+export const AUTOMATION_TRIGGERS = [
+	'ticket.created',
+	'ticket.updated',
+	'ticket.status_changed',
+	'ticket.priority_changed',
+	'ticket.assignee_changed',
+	'ticket.label_added',
+	'ticket.label_removed',
+	'comment.created',
+	'ticket.reopened',
+	'ticket.completed',
+	'ticket.vote_threshold',
+	'ticket.release_assigned',
+	'ticket.milestone_assigned',
+	'github.pull_request.linked',
+	'github.pull_request.merged',
+	'release.published'
+] as const;
+export type AutomationTrigger = (typeof AUTOMATION_TRIGGERS)[number];
+export const AUTOMATION_TRIGGER_META: Record<AutomationTrigger, { label: string; hint: string }> = {
+	'ticket.created': { label: 'Ticket created', hint: 'A ticket is submitted (web, widget, API).' },
+	'ticket.updated': { label: 'Ticket edited', hint: 'Title, description or type is edited.' },
+	'ticket.status_changed': { label: 'Status changed', hint: 'The status changes.' },
+	'ticket.priority_changed': { label: 'Priority changed', hint: 'The priority changes.' },
+	'ticket.assignee_changed': { label: 'Assignee changed', hint: 'Assigned or unassigned.' },
+	'ticket.label_added': { label: 'Label added', hint: 'A label is added.' },
+	'ticket.label_removed': { label: 'Label removed', hint: 'A label is removed.' },
+	'comment.created': { label: 'Comment added', hint: 'A public comment is posted.' },
+	'ticket.reopened': { label: 'Ticket reopened', hint: 'A resolved ticket is reopened.' },
+	'ticket.completed': { label: 'Ticket completed', hint: 'A ticket is marked completed.' },
+	'ticket.vote_threshold': {
+		label: 'Vote threshold reached',
+		hint: 'The vote count reaches the number you set.'
+	},
+	'ticket.release_assigned': {
+		label: 'Added to a release',
+		hint: 'The ticket gets a target release.'
+	},
+	'ticket.milestone_assigned': {
+		label: 'Added to a milestone',
+		hint: 'The ticket is added to a milestone.'
+	},
+	'github.pull_request.linked': {
+		label: 'Pull request linked',
+		hint: 'A GitHub pull request is linked to the ticket.'
+	},
+	'github.pull_request.merged': {
+		label: 'Pull request merged',
+		hint: 'A linked GitHub pull request is merged.'
+	},
+	'release.published': {
+		label: 'Release published',
+		hint: 'Runs for each completed ticket of the published release.'
+	}
+};
+
+export const CONDITION_FIELDS = [
+	'type',
+	'status',
+	'priority',
+	'assignee',
+	'reporter',
+	'label',
+	'milestone',
+	'release',
+	'votes',
+	'has_attachment',
+	'via_widget',
+	'project',
+	'title',
+	'description',
+	'age_days',
+	'reporter_role'
+] as const;
+export type ConditionField = (typeof CONDITION_FIELDS)[number];
+export const CONDITION_OPS = [
+	'is',
+	'is_not',
+	'is_empty',
+	'is_not_empty',
+	'has',
+	'has_not',
+	'gte',
+	'lte',
+	'contains',
+	'not_contains',
+	'is_true',
+	'is_false'
+] as const;
+export type ConditionOp = (typeof CONDITION_OPS)[number];
+export interface AutomationCondition {
+	field: ConditionField;
+	op: ConditionOp;
+	value?: string | number | null;
+}
+/** OR of AND-groups. An empty list always matches. */
+export interface AutomationConditions {
+	any: { all: AutomationCondition[] }[];
+}
+
+export const ACTION_TYPES = [
+	'set_status',
+	'set_priority',
+	'assign',
+	'clear_assignee',
+	'add_label',
+	'remove_label',
+	'set_milestone',
+	'clear_milestone',
+	'set_release',
+	'clear_release',
+	'follow',
+	'internal_note',
+	'notify',
+	'trigger_hook',
+	'public_comment'
+] as const;
+export type ActionType = (typeof ACTION_TYPES)[number];
+export interface AutomationAction {
+	type: ActionType;
+	/** Status, priority, user id or special target, label/milestone/release/hook id … */
+	value?: string | number | null;
+	/** Note / comment / notification text. */
+	text?: string | null;
+}
+export const ACTION_META: Record<ActionType, { label: string }> = {
+	set_status: { label: 'Change status' },
+	set_priority: { label: 'Change priority' },
+	assign: { label: 'Assign to' },
+	clear_assignee: { label: 'Clear assignee' },
+	add_label: { label: 'Add label' },
+	remove_label: { label: 'Remove label' },
+	set_milestone: { label: 'Add to milestone' },
+	clear_milestone: { label: 'Remove from milestone' },
+	set_release: { label: 'Add to release' },
+	clear_release: { label: 'Remove from release' },
+	follow: { label: 'Add follower' },
+	internal_note: { label: 'Add internal note' },
+	notify: { label: 'Send notification' },
+	trigger_hook: { label: 'Send to Discord / webhook' },
+	public_comment: { label: 'Add public comment' }
+};
+export const AUTOMATION_RUN_STATUSES = ['success', 'failed', 'skipped'] as const;
+export type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];
+export interface AutomationRunAction {
+	type: ActionType;
+	summary: string;
+	ok: boolean;
+	changed: boolean;
+	error?: string;
+}
+
+// ── v0.6: API tokens ───────────────────────────────────────────────────────
+
+export const PAT_SCOPES = [
+	'projects:read',
+	'tickets:read',
+	'tickets:write',
+	'comments:read',
+	'comments:write'
+] as const;
+export const PROJECT_TOKEN_SCOPES = [
+	'tickets:read',
+	'tickets:create',
+	'tickets:update',
+	'comments:create',
+	'releases:read',
+	'milestones:read'
+] as const;
+export type ApiScope = (typeof PAT_SCOPES)[number] | (typeof PROJECT_TOKEN_SCOPES)[number];
+export const SCOPE_META: Record<ApiScope, string> = {
+	'projects:read': 'Read projects you can access, their labels, releases and milestones',
+	'tickets:read': 'Read tickets',
+	'tickets:write': 'Create and update tickets (with your permissions)',
+	'tickets:create': 'Create tickets',
+	'tickets:update': 'Update tickets (status, priority, assignee, labels …)',
+	'comments:read': 'Read comments',
+	'comments:write': 'Post comments',
+	'comments:create': 'Post comments',
+	'releases:read': 'Read releases',
+	'milestones:read': 'Read milestones'
+};
+export type TokenKind = 'personal' | 'project';
+
+// ── v0.6: workflow ─────────────────────────────────────────────────────────
+
+export interface WorkflowSettings {
+	/** Statuses that tickets can be moved to (existing tickets keep any status). */
+	enabled: TicketStatus[];
+	defaultStatus: TicketStatus;
+	defaultPriority: TicketPriority;
+	/** Allowed transitions per current status; null = any enabled status. */
+	transitions: Partial<Record<TicketStatus, TicketStatus[]>> | null;
+	/** Reporters may reopen their own completed tickets. */
+	reporterCanReopen: boolean;
+	/** Completed tickets accept new public comments from non-staff. */
+	commentsOnCompleted: boolean;
+	/** Changing to these statuses requires a note. */
+	requireNote: TicketStatus[];
+}
+export const DEFAULT_WORKFLOW: WorkflowSettings = {
+	enabled: ['open', 'planned', 'in_progress', 'completed', 'on_hold', 'declined', 'duplicate'],
+	defaultStatus: 'open',
+	defaultPriority: 'medium',
+	transitions: null,
+	reporterCanReopen: false,
+	commentsOnCompleted: true,
+	requireNote: []
 };

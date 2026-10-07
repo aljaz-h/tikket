@@ -10,6 +10,7 @@ import { addActivity } from './tickets';
 import { ServiceError } from './users';
 import { emitProjectEvent } from '../integrations/events';
 import { publicBaseUrl } from '../email/notifications';
+import { fireTrigger } from '../automations/triggers';
 
 type ActiveActor = NonNullable<Actor>;
 const m = schema.milestones;
@@ -251,6 +252,8 @@ export function setTicketMilestone(
 				},
 				tx
 			);
+			if (milestoneId)
+				fireTrigger(tx, ticket.projectId, 'ticket.milestone_assigned', ticket.id, { milestoneId });
 		},
 		{ behavior: 'immediate' }
 	);

@@ -20,6 +20,7 @@
 			id: number;
 			bodyHtml: string;
 			internal: boolean;
+			meta?: Record<string, unknown> | null;
 			createdAt: Date;
 			editedAt: Date | null;
 			deletedAt: Date | null;
@@ -43,6 +44,17 @@
 	let { comment, isReporter, currentUserId }: Props = $props();
 	let editing = $state(false);
 	let confirmOpen = $state(false);
+	// Automated comments show the rule instead of the account that is stored as author;
+	// imported comments show their original author.
+	const automation = $derived(
+		(comment.meta?.automation as { name?: string } | undefined)?.name ?? null
+	);
+	const importedAuthor = $derived(
+		(comment.meta?.imported as { author?: string } | undefined)?.author ?? null
+	);
+	const authorName = $derived(
+		automation ? `Automation: ${automation}` : (importedAuthor ?? comment.author.displayName)
+	);
 	const roleLabel = $derived(
 		comment.authorRole && comment.authorRole !== 'member'
 			? PROJECT_ROLE_META[comment.authorRole].label
@@ -55,7 +67,7 @@
 <article
 	id="comment-{comment.id}"
 	class="flex scroll-mt-24 gap-3"
-	aria-label="{comment.internal ? 'Internal note' : 'Comment'} by {comment.author.displayName}"
+	aria-label="{comment.internal ? 'Internal note' : 'Comment'} by {authorName}"
 	data-internal={comment.internal || undefined}
 >
 	<UserAvatar user={comment.author} size="md" class="mt-0.5" />
@@ -69,15 +81,18 @@
 				? 'border-[var(--internal-border)]'
 				: 'border-border'}"
 		>
-			<span class="font-medium">{comment.author.displayName}</span>
+			<span class="font-medium [overflow-wrap:anywhere]">{authorName}</span>
+			{#if automation}<Badge variant="muted">Automated</Badge>{/if}
+			{#if importedAuthor}<Badge variant="muted">Imported</Badge>{/if}
 			{#if comment.internal}
 				<span
 					class="inline-flex items-center gap-1 rounded-full border border-[var(--internal-border)] px-2 py-0.5 text-xs font-medium text-[var(--internal-fg)]"
 					title="Only project staff can see this note"><Lock class="size-3" /> Internal note</span
 				>
 			{/if}
-			{#if roleLabel}<Badge variant="muted">{roleLabel}</Badge>{/if}
-			{#if isReporter}<Badge>Reporter</Badge>{/if}
+			{#if roleLabel && !automation && !importedAuthor}<Badge variant="muted">{roleLabel}</Badge
+				>{/if}
+			{#if isReporter && !automation && !importedAuthor}<Badge>Reporter</Badge>{/if}
 			<a href="#comment-{comment.id}" class="text-xs text-muted-foreground hover:underline"
 				><TimeAgo date={comment.createdAt} /></a
 			>

@@ -26,6 +26,8 @@ services:
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10M}
       BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-25M}
       LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      # REST API requests per minute per token (v0.6; writes: a fifth of it).
+      API_RATE_LIMIT: ${API_RATE_LIMIT:-300}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ENCRYPTION_KEY_PREVIOUS: ${ENCRYPTION_KEY_PREVIOUS:-}
       SMTP_HOST: ${SMTP_HOST:-}

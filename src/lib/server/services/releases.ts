@@ -17,6 +17,7 @@ import { ServiceError } from './users';
 import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 import { publicBaseUrl } from '../email/notifications';
 import { htmlToText } from '../sanitize';
+import { fireTrigger } from '../automations/triggers';
 
 type ActiveActor = NonNullable<Actor>;
 const t = schema.tickets;
@@ -299,6 +300,8 @@ export function setTicketRelease(
 				from: from?.version ?? null,
 				to: to?.version ?? null
 			});
+			if (releaseId)
+				fireTrigger(tx, ticket.projectId, 'ticket.release_assigned', ticket.id, { releaseId });
 		},
 		{ behavior: 'immediate' }
 	);
@@ -335,6 +338,7 @@ export function addTicketsToRelease(
 					from: from?.version ?? null,
 					to: release.version
 				});
+				fireTrigger(tx, ticket.projectId, 'ticket.release_assigned', ticket.id, { releaseId });
 				added++;
 			}
 			if (added)
@@ -461,6 +465,8 @@ export function publishRelease(
 					}
 				};
 			});
+			for (const ticket of completed.slice(0, 100))
+				fireTrigger(tx, access.project.id, 'release.published', ticket.id, { releaseId });
 			return { completed: completed.length, unresolved: unresolved.length, detached };
 		},
 		{ behavior: 'immediate' }

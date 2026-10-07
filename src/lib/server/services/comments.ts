@@ -14,6 +14,8 @@ import { pendingAttachmentsFor } from '../uploads';
 import { followerIds, notify } from './notifications';
 import { addActivity } from './tickets';
 import { ServiceError } from './users';
+import { workflowFor } from './workflow';
+import { fireTrigger } from '../automations/triggers';
 import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 
 type ActiveActor = NonNullable<Actor>;
@@ -63,6 +65,13 @@ export function addComment(
 		throw new ServiceError('Only project staff can write internal notes', 'body', 403);
 	if (!internal && !access.canComment)
 		throw new ServiceError('Comments are not available on this ticket', 'body', 403);
+	if (
+		!internal &&
+		!access.isStaff &&
+		ticket.status === 'completed' &&
+		!workflowFor(access.project).commentsOnCompleted
+	)
+		throw new ServiceError('This ticket is completed and closed for new comments', 'body', 403);
 	if (attachmentIds.length && !access.canAttach)
 		throw new ServiceError('Attachments are disabled for this project', 'attachments');
 	const pending = pendingAttachmentsFor(actor.id, attachmentIds);
@@ -144,7 +153,9 @@ export function addComment(
 				},
 				tx
 			);
-			// Integrations only ever hear about public comments.
+			// Integrations and automations only ever hear about public comments.
+			if (!internal)
+				fireTrigger(tx, ticket.projectId, 'comment.created', ticket.id, { commentId: comment.id });
 			if (!internal)
 				emitProjectEvent(tx, access.project, 'comment.created', () => {
 					const snapshot = ticketSnapshot(tx, ticket.id);

@@ -16,6 +16,9 @@ import { projectPath } from '$lib/shared/format';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
+	// Moderators can open settings only for automations.
+	const staff = requireProject(locals.user, params.key, 'staff');
+	if (!staff.isOwner) redirect(303, projectPath(staff.project.key, 'settings/automations'));
 	const access = requireProject(locals.user, params.key, 'owner');
 	return { title: `Settings · ${access.project.name}` };
 };

@@ -33,6 +33,18 @@ export class RateLimiter {
 		return bucket.count > this.limit ? bucket.resetAt - now : 0;
 	}
 
+	/** Requests counted in the current window. */
+	count(key: string, now = Date.now()): number {
+		const bucket = this.buckets.get(key);
+		return !bucket || bucket.resetAt <= now ? 0 : bucket.count;
+	}
+
+	/** Milliseconds until the current window resets. */
+	resetIn(key: string, now = Date.now()): number {
+		const bucket = this.buckets.get(key);
+		return !bucket || bucket.resetAt <= now ? 0 : bucket.resetAt - now;
+	}
+
 	reset(key: string) {
 		this.buckets.delete(key);
 	}

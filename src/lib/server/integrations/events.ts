@@ -106,7 +106,7 @@ export function ticketSnapshot(tx: DB, ticketId: number): EventTicket | undefine
 
 export function buildEnvelope(
 	project: Pick<Project, 'id' | 'key' | 'name'>,
-	event: WebhookEvent | 'ping',
+	event: WebhookEvent | 'ping' | 'automation.triggered',
 	data: EventContext,
 	id = `evt_${randomId(12)}`
 ) {
@@ -177,7 +177,7 @@ const COLORS = { lime: 0xb8f779, red: 0xe5484d, amber: 0xf5a524, blue: 0x5b8def,
 /** Compact Discord message (one embed) for an event. Mentions are disabled. */
 export function discordMessage(
 	project: Pick<Project, 'key' | 'name'>,
-	event: WebhookEvent,
+	event: WebhookEvent | 'automation.triggered',
 	data: EventContext,
 	appName = 'Tikket'
 ) {
@@ -244,6 +244,13 @@ export function discordMessage(
 			heading = 'Milestone completed';
 			title = plain(m?.name ?? 'Milestone', 240);
 			url = m?.url;
+			break;
+		}
+		case 'automation.triggered': {
+			const auto = data.automation as { name?: string } | undefined;
+			heading = `Automation: ${plain(auto?.name ?? 'rule', 80)}`;
+			color = COLORS.blue;
+			description = typeof data.message === 'string' ? discordText(data.message, 300) : undefined;
 			break;
 		}
 	}

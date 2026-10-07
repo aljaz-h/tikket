@@ -35,7 +35,15 @@ import type {
 	JobStatus,
 	MergeAction,
 	DevLinkKind,
-	RoadmapSettings
+	RoadmapSettings,
+	AutomationTrigger,
+	AutomationConditions,
+	AutomationAction,
+	AutomationRunStatus,
+	AutomationRunAction,
+	ApiScope,
+	TokenKind,
+	WorkflowSettings
 } from '../../shared/constants';
 
 /** Unix epoch milliseconds stored as INTEGER, exposed as Date. */
@@ -114,6 +122,8 @@ export const projects = sqliteTable(
 		docsUrl: text('docs_url'),
 		/** Who may see the roadmap and which planning details it shows (null = defaults). */
 		roadmapSettings: text('roadmap_settings', { mode: 'json' }).$type<RoadmapSettings>(),
+		/** Enabled statuses, defaults, allowed transitions … (null = defaults). */
+		workflowSettings: text('workflow_settings', { mode: 'json' }).$type<WorkflowSettings>(),
 		visibility: text('visibility').$type<Visibility>().notNull().default('private'),
 		allowAnonymousRead: integer('allow_anonymous_read', { mode: 'boolean' })
 			.notNull()
@@ -219,8 +229,12 @@ export const tickets = sqliteTable(
 			onDelete: 'set null'
 		}),
 		resolutionNote: text('resolution_note'),
-		/** Where the ticket was submitted: the web app or the embeddable widget. */
-		source: text('source').$type<'web' | 'widget'>().notNull().default('web'),
+		/** Where the ticket was submitted: the web app, the embeddable widget, the API or an import. */
+		source: text('source').$type<'web' | 'widget' | 'api' | 'import'>().notNull().default('web'),
+		/** Reference in another system, e.g. the original key of an imported ticket. */
+		externalRef: text('external_ref'),
+		/** Attribution kept from an import (original reporter/assignee names, import id). */
+		importMeta: text('import_meta', { mode: 'json' }).$type<Record<string, unknown>>(),
 		/** Sanitised, user-reviewed page/browser context sent by the widget (untrusted input). */
 		environment: text('environment', { mode: 'json' }).$type<TicketEnvironment>(),
 		/** Target release (at most one); same project enforced by a trigger and the service layer. */
@@ -270,6 +284,8 @@ export const ticketComments = sqliteTable(
 		bodyText: text('body_text').notNull(),
 		/** Internal staff note – visible only to project owners, moderators and admins. Immutable. */
 		internal: integer('internal', { mode: 'boolean' }).notNull().default(false),
+		/** Origin details: { automation: { id, name } } or { imported: { author } }. */
+		meta: text('meta', { mode: 'json' }).$type<Record<string, unknown>>(),
 		createdAt: timestamp('created_at').notNull().default(now),
 		updatedAt: timestamp('updated_at').notNull().default(now),
 		editedAt: timestamp('edited_at'),
@@ -740,7 +756,7 @@ export const outboundJobs = sqliteTable(
 		index('outbound_jobs_due_idx').on(t.status, t.nextAttemptAt),
 		index('outbound_jobs_kind_idx').on(t.kind, t.status, t.updatedAt),
 		check('outbound_jobs_status_check', sql`${t.status} in ('pending','running','done','dead')`),
-		check('outbound_jobs_kind_check', sql`${t.kind} in ('email','discord','webhook')`)
+		check('outbound_jobs_kind_check', sql`${t.kind} in ('email','discord','webhook','automation')`)
 	]
 );
 
@@ -848,6 +864,155 @@ export const ticketDevLinks = sqliteTable(
 	]
 );
 
+// ── v0.6: automation & developer workflow ─────────────────────────────────
+
+/** Project automation rules: WHEN trigger IF conditions THEN actions. */
+export const automations = sqliteTable(
+	'automations',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		description: text('description'),
+		enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+		trigger: text('trigger').$type<AutomationTrigger>().notNull(),
+		/** Trigger options, e.g. { threshold: 10 } for the vote threshold. */
+		triggerConfig: text('trigger_config', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		conditions: text('conditions', { mode: 'json' })
+			.$type<AutomationConditions>()
+			.notNull()
+			.default({ any: [] }),
+		actions: text('actions', { mode: 'json' }).$type<AutomationAction[]>().notNull().default([]),
+		position: integer('position').notNull().default(0),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		updatedById: integer('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+		lastRunAt: timestamp('last_run_at'),
+		runCount: integer('run_count').notNull().default(0),
+		lastError: text('last_error'),
+		createdAt: timestamp('created_at').notNull().default(now),
+		updatedAt: timestamp('updated_at').notNull().default(now)
+	},
+	(t) => [index('automations_lookup_idx').on(t.projectId, t.trigger, t.enabled, t.position)]
+);
+
+/** Execution history (matched, failed and loop-skipped runs; conditions that don't match aren't stored). */
+export const automationRuns = sqliteTable(
+	'automation_runs',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		automationId: integer('automation_id').references(() => automations.id, {
+			onDelete: 'set null'
+		}),
+		/** Kept so history stays readable after a rule is deleted or renamed. */
+		automationName: text('automation_name').notNull(),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		ticketId: integer('ticket_id').references(() => tickets.id, { onDelete: 'cascade' }),
+		trigger: text('trigger').$type<AutomationTrigger>().notNull(),
+		/** The event that caused this run; with automationId it makes a run idempotent. */
+		eventId: text('event_id').notNull(),
+		status: text('status').$type<AutomationRunStatus>().notNull(),
+		depth: integer('depth').notNull().default(0),
+		actions: text('actions', { mode: 'json' }).$type<AutomationRunAction[]>().notNull().default([]),
+		error: text('error'),
+		durationMs: integer('duration_ms').notNull().default(0),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [
+		uniqueIndex('automation_runs_event_unique').on(t.eventId, t.automationId),
+		index('automation_runs_project_idx').on(t.projectId, t.createdAt),
+		index('automation_runs_automation_idx').on(t.automationId, t.createdAt),
+		index('automation_runs_ticket_idx').on(t.ticketId),
+		check('automation_runs_status_check', sql`${t.status} in ('success','failed','skipped')`)
+	]
+);
+
+/**
+ * API tokens. Personal access tokens act as their user (narrowed by scopes); project tokens are
+ * bound to one project. Only a SHA-256 hash of the token is stored; the prefix is for display.
+ */
+export const apiTokens = sqliteTable(
+	'api_tokens',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		kind: text('kind').$type<TokenKind>().notNull(),
+		/** Owner of a personal token; creator (acting user) of a project token. */
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		projectId: integer('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		prefix: text('prefix').notNull(),
+		tokenHash: text('token_hash').notNull(),
+		scopes: text('scopes', { mode: 'json' }).$type<ApiScope[]>().notNull().default([]),
+		expiresAt: timestamp('expires_at'),
+		lastUsedAt: timestamp('last_used_at'),
+		revokedAt: timestamp('revoked_at'),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [
+		uniqueIndex('api_tokens_hash_unique').on(t.tokenHash),
+		index('api_tokens_user_idx').on(t.userId, t.kind),
+		index('api_tokens_project_idx').on(t.projectId),
+		check('api_tokens_kind_check', sql`${t.kind} in ('personal','project')`)
+	]
+);
+
+/** Idempotency-Key records for API ticket creation (kept 24 hours). */
+export const apiIdempotency = sqliteTable(
+	'api_idempotency',
+	{
+		/** Hash of token id + project id + client key. */
+		id: text('id').primaryKey(),
+		/** Hash of the request body: the same key with another body is rejected. */
+		fingerprint: text('fingerprint').notNull(),
+		statusCode: integer('status_code').notNull(),
+		response: text('response', { mode: 'json' }).$type<unknown>().notNull(),
+		createdAt: timestamp('created_at').notNull().default(now)
+	},
+	(t) => [index('api_idempotency_created_idx').on(t.createdAt)]
+);
+
+/** Imports: parsed and validated first (review), applied once on confirmation. */
+export const imports = sqliteTable(
+	'imports',
+	{
+		/** Random import id (also the idempotency key of the confirmation). */
+		id: text('id').primaryKey(),
+		projectId: integer('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+		format: text('format').$type<'tikket-json' | 'csv'>().notNull(),
+		status: text('status').$type<'review' | 'running' | 'completed' | 'failed'>().notNull(),
+		fileName: text('file_name').notNull(),
+		/** Parsed records awaiting confirmation; cleared once the import is done. */
+		payload: text('payload', { mode: 'json' }).$type<unknown>(),
+		options: text('options', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		summary: text('summary', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		result: text('result', { mode: 'json' }).$type<Record<string, unknown>>(),
+		error: text('error'),
+		createdAt: timestamp('created_at').notNull().default(now),
+		completedAt: timestamp('completed_at')
+	},
+	(t) => [
+		index('imports_project_idx').on(t.projectId, t.createdAt),
+		check('imports_status_check', sql`${t.status} in ('review','running','completed','failed')`)
+	]
+);
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Project = typeof projects.$inferSelect;
@@ -871,3 +1036,7 @@ export type OutboundJob = typeof outboundJobs.$inferSelect;
 export type HookDelivery = typeof hookDeliveries.$inferSelect;
 export type GithubConnection = typeof githubConnections.$inferSelect;
 export type TicketDevLink = typeof ticketDevLinks.$inferSelect;
+export type Automation = typeof automations.$inferSelect;
+export type AutomationRun = typeof automationRuns.$inferSelect;
+export type ApiToken = typeof apiTokens.$inferSelect;
+export type ImportRecord = typeof imports.$inferSelect;

@@ -44,6 +44,23 @@ One repository per project for now (the database allows more later).
 Progress**, or **Mark the ticket Completed**. Only unresolved tickets change; the history shows
 “GitHub automation … after pull request #182 was merged”, followers are notified and webhooks /
 Discord receive the usual events. Closing a pull request without merging never changes tickets.
+The change follows the project's [workflow](workflows.md): if the transition isn't allowed, the
+ticket is left unchanged.
+
+## Automation rules
+
+For anything beyond the simple merge setting, use [automations](automations.md). GitHub events
+are automation triggers:
+
+- **Pull request linked** – a pull request that mentions a ticket (or is linked by hand) is
+  connected to it. Conditions such as _status is Open or Planned_ let you move it to In Progress.
+- **Pull request merged** – a linked pull request is merged. Actions can complete the ticket, add
+  a label, comment publicly, notify staff or ping a Discord channel.
+
+Templates: _Complete on pull request merge_ and _In progress when a pull request is linked_.
+Each GitHub delivery is processed once (delivery ids are replay-protected), and each event runs a
+rule at most once, so redelivered webhooks don't repeat actions. If both the merge setting and a
+rule complete the ticket, the second change finds the ticket already completed and does nothing.
 
 ## Security
 

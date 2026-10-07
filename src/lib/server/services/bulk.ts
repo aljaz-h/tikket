@@ -18,6 +18,8 @@ import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 import { assignableMilestone } from './milestones';
 import { assignableRelease } from './releases';
 import { ServiceError } from './users';
+import { checkTransition, workflowFor } from './workflow';
+import { fireStatusTriggers, fireTrigger } from '../automations/triggers';
 
 type ActiveActor = NonNullable<Actor>;
 
@@ -105,6 +107,7 @@ export function bulkUpdate(
 		throw new ServiceError('Only project staff can bulk edit tickets', 'bulk', 403);
 	const projectId = access.project.id;
 	const db = getDb();
+	const workflow = workflowFor(access.project);
 
 	let label: { id: number; name: string } | undefined;
 	if (op.kind === 'addLabel' || op.kind === 'removeLabel') {
@@ -206,6 +209,16 @@ export function bulkUpdate(
 							result.skipped.push({ number, reason: 'already has this status' });
 							continue;
 						}
+						const blocked = checkTransition(workflow, t.status, op.status, null);
+						if (blocked) {
+							result.skipped.push({
+								number,
+								reason: blocked.startsWith('A note')
+									? 'needs a note (change it on the ticket)'
+									: 'transition not allowed'
+							});
+							continue;
+						}
 						const resolved = STATUS_META[op.status].resolved;
 						tx.update(schema.tickets)
 							.set({
@@ -225,6 +238,7 @@ export function bulkUpdate(
 						});
 						queue([...followerIds(t.id, tx), t.reporterId], t);
 						emitStatusEvents(tx, access.project, t.id, t.status, op.status, { bulk: true });
+						fireStatusTriggers(tx, projectId, t.id, t.status, op.status);
 						break;
 					}
 					case 'priority': {
@@ -247,6 +261,10 @@ export function bulkUpdate(
 							priority: { from: t.priority, to: op.priority },
 							bulk: true
 						}));
+						fireTrigger(tx, projectId, 'ticket.priority_changed', t.id, {
+							from: t.priority,
+							to: op.priority
+						});
 						break;
 					}
 					case 'assign': {
@@ -270,6 +288,10 @@ export function bulkUpdate(
 							ticket: ticketSnapshot(tx, t.id),
 							bulk: true
 						}));
+						fireTrigger(tx, projectId, 'ticket.assignee_changed', t.id, {
+							from: t.assigneeId,
+							to: op.assigneeId
+						});
 						if (op.assigneeId) {
 							tx.insert(schema.ticketFollowers)
 								.values({ ticketId: t.id, userId: op.assigneeId })
@@ -312,6 +334,13 @@ export function bulkUpdate(
 							removedCount: op.kind === 'removeLabel' ? 1 : 0,
 							bulk: true
 						});
+						fireTrigger(
+							tx,
+							projectId,
+							op.kind === 'addLabel' ? 'ticket.label_added' : 'ticket.label_removed',
+							t.id,
+							{ labelId: label!.id }
+						);
 						break;
 					}
 					case 'release': {
@@ -331,6 +360,10 @@ export function bulkUpdate(
 							to: release?.version ?? null,
 							bulk: true
 						});
+						if (op.releaseId)
+							fireTrigger(tx, projectId, 'ticket.release_assigned', t.id, {
+								releaseId: op.releaseId
+							});
 						break;
 					}
 					case 'milestone': {
@@ -350,6 +383,10 @@ export function bulkUpdate(
 							to: milestone?.name ?? null,
 							bulk: true
 						});
+						if (op.milestoneId)
+							fireTrigger(tx, projectId, 'ticket.milestone_assigned', t.id, {
+								milestoneId: op.milestoneId
+							});
 						queue(followerIds(t.id, tx), t);
 						break;
 					}

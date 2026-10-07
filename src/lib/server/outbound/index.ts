@@ -6,6 +6,7 @@ import { lt } from 'drizzle-orm';
 import { getDb, schema } from '../db';
 import '../email/notifications';
 import '../integrations/delivery';
+import '../automations/engine';
 import { pruneJobs } from './queue';
 
 export { drainQueue, startWorker, stopWorker, workerEnabled } from './queue';

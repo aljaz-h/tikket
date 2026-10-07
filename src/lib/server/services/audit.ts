@@ -42,7 +42,17 @@ export type AuditAction =
 	| 'integration.webhook_deleted'
 	| 'integration.github_connected'
 	| 'integration.github_updated'
-	| 'integration.github_disconnected';
+	| 'integration.github_disconnected'
+	| 'project.workflow'
+	| 'project.imported'
+	| 'automation.created'
+	| 'automation.updated'
+	| 'automation.deleted'
+	| 'token.created'
+	| 'token.revoked'
+	| 'api.ticket_created'
+	| 'api.ticket_updated'
+	| 'api.comment_created';
 
 export interface AuditEntry {
 	actorId: number | null;

@@ -23,6 +23,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Reverse proxy](#reverse-proxy) · [Coolify & proxy deployment guide](docs/deployment-coolify.md)
 - [Feedback widget guide](docs/feedback-widget.md) · [Project management guide](docs/project-management.md)
 - [Integrations](docs/integrations.md): [Email](docs/email.md) · [Webhooks](docs/webhooks.md) · [GitHub](docs/github.md) · [Data export](docs/data-export.md)
+- Developer workflow: [Automations](docs/automations.md) · [REST API](docs/api.md) · [API tokens](docs/authentication-tokens.md) · [Import](docs/import.md) · [Workflows](docs/workflows.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
 - [Development](#development)
@@ -82,6 +83,10 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - **GitHub**: commits and pull requests that mention `SPL-42` appear on the ticket with their state; optional merge automation. → [GitHub](docs/github.md)
 - **Public roadmap controls**: staff only, project members or everyone who can view the project, with switches for releases, dates, milestones, priorities, votes and assignees.
 - **Exports**: versioned project JSON (standard or staff), formula-safe ticket CSV, and a personal export of your own submissions. → [Data export](docs/data-export.md)
+- **Automations**: per-project _when / if / then_ rules (ticket, comment, vote, release and GitHub triggers; AND/OR conditions; status, priority, assignee, label, planning, note, notification, webhook and comment actions) with templates, dry-run testing, loop prevention and run history. → [Automations](docs/automations.md)
+- **REST API** (`/api/v1`) with personal access tokens and project API tokens, scopes, cursor pagination, idempotent ticket creation, rate limits and an OpenAPI 3.1 document (`/api/openapi.json`, rendered at `/docs/api`). → [REST API](docs/api.md) · [API tokens](docs/authentication-tokens.md)
+- **Import** from Tikket JSON exports or CSV with column mapping, review, all-or-nothing transactions and optional member matching. → [Import](docs/import.md)
+- **Workflow customisation** per project: enabled statuses, defaults, allowed transitions, required notes, reporter reopen, comments on completed tickets. → [Workflows](docs/workflows.md)
 - Integration secrets are encrypted at rest with `ENCRYPTION_KEY`; deliveries run from a persistent SQLite queue inside the same container.
 
 **Projects, people and administration**
@@ -173,6 +178,7 @@ listing every problem.
 | `ENCRYPTION_KEY_PREVIOUS`                                                                                                                               | —                                                  | Old key(s) during a key rotation (comma-separated).                                                                                                                                                                                                       |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_FROM_NAME`, `SMTP_REPLY_TO`, `SMTP_TIMEOUT`, `SMTP_ENABLED` | —                                                  | Optional email configuration; when `SMTP_HOST` is set it takes precedence over Administration → Email. See [Email](docs/email.md).                                                                                                                        |
 | `OUTBOUND_ALLOW_PRIVATE_NETWORKS`                                                                                                                       | `false`                                            | Allow webhooks to private addresses (trusted single-tenant setups only).                                                                                                                                                                                  |
+| `API_RATE_LIMIT`                                                                                                                                        | `300`                                              | REST API requests per minute per token (writes: a fifth of it). See [REST API](docs/api.md#rate-limits).                                                                                                                                                  |
 | `PROXY_NETWORK` / `PROXY_ALIAS` / `HOST_PORT` / `TIKKET_IMAGE`                                                                                          |                                                    | Only used by the matching Compose file/override.                                                                                                                                                                                                          |
 
 ## Reverse proxy
@@ -212,6 +218,10 @@ Attachments are never served from a static directory: `/api/files/<id>` checks t
 > references and project branding. Restoring it needs the **same** `ENCRYPTION_KEY`; without it the
 > encrypted secrets (SMTP password, Discord/webhook URLs, signing secrets, GitHub secrets) cannot be
 > recovered and must be re-entered – see [lost encryption key](docs/integrations.md#lost-encryption-key).
+>
+> API tokens are stored only as hashes: a restored database keeps existing tokens working, but
+> lost tokens can't be recovered, and tokens created after the backup must be recreated after
+> restoring it – see [API tokens](docs/authentication-tokens.md#backups).
 
 The database must be copied consistently — don't just copy `tikket.db` while the app is running. Use the included online backup script (SQLite backup API; safe while running):
 
@@ -373,6 +383,7 @@ Key decisions:
 - Security-relevant actions are written to the audit log (admins only).
 - The feedback widget never exposes credentials in host pages; see the [widget security model](docs/feedback-widget.md#security-model).
 - Outbound requests to user-supplied URLs (webhooks, Discord, GitHub API, _Fetch website icon_) all go through the same SSRF guard; webhooks never follow redirects and private destinations need the explicit `OUTBOUND_ALLOW_PRIVATE_NETWORKS` opt-in. Integration secrets are encrypted at rest (AES-256-GCM, `ENCRYPTION_KEY`), never returned to the browser and never logged; webhooks are signed (HMAC-SHA256 with timestamp); GitHub deliveries are verified (`X-Hub-Signature-256`), checked against the connected repository and replay-protected; exports are owner-only and audit-logged, and CSV cells are protected against formula injection. Details in [docs/integrations.md](docs/integrations.md).
+- API tokens (personal and project) are stored as SHA-256 hashes, shown once, scoped, expiring and revocable; the API ignores cookies (no CSRF surface), answers invisible projects with 404, never lets a project token reach another project, rate-limits per token and audit-logs writes without the token. Automations run with the same permission and workflow checks as people, cannot delete data, and are protected against loops. Imports never create accounts or read secrets, sanitise all content and run all-or-nothing. See [API tokens](docs/authentication-tokens.md), [Automations](docs/automations.md) and [Import](docs/import.md).
 - _Fetch website icon_ additionally uses only ports 80/443, no credentials in URLs, every DNS answer must be a public address (loopback, private, link-local/cloud metadata, CGNAT, multicast, reserved and IPv4-mapped forms are refused), the connection is pinned to the validated address, redirects (max 3) are re-validated, and requests have strict time and size limits. SVG is never accepted; fetched icons are decoded and re-encoded like uploads, shown as a preview first and stored locally (never hot-linked or refetched).
 - Project logos can only be changed by project owners and administrators on non-archived projects; changes are audit-logged.
 - The container runs as the non-root `node` user with a read-only root filesystem in the provided Compose file.
@@ -395,7 +406,9 @@ Key decisions:
 - Email, Discord, webhooks and GitHub were tested against local mock servers (an SMTP sink, a local HTTP receiver, signed fake GitHub deliveries) – not against the real services.
 - GitHub uses a repository webhook plus an optional read-only token; a GitHub App installation flow is not implemented. One repository per project; no issue synchronisation.
 - No email-to-ticket ingestion; replies to notification emails are not read.
-- The JSON export is designed for a future import, but import/restore is not implemented yet.
+- Import creates tickets in an existing project; it does not restore whole projects, accounts, attachments or votes (see [Import](docs/import.md)). Full instance restore is done with the backup scripts.
+- Automations, the REST API, imports and GitHub automation triggers were tested with integration tests, end-to-end tests and signed fake GitHub deliveries – not against the real GitHub service.
+- Workflows configure the built-in statuses; custom statuses are not supported. The REST API has no webhooks-management or attachment endpoints and no OAuth app flow (tokens only).
 - Website-icon fetching supports PNG, JPEG, WebP and GIF icons and PNG images inside `.ico` files; SVG-only icons and BMP-only `.ico` files are not supported (upload a logo instead). Only the standard ports 80/443 are fetched.
 - Single-instance design (in-memory rate limiting, SQLite). Run one container per data volume.
 - The UI is English only.

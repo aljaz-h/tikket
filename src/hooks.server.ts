@@ -21,6 +21,9 @@ import { cleanupAbandonedUploads } from '$lib/server/uploads';
 import { findWidget, listAllowedOrigins } from '$lib/server/services/widget';
 import { pruneOutbound, startWorker, stopWorker, workerEnabled } from '$lib/server/outbound';
 import { checkStoredSecrets } from '$lib/server/stored-secrets';
+import { pruneIdempotency } from '$lib/server/api/resources';
+import { pruneImports } from '$lib/server/services/import';
+import { pruneAutomationRuns } from '$lib/server/automations/rules';
 import { THEME_COOKIE, THEMES, type Theme } from '$lib/shared/constants';
 
 function maintenance() {
@@ -29,6 +32,9 @@ function maintenance() {
 		const sessions = deleteExpiredSessions();
 		pruneOldNotifications();
 		pruneOutbound();
+		pruneIdempotency();
+		pruneImports();
+		pruneAutomationRuns();
 		if (uploads || sessions)
 			console.info(
 				`[tikket] maintenance: removed ${uploads} abandoned uploads, ${sessions} expired sessions`
@@ -74,7 +80,7 @@ function setupRequired() {
 	return !setupDone;
 }
 
-const SETUP_ALLOWED = ['/setup', '/api/health'];
+const SETUP_ALLOWED = ['/setup', '/api/health', '/api/openapi.json', '/docs/api'];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const { url, cookies, request } = event;
@@ -87,14 +93,29 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Defence in depth on top of SvelteKit's form CSRF check: API mutations must be same-origin.
-	// GitHub webhooks are server-to-server and authenticated by their HMAC signature instead.
+	// GitHub webhooks are server-to-server and authenticated by their HMAC signature instead; the
+	// public REST API (/api/v1) authenticates with bearer tokens only and never reads cookies.
+	const publicApi = url.pathname.startsWith('/api/v1/') || url.pathname === '/api/v1';
 	if (
 		url.pathname.startsWith('/api/') &&
+		!publicApi &&
 		!url.pathname.startsWith('/api/integrations/github/') &&
 		!['GET', 'HEAD', 'OPTIONS'].includes(request.method)
 	) {
 		const origin = request.headers.get('origin');
 		if (!origin || origin !== url.origin) error(403, 'Cross-origin request blocked');
+	}
+
+	if (publicApi) {
+		// No session, no theme, no setup redirect: answer in the API's own JSON shape.
+		event.locals.user = null;
+		event.locals.session = null;
+		event.locals.theme = 'system';
+		const response = await resolve(event);
+		response.headers.set('X-Content-Type-Options', 'nosniff');
+		response.headers.set('X-Frame-Options', 'DENY');
+		response.headers.set('Cache-Control', 'no-store');
+		return response;
 	}
 
 	if (setupRequired()) {

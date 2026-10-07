@@ -188,6 +188,31 @@ try {
 	assert.equal(forgedApi.status, 403);
 	log('cross-origin POSTs rejected (forms and API)');
 
+	// REST API (v0.6): bearer tokens work through the proxy; cookies alone never authenticate it.
+	const created = await request('POST', '/settings/developer?/create', {
+		headers: formHeaders({ cookie: cookieHeader, 'x-sveltekit-action': 'true' }),
+		body: form({ name: `deploy ${proxyName}`, scopes: 'tickets:write', expiry: '7' })
+	});
+	const pat = /tkt_pat_[A-Za-z0-9_-]{40}/.exec(created.body)?.[0];
+	assert.ok(pat, `token creation: ${created.status} ${created.body.slice(0, 200)}`);
+	const apiCreate = await request('POST', '/api/v1/projects/DEP/tickets', {
+		headers: {
+			authorization: `Bearer ${pat}`,
+			'content-type': 'application/json',
+			origin: 'https://ci.example'
+		},
+		body: JSON.stringify({ title: `API ticket via ${proxyName}`, description: 'From CI' })
+	});
+	assert.equal(apiCreate.status, 201, `API create: ${apiCreate.status} ${apiCreate.body}`);
+	assert.equal(JSON.parse(apiCreate.body).data.source, 'api');
+	assert.ok(apiCreate.headers['x-ratelimit-limit'], 'rate limit headers pass the proxy');
+	const cookieOnly = await request('GET', '/api/v1/me', { headers: { cookie: cookieHeader } });
+	assert.equal(cookieOnly.status, 401);
+	assert.equal(JSON.parse(cookieOnly.body).error.code, 'unauthenticated');
+	const openapi = await request('GET', '/api/openapi.json');
+	assert.equal(JSON.parse(openapi.body).servers?.[0]?.url, ORIGIN);
+	log('REST API with bearer token through the proxy; session cookies are ignored');
+
 	// Absolute links use the configured origin, never forwarded/Host headers.
 	const spoofHeaders =
 		proxyName === 'nginx'

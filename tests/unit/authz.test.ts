@@ -17,6 +17,7 @@ const project = (over: Partial<Project> = {}): Project => ({
 	accentColor: null,
 	docsUrl: null,
 	roadmapSettings: null,
+	workflowSettings: null,
 	color: 'indigo',
 	url: null,
 	visibility: 'private',

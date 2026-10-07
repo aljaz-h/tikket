@@ -36,6 +36,8 @@
 	import CommentItem from '$lib/components/ticket/CommentItem.svelte';
 	import { quickSubmit } from '$lib/components/ticket/enhance';
 	import Button from '$lib/components/ui/button.svelte';
+	import Textarea from '$lib/components/ui/textarea.svelte';
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Card from '$lib/components/ui/card.svelte';
 	import Select from '$lib/components/ui/select.svelte';
 	import Input from '$lib/components/ui/input.svelte';
@@ -132,6 +134,13 @@
 		} catch {
 			toast.error('Could not copy the link');
 		}
+	}
+	/** Activity made by automations: rules show their name, GitHub merge rules say so. */
+	function automationActor(automation: unknown) {
+		const a = automation as { name?: string; source?: string } | undefined;
+		if (a?.name) return `Automation “${a.name}”`;
+		if (a?.source === 'github') return 'GitHub automation';
+		return 'Someone';
 	}
 </script>
 
@@ -366,8 +375,7 @@
 									</span>
 									<div class="min-w-0">
 										<span class="font-medium text-foreground"
-											>{a.actor?.displayName ??
-												(a.data.automation ? 'GitHub automation' : 'Someone')}</span
+											>{a.actor?.displayName ?? automationActor(a.data.automation)}</span
 										>
 										{describeActivity(a.type, a.data)}
 										{#if a.type === 'status' && a.data.duplicateOf}
@@ -393,11 +401,11 @@
 					{/each}
 				</ol>
 
-				{#if data.user && (perms.canComment || data.canWriteInternal)}
+				{#if data.user && ((perms.canComment && !data.workflow.commentsClosed) || data.canWriteInternal)}
 					<CommentForm
 						user={data.user}
 						canWriteInternal={data.canWriteInternal}
-						canComment={perms.canComment}
+						canComment={perms.canComment && !data.workflow.commentsClosed}
 						allowAttachments={perms.canAttach}
 						limits={{
 							maxFiles: data.app.maxAttachments,
@@ -419,6 +427,10 @@
 					</p>
 				{:else if !data.project.commentsEnabled}
 					<p class="text-sm text-muted-foreground">Comments are disabled for this project.</p>
+				{:else if data.workflow.commentsClosed}
+					<p class="text-sm text-muted-foreground">
+						This ticket is completed and closed for new comments.
+					</p>
 				{/if}
 			</section>
 		</div>
@@ -497,10 +509,38 @@
 				<div class="grid gap-1.5">
 					<p class="text-xs font-medium text-muted-foreground">Status</p>
 					{#if perms.isStaff}
-						<StatusControl status={t.status} projectKey={key} />
+						<StatusControl
+							status={t.status}
+							projectKey={key}
+							allowed={data.workflow.allowed}
+							requireNote={data.workflow.requireNote}
+						/>
 					{:else}
 						<div><StatusBadge status={t.status} /></div>
 						<p class="text-xs text-muted-foreground">{STATUS_META[t.status].description}</p>
+						{#if data.workflow.canReopen}
+							<form
+								method="POST"
+								action="?/status"
+								class="mt-1 grid gap-2"
+								use:enhance={quickSubmit({ success: 'Ticket reopened' })}
+							>
+								<input type="hidden" name="status" value={data.workflow.reopenTo} />
+								{#if data.workflow.requireNote.includes(data.workflow.reopenTo)}
+									<Textarea
+										name="note"
+										rows={2}
+										maxlength={2000}
+										required
+										aria-label="Why reopen?"
+										placeholder="What is still wrong?"
+									/>
+								{/if}
+								<Button type="submit" variant="outline" size="sm" class="justify-self-start"
+									><RotateCcw /> Reopen ticket</Button
+								>
+							</form>
+						{/if}
 					{/if}
 				</div>
 

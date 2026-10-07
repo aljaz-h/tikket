@@ -27,6 +27,7 @@ import { listAssignableUsers, listLabels } from '$lib/server/services/projects';
 import {
 	assignTicket,
 	changePriority,
+	canReporterReopen,
 	changeStatus,
 	getTicketDetail,
 	recentVoters,
@@ -46,6 +47,7 @@ import {
 	removeDevLink,
 	ticketDevLinks
 } from '$lib/server/integrations/github';
+import { allowedTargets, workflowFor } from '$lib/server/services/workflow';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -140,6 +142,17 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			return { repository: `${conn.owner}/${conn.repo}`, links: ticketDevLinks(ticket.id) };
 		})(),
 		canWriteInternal: canWriteInternalNotes(access),
+		workflow: (() => {
+			const w = workflowFor(access.project);
+			return {
+				allowed: access.isStaff ? allowedTargets(w, ticket.status) : [],
+				requireNote: w.requireNote,
+				canReopen: canReporterReopen(user, access, ticket),
+				reopenTo: w.defaultStatus,
+				// The workflow can close completed tickets for new public comments (staff excepted).
+				commentsClosed: !access.isStaff && ticket.status === 'completed' && !w.commentsOnCompleted
+			};
+		})(),
 		voters: access.project.votingEnabled ? recentVoters(ticket.id) : [],
 		canEdit: canEditTicket(access, user, ticket),
 		assignable: access.isStaff ? listAssignableUsers(access.project.id) : [],
@@ -212,7 +225,8 @@ export const actions: Actions = {
 
 	status: async ({ locals, params, request }) => {
 		const user = requireActionUser(locals);
-		const { access, ticket } = requireTicket(user, params.key, params.number, 'staff');
+		// Staff, or a reporter reopening their own ticket: changeStatus checks which.
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'view');
 		const parsed = parseForm(statusSchema, await request.formData());
 		if (!parsed.ok) return parsed.failure;
 		try {

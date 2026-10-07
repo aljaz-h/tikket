@@ -19,6 +19,8 @@ import { isAssignable, projectStaffIds } from './projects';
 import { ServiceError } from './users';
 import { saveTemplateResponse, type TemplateResponseInput } from './templates';
 import { shippedIn } from './releases';
+import { checkTransition, workflowFor } from './workflow';
+import { fireStatusTriggers, fireTrigger, fireVoteThreshold } from '../automations/triggers';
 import { emitProjectEvent, ticketSnapshot } from '../integrations/events';
 
 type ActiveActor = NonNullable<Actor>;
@@ -105,7 +107,7 @@ export interface TicketInput {
 }
 
 export interface CreateTicketExtras {
-	source?: 'web' | 'widget';
+	source?: 'web' | 'widget' | 'api' | 'import';
 	environment?: TicketEnvironment | null;
 	template?: TemplateResponseInput | null;
 }
@@ -126,6 +128,7 @@ export function createTicket(
 		throw new ServiceError(`You can attach up to ${max} images per ticket`, 'attachments');
 
 	const project = access.project;
+	const workflow = workflowFor(project);
 	const ticket = getDb().transaction(
 		(tx) => {
 			const number = allocateTicketNumber(tx, project.id);
@@ -140,6 +143,8 @@ export function createTicket(
 					descriptionText: input.descriptionText,
 					context: input.context,
 					reporterId: actor.id,
+					status: workflow.defaultStatus,
+					priority: workflow.defaultPriority,
 					source: extras.source ?? 'web',
 					environment: extras.environment ?? null
 				})
@@ -169,6 +174,7 @@ export function createTicket(
 			emitProjectEvent(tx, project, 'ticket.created', () => ({
 				ticket: ticketSnapshot(tx, created.id)
 			}));
+			fireTrigger(tx, project.id, 'ticket.created', created.id, { source: created.source });
 			return created;
 		},
 		{ behavior: 'immediate' }
@@ -236,6 +242,7 @@ export function updateTicketContent(
 				ticket: ticketSnapshot(tx, ticket.id),
 				changes: changed
 			}));
+			fireTrigger(tx, access.project.id, 'ticket.updated', ticket.id, { fields: changed });
 		},
 		{ behavior: 'immediate' }
 	);
@@ -276,13 +283,33 @@ export function removeTicketAttachment(
 	removeFiles(att);
 }
 
+/** Whether `actor` may reopen `ticket` as its reporter (project workflow setting). */
+export function canReporterReopen(
+	actor: Pick<ActiveActor, 'id'> | null,
+	access: ProjectAccess,
+	ticket: Pick<Ticket, 'reporterId' | 'status'>
+) {
+	if (!actor || access.archived || !access.canView || ticket.reporterId !== actor.id) return false;
+	if (ticket.status !== 'completed') return false;
+	const workflow = workflowFor(access.project);
+	return (
+		workflow.reporterCanReopen &&
+		!checkTransition(workflow, ticket.status, workflow.defaultStatus, 'reopen')
+	);
+}
+
 export function changeStatus(
 	actor: ActiveActor,
 	access: ProjectAccess,
 	ticket: Ticket,
 	input: { status: TicketStatus; note: string | null; duplicateOf?: string }
 ) {
-	if (!access.isStaff || access.archived)
+	// Besides staff, a reporter may reopen their own completed ticket if the workflow allows it.
+	const reporterReopen =
+		!access.isStaff &&
+		canReporterReopen(actor, access, ticket) &&
+		input.status === workflowFor(access.project).defaultStatus;
+	if ((!access.isStaff && !reporterReopen) || access.archived)
 		throw new ServiceError('Only project staff can change the status', 'status', 403);
 	let target: Ticket | undefined;
 	if (input.status === 'duplicate') {
@@ -296,6 +323,17 @@ export function changeStatus(
 	const problem = validateStatusChange(ticket, input.status, target ?? null);
 	if (problem)
 		throw new ServiceError(problem, input.status === 'duplicate' ? 'duplicateOf' : 'status');
+	const workflowProblem = checkTransition(
+		workflowFor(access.project),
+		ticket.status,
+		input.status,
+		input.note
+	);
+	if (workflowProblem)
+		throw new ServiceError(
+			workflowProblem,
+			workflowProblem.startsWith('A note') ? 'note' : 'status'
+		);
 
 	const from = ticket.status;
 	const to = input.status;
@@ -364,6 +402,7 @@ export function changeStatus(
 				tx
 			);
 			emitStatusEvents(tx, access.project, ticket.id, from, to);
+			fireStatusTriggers(tx, access.project.id, ticket.id, from, to);
 		},
 		{ behavior: 'immediate' }
 	);
@@ -387,6 +426,8 @@ export function setStatusBySystem(
 			const from = current.status;
 			if (STATUS_META[from].resolved || from === to) return false;
 			if (to === 'in_progress' && from === 'in_progress') return false;
+			const note = automation.pr ? `Pull request #${automation.pr} was merged.` : null;
+			if (checkTransition(workflowFor(project), from, to, note)) return false;
 			const now = new Date();
 			tx.update(schema.tickets)
 				.set({
@@ -415,6 +456,7 @@ export function setStatusBySystem(
 				tx
 			);
 			emitStatusEvents(tx, project, ticketId, from, to, { automation });
+			fireStatusTriggers(tx, project.id, ticketId, from, to);
 			return true;
 		},
 		{ behavior: 'immediate' }
@@ -507,6 +549,10 @@ export function changePriority(
 			changes: ['priority'],
 			priority: { from: ticket.priority, to: priority }
 		}));
+		fireTrigger(tx, access.project.id, 'ticket.priority_changed', ticket.id, {
+			from: ticket.priority,
+			to: priority
+		});
 	});
 }
 
@@ -540,6 +586,10 @@ export function assignTicket(
 		emitProjectEvent(tx, access.project, 'ticket.assigned', () => ({
 			ticket: ticketSnapshot(tx, ticket.id)
 		}));
+		fireTrigger(tx, access.project.id, 'ticket.assignee_changed', ticket.id, {
+			from: ticket.assigneeId,
+			to: assigneeId
+		});
 		if (assigneeId) {
 			tx.insert(schema.ticketFollowers)
 				.values({ ticketId: ticket.id, userId: assigneeId })
@@ -607,6 +657,10 @@ export function setTicketLabels(
 			added: valid.filter((l) => added.includes(l.id)).map((l) => l.name),
 			removedCount: removed.length
 		});
+		for (const labelId of added)
+			fireTrigger(tx, ticket.projectId, 'ticket.label_added', ticket.id, { labelId });
+		for (const labelId of removed)
+			fireTrigger(tx, ticket.projectId, 'ticket.label_removed', ticket.id, { labelId });
 	});
 }
 
@@ -648,13 +702,14 @@ export function setVote(
 						.where(eq(schema.tickets.id, ticket.id))
 						.run();
 			}
-			return (
+			const votes =
 				tx
 					.select({ n: schema.tickets.voteCount })
 					.from(schema.tickets)
 					.where(eq(schema.tickets.id, ticket.id))
-					.get()?.n ?? 0
-			);
+					.get()?.n ?? 0;
+			if (on) fireVoteThreshold(tx, ticket.projectId, ticket.id, votes - 1, votes);
+			return votes;
 		},
 		{ behavior: 'immediate' }
 	);
@@ -748,6 +803,7 @@ export function getTicketDetail(actor: Actor, ticket: Ticket, opts: { internal: 
 			id: schema.ticketComments.id,
 			bodyHtml: schema.ticketComments.bodyHtml,
 			internal: schema.ticketComments.internal,
+			meta: schema.ticketComments.meta,
 			createdAt: schema.ticketComments.createdAt,
 			editedAt: schema.ticketComments.editedAt,
 			deletedAt: schema.ticketComments.deletedAt,

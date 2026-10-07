@@ -4,7 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import Check from '@lucide/svelte/icons/check';
 	import FolderKanban from '@lucide/svelte/icons/folder-kanban';
-	import History from '@lucide/svelte/icons/history';
+	import History from '@lucide/svelte/icons/rotate-ccw-clock';
 	import Lightbulb from '@lucide/svelte/icons/lightbulb';
 	import Send from '@lucide/svelte/icons/send';
 	import ImageIcon from '@lucide/svelte/icons/image';

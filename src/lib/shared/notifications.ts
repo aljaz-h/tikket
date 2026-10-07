@@ -23,8 +23,14 @@ export function describeNotification(n: NotificationLike): string {
 }
 
 function describeOne(n: NotificationLike): string {
-	const who = n.actorName ?? 'Someone';
 	const d = n.data;
+	const who =
+		n.actorName ??
+		(d.automation === 'github'
+			? 'GitHub automation'
+			: d.automation
+				? `Automation “${d.automation}”`
+				: 'Someone');
 	switch (n.type) {
 		case 'new_ticket':
 			return `${who} submitted a new ticket`;
@@ -46,6 +52,8 @@ function describeOne(n: NotificationLike): string {
 			return `${who} changed the status to ${to ? STATUS_META[to].label : 'a new status'}`;
 		}
 		case 'update': {
+			if (d.kind === 'automation')
+				return d.message ? `${who}: ${d.message}` : `${who} flagged this ticket for you`;
 			if (d.kind === 'priority' && TICKET_PRIORITIES.includes(d.to as TicketPriority))
 				return `${who} set the priority to ${PRIORITY_META[d.to as TicketPriority].label}`;
 			return `${who} updated the ticket`;

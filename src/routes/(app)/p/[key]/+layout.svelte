@@ -28,7 +28,9 @@
 					{ href: `${base}/milestones`, label: 'Milestones' }
 				]
 			: []),
-		...(data.permissions.isOwner ? [{ href: `${base}/settings`, label: 'Settings' }] : [])
+		...(data.permissions.isOwner || data.permissions.isStaff
+			? [{ href: `${base}/settings`, label: 'Settings' }]
+			: [])
 	]);
 	const isActive = (tab: { href: string; exact?: boolean }) =>
 		tab.exact ? page.url.pathname === tab.href : page.url.pathname.startsWith(tab.href);

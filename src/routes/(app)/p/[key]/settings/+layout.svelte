@@ -17,15 +17,29 @@
 		{ href: base, label: 'General settings', short: 'General' },
 		{ href: `${base}/members`, label: 'Members', short: 'Members' },
 		{ href: `${base}/labels`, label: 'Labels', short: 'Labels' },
+		{ href: `${base}/workflow`, label: 'Workflow', short: 'Workflow' },
 		{ href: `${base}/roadmap`, label: 'Roadmap visibility', short: 'Roadmap' },
+		{ href: `${base}/import`, label: 'Import data', short: 'Import' },
 		{ href: `${base}/export`, label: 'Export data', short: 'Export' },
 		{ href: `${base}/danger`, label: 'Danger zone', short: 'Danger zone' }
 	]);
 	const currentGeneral = $derived(general.find((g) => g.href === path) ?? null);
+	// Moderators only manage automations; everything else is for owners.
+	const owner = $derived(data.permissions.isOwner);
 	const tabs = $derived([
-		{ href: `${base}/widget`, label: 'Feedback widget' },
-		{ href: `${base}/templates`, label: 'Ticket templates' },
-		{ href: `${base}/integrations`, label: 'Integrations' }
+		...(owner
+			? [
+					{ href: `${base}/widget`, label: 'Feedback widget' },
+					{ href: `${base}/templates`, label: 'Ticket templates' }
+				]
+			: []),
+		{ href: `${base}/automations`, label: 'Automations' },
+		...(owner
+			? [
+					{ href: `${base}/integrations`, label: 'Integrations' },
+					{ href: `${base}/developer`, label: 'Developer' }
+				]
+			: [])
 	]);
 	const tabActive = (href: string) => path === href || path.startsWith(`${href}/`);
 	let open = $state(false);
@@ -43,41 +57,43 @@
 		class="flex w-full flex-wrap gap-1 rounded-lg border border-border bg-surface p-1 sm:w-fit"
 		aria-label="Settings sections"
 	>
-		<DropdownMenu.Root bind:open>
-			<DropdownMenu.Trigger
-				class={cn(tabClass(!!currentGeneral), 'data-[state=open]:bg-hover')}
-				aria-label="General settings: {currentGeneral?.label ?? 'choose a section'}"
-				aria-current={currentGeneral ? 'page' : undefined}
-			>
-				{currentGeneral?.short ?? 'General'}
-				<ChevronDown class={cn('size-3.5 transition-transform', open && 'rotate-180')} />
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Portal>
-				<DropdownMenu.Content class={menuContentClass} align="start" sideOffset={6}>
-					{#each general as g (g.href)}
-						<DropdownMenu.Item class={cn(menuItemClass, 'pr-8')}>
-							{#snippet child({ props })}
-								<a
-									{...props}
-									href={g.href}
-									aria-current={currentGeneral?.href === g.href ? 'page' : undefined}
-									class={cn(
-										props.class as string,
-										'relative',
-										g.href.endsWith('/danger') && 'text-destructive'
-									)}
-								>
-									{g.label}
-									{#if currentGeneral?.href === g.href}<Check
-											class="absolute right-2 !text-link"
-										/>{/if}
-								</a>
-							{/snippet}
-						</DropdownMenu.Item>
-					{/each}
-				</DropdownMenu.Content>
-			</DropdownMenu.Portal>
-		</DropdownMenu.Root>
+		{#if owner}
+			<DropdownMenu.Root bind:open>
+				<DropdownMenu.Trigger
+					class={cn(tabClass(!!currentGeneral), 'data-[state=open]:bg-hover')}
+					aria-label="General settings: {currentGeneral?.label ?? 'choose a section'}"
+					aria-current={currentGeneral ? 'page' : undefined}
+				>
+					{currentGeneral?.short ?? 'General'}
+					<ChevronDown class={cn('size-3.5 transition-transform', open && 'rotate-180')} />
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Portal>
+					<DropdownMenu.Content class={menuContentClass} align="start" sideOffset={6}>
+						{#each general as g (g.href)}
+							<DropdownMenu.Item class={cn(menuItemClass, 'pr-8')}>
+								{#snippet child({ props })}
+									<a
+										{...props}
+										href={g.href}
+										aria-current={currentGeneral?.href === g.href ? 'page' : undefined}
+										class={cn(
+											props.class as string,
+											'relative',
+											g.href.endsWith('/danger') && 'text-destructive'
+										)}
+									>
+										{g.label}
+										{#if currentGeneral?.href === g.href}<Check
+												class="absolute right-2 !text-link"
+											/>{/if}
+									</a>
+								{/snippet}
+							</DropdownMenu.Item>
+						{/each}
+					</DropdownMenu.Content>
+				</DropdownMenu.Portal>
+			</DropdownMenu.Root>
+		{/if}
 		{#each tabs as tab (tab.href)}
 			<a
 				href={tab.href}

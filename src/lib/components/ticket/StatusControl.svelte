@@ -16,8 +16,15 @@
 	interface Props {
 		status: TicketStatus;
 		projectKey: string;
+		/** Statuses the project workflow allows from the current one (default: all). */
+		allowed?: TicketStatus[];
+		/** Statuses that need a note (project workflow). */
+		requireNote?: TicketStatus[];
 	}
-	let { status, projectKey }: Props = $props();
+	let { status, projectKey, allowed, requireNote = [] }: Props = $props();
+	const options = $derived(
+		TICKET_STATUSES.filter((s) => s === status || !allowed || allowed.includes(s))
+	);
 	let selected = $derived<TicketStatus>(status);
 	let formEl: HTMLFormElement | undefined = $state();
 	let js = $state(false);
@@ -25,11 +32,13 @@
 		js = true;
 	});
 
-	const needsDetails = $derived(selected !== status && STATUSES_WITH_NOTE.includes(selected));
+	const withNote = (s: TicketStatus) => STATUSES_WITH_NOTE.includes(s) || requireNote.includes(s);
+	const needsDetails = $derived(selected !== status && withNote(selected));
+	const noteRequired = $derived(requireNote.includes(selected));
 
 	function onChange() {
 		// Simple transitions apply immediately; those with an explanation reveal the extra fields.
-		if (selected !== status && !STATUSES_WITH_NOTE.includes(selected)) formEl?.requestSubmit();
+		if (selected !== status && !withNote(selected)) formEl?.requestSubmit();
 	}
 </script>
 
@@ -45,7 +54,7 @@
 		bind:value={selected as string}
 		onchange={onChange}
 		aria-label="Status"
-		items={TICKET_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
+		items={options.map((s) => ({ value: s, label: STATUS_META[s].label }))}
 	/>
 	{#if needsDetails || !js}
 		<div class="grid gap-2 rounded-lg border border-border bg-muted/50 p-2.5">
@@ -66,9 +75,12 @@
 			{/if}
 			<label class="grid gap-1 text-xs font-medium">
 				{selected === 'completed' ? 'Resolution note' : 'Explanation'}
-				<span class="font-normal text-muted-foreground">(optional, visible to everyone)</span>
+				<span class="font-normal text-muted-foreground"
+					>({noteRequired && js ? 'required' : 'optional'}, visible to everyone)</span
+				>
 				<Textarea
 					name="note"
+					required={noteRequired && js}
 					rows={2}
 					maxlength={2000}
 					class="min-h-14"

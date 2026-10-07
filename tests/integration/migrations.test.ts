@@ -81,4 +81,55 @@ describe('database migrations', () => {
 		).toEqual({ n: 0 });
 		db.close();
 	});
+	it('upgrade a v0.5 database to v0.6 without losing data or delivery links', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tikket-mig-'));
+		const migrations = path.join(dir, 'migrations');
+		fs.cpSync('drizzle', migrations, { recursive: true });
+		const journalFile = path.join(migrations, 'meta/_journal.json');
+		const full = fs.readFileSync(journalFile, 'utf8');
+		const journal = JSON.parse(full);
+		journal.entries = journal.entries.filter((e: { tag: string }) => e.tag < '0006');
+		fs.writeFileSync(journalFile, JSON.stringify(journal));
+		const file = path.join(dir, 'tikket.db');
+		const old = openDatabase(file, migrations).sqlite;
+		old.exec(`
+			insert into users(id,username,email,display_name,password_hash) values (1,'owner','o@x','Owner','h');
+			insert into projects(id,key,name,created_by_id) values (1,'OLD','Old project',1);
+			insert into tickets(id,project_id,number,type,title,description_html,description_text,reporter_id)
+				values (1,1,1,'bug','Kept ticket','<p>x</p>','x',1);
+			insert into project_hooks(id,project_id,kind,name,url_enc,url_hint) values (1,1,'webhook','Hook','enc','https://x');
+			insert into outbound_jobs(id,kind,status,payload,project_id,hook_id) values (7,'webhook','done','{}',1,1);
+			insert into hook_deliveries(id,hook_id,job_id,event,event_id,attempt,success) values (1,1,7,'ticket.created','evt-12345678',1,1);
+		`);
+		old.close();
+		fs.writeFileSync(journalFile, full);
+		const upgraded = openDatabase(file, migrations).sqlite;
+		expect(upgraded.prepare('select job_id from hook_deliveries where id = 1').get()).toEqual({
+			job_id: 7
+		});
+		expect(upgraded.prepare('select title, external_ref from tickets').all()).toEqual([
+			{ title: 'Kept ticket', external_ref: null }
+		]);
+		expect(upgraded.prepare('select workflow_settings from projects').get()).toEqual({
+			workflow_settings: null
+		});
+		// The rebuilt queue accepts the new job kind and still rejects unknown ones.
+		upgraded.prepare("insert into outbound_jobs(kind,payload) values ('automation','{}')").run();
+		expect(() =>
+			upgraded.prepare("insert into outbound_jobs(kind,payload) values ('nope','{}')").run()
+		).toThrow(/CHECK/);
+		expect(upgraded.pragma('foreign_key_check')).toEqual([]);
+		for (const table of [
+			'automations',
+			'automation_runs',
+			'api_tokens',
+			'api_idempotency',
+			'imports'
+		])
+			expect(
+				upgraded.prepare('select count(*) as n from sqlite_master where name = ?').get(table)
+			).toEqual({ n: 1 });
+		upgraded.close();
+		useDatabase(null);
+	});
 });

@@ -65,7 +65,12 @@ export function enqueue(input: EnqueueInput, tx: DB = getDb()): boolean {
 	return inserted > 0;
 }
 
-const DEFAULT_ATTEMPTS: Record<JobKind, number> = { email: 6, discord: 6, webhook: 8 };
+const DEFAULT_ATTEMPTS: Record<JobKind, number> = {
+	email: 6,
+	discord: 6,
+	webhook: 8,
+	automation: 3
+};
 const LEASE_MS = 2 * 60 * 1000;
 const BASE_DELAY_MS = 30 * 1000;
 const MAX_DELAY_MS = 60 * 60 * 1000;
