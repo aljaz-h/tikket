@@ -327,11 +327,21 @@
 				<EmptyState
 					icon={Inbox}
 					title="No tickets yet"
-					description="Bug reports, feature requests and ideas will show up here."
+					description={data.permissions.isStaff
+						? `This is where bug reports, feature requests and ideas for ${data.project.name} arrive. Invite the people you want feedback from, or let them report straight from your website with the feedback widget.`
+						: `Bug reports, feature requests and ideas for ${data.project.name} will show up here. Be the first to share one.`}
 				>
 					{#if data.permissions.canSubmit}<Button href="/new?project={data.project.key}"
 							><Plus /> New ticket</Button
 						>{/if}
+					{#if data.permissions.isOwner}
+						<Button href={projectPath(data.project.key, 'settings/members')} variant="secondary"
+							>Invite members</Button
+						>
+						<Button href={projectPath(data.project.key, 'settings/widget')} variant="ghost"
+							>Set up the feedback widget</Button
+						>
+					{/if}
 				</EmptyState>
 			{/if}
 		{/if}

@@ -38,6 +38,7 @@
 	import Button from '$lib/components/ui/button.svelte';
 	import Textarea from '$lib/components/ui/textarea.svelte';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+	import ReminderControl from '$lib/components/ticket/ReminderControl.svelte';
 	import Card from '$lib/components/ui/card.svelte';
 	import Select from '$lib/components/ui/select.svelte';
 	import Input from '$lib/components/ui/input.svelte';
@@ -397,7 +398,11 @@
 							{/if}
 						</li>
 					{:else}
-						<li class="text-sm text-muted-foreground">No comments yet.</li>
+						<li class="text-sm text-muted-foreground">
+							No comments yet{data.user && perms.canComment
+								? ' – ask a question or add details below.'
+								: '.'}
+						</li>
 					{/each}
 				</ol>
 
@@ -489,6 +494,9 @@
 						><Copy /> Copy link</Button
 					>
 				</div>
+				{#if data.user}
+					<ReminderControl reminders={data.reminders} />
+				{/if}
 				{#if data.voters.length}
 					<div class="flex items-center gap-2">
 						<div class="flex -space-x-1.5">

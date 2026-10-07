@@ -52,6 +52,8 @@ function describeOne(n: NotificationLike): string {
 			return `${who} changed the status to ${to ? STATUS_META[to].label : 'a new status'}`;
 		}
 		case 'update': {
+			if (d.kind === 'reminder')
+				return d.message ? `Reminder: ${d.message}` : 'Reminder about this ticket';
 			if (d.kind === 'automation')
 				return d.message ? `${who}: ${d.message}` : `${who} flagged this ticket for you`;
 			if (d.kind === 'priority' && TICKET_PRIORITIES.includes(d.to as TicketPriority))

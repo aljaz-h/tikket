@@ -24,6 +24,7 @@ import { checkStoredSecrets } from '$lib/server/stored-secrets';
 import { pruneIdempotency } from '$lib/server/api/resources';
 import { pruneImports } from '$lib/server/services/import';
 import { pruneAutomationRuns } from '$lib/server/automations/rules';
+import { pruneReminders } from '$lib/server/services/reminders';
 import { THEME_COOKIE, THEMES, type Theme } from '$lib/shared/constants';
 
 function maintenance() {
@@ -35,6 +36,7 @@ function maintenance() {
 		pruneIdempotency();
 		pruneImports();
 		pruneAutomationRuns();
+		pruneReminders();
 		if (uploads || sessions)
 			console.info(
 				`[tikket] maintenance: removed ${uploads} abandoned uploads, ${sessions} expired sessions`
@@ -184,9 +186,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-export const handleError: HandleServerError = ({ error: err, status, message }) => {
+export const handleError: HandleServerError = ({ error: err, event, status, message }) => {
 	if (status === 404) return { message: 'Not found' };
 	const errorId = randomUUID();
-	console.error(`[tikket] ${errorId}`, err);
+	// Structured context for the log (path without the query string, which may carry tokens).
+	console.error(
+		`[tikket] error id=${errorId} status=${status} method=${event.request.method} path=${event.url.pathname} route=${event.route.id ?? '-'} user=${event.locals.user?.id ?? '-'}`,
+		err
+	);
 	return { message: status >= 500 ? 'Something went wrong on our side.' : message, errorId };
 };

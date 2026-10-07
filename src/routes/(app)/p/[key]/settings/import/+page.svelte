@@ -94,4 +94,10 @@
 			{/each}
 		</ul>
 	</Card>
+{:else}
+	<p
+		class="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground"
+	>
+		No imports yet. Uploaded files are reviewed here before anything is created.
+	</p>
 {/if}

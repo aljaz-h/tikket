@@ -84,8 +84,10 @@
 	{:else}
 		<EmptyState
 			icon={BellOff}
-			title={data.unreadOnly ? 'No unread notifications' : 'No notifications yet'}
-			description="Follow tickets to hear about comments and status changes."
+			title={data.unreadOnly ? 'You’re all caught up' : 'No notifications yet'}
+			description={data.unreadOnly
+				? 'Everything has been read. New comments, status changes and mentions appear here.'
+				: 'Follow a ticket (or report one) to hear about comments, status changes and mentions here.'}
 		/>
 	{/if}
 </div>

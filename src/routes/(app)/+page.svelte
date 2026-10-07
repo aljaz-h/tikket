@@ -5,6 +5,10 @@
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import ArrowBigUp from '@lucide/svelte/icons/arrow-big-up';
 	import Lock from '@lucide/svelte/icons/lock';
+	import Circle from '@lucide/svelte/icons/circle';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import { enhance } from '$app/forms';
+	import { quickSubmit } from '$lib/components/ticket/enhance';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import TicketList from '$lib/components/TicketList.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
@@ -40,6 +44,49 @@
 			variant="success"
 			message="Tikket is ready. Create your first project to start collecting feedback."
 		/>
+	{/if}
+
+	{#if data.checklist && data.checklist.some((i) => !i.done && !i.optional)}
+		{@const doneCount = data.checklist.filter((i) => i.done).length}
+		<Card class="grid gap-3 p-5" aria-labelledby="setup-heading">
+			<div class="flex flex-wrap items-start justify-between gap-2">
+				<div>
+					<h2 id="setup-heading" class="text-sm font-semibold">Set up Tikket</h2>
+					<p class="text-xs text-muted-foreground">
+						{doneCount} of {data.checklist.length} done – nothing here is required.
+					</p>
+				</div>
+				<form method="POST" action="?/dismissChecklist" use:enhance={quickSubmit()}>
+					<Button type="submit" variant="ghost" size="xs">Hide checklist</Button>
+				</form>
+			</div>
+			<ol class="grid gap-1 sm:grid-cols-2">
+				{#each data.checklist as item (item.id)}
+					<li>
+						<a
+							href={item.href}
+							class="flex items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-hover"
+						>
+							{#if item.done}<CircleCheck
+									class="mt-0.5 size-4 shrink-0 text-success"
+									aria-label="Done"
+								/>{:else}<Circle
+									class="mt-0.5 size-4 shrink-0 text-muted-foreground"
+									aria-label="To do"
+								/>{/if}
+							<span class="min-w-0">
+								<span class="block text-sm {item.done ? 'text-muted-foreground line-through' : ''}"
+									>{item.label}{#if item.optional}<span class="text-muted-foreground">
+											(optional)</span
+										>{/if}</span
+								>
+								<span class="block text-xs text-muted-foreground">{item.hint}</span>
+							</span>
+						</a>
+					</li>
+				{/each}
+			</ol>
+		</Card>
 	{/if}
 
 	{#if data.staff}
@@ -206,13 +253,35 @@
 				{#if data.personal.mine.length}
 					<TicketList tickets={data.personal.mine} showProject label="My submissions" />
 				{:else}
-					<EmptyState
-						icon={Inbox}
-						title="You haven't reported anything yet"
-						description="Found a bug or have an idea? It only takes a minute."
-					>
-						<Button href="/new" variant="secondary"><Plus /> New ticket</Button>
-					</EmptyState>
+					<Card class="grid gap-3 p-5">
+						<h3 class="text-sm font-semibold">How Tikket works</h3>
+						<ol class="grid gap-2 text-sm">
+							<li class="flex gap-2">
+								<span class="font-semibold text-link">1</span>
+								<span
+									><strong>Report</strong> a <em>bug</em> (something broken), a <em>feature</em>
+									(something new), an <em>improvement</em> (make something better) or general
+									<em>feedback</em>. Screenshots help.</span
+								>
+							</li>
+							<li class="flex gap-2">
+								<span class="font-semibold text-link">2</span>
+								<span
+									>The team reviews it, may ask questions and plans it. You can vote on other
+									people's ideas.</span
+								>
+							</li>
+							<li class="flex gap-2">
+								<span class="font-semibold text-link">3</span>
+								<span
+									>Follow progress under <a href="/my-tickets" class="text-link hover:underline"
+										>My tickets</a
+									> – you're notified when the status changes.</span
+								>
+							</li>
+						</ol>
+						<Button href="/new" class="justify-self-start"><Plus /> Report something</Button>
+					</Card>
 				{/if}
 
 				{#if data.personal.following.length}

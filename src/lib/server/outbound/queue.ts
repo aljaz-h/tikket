@@ -154,8 +154,15 @@ export async function runJob(job: OutboundJob): Promise<'done' | 'retry' | 'dead
 			.where(eq(schema.outboundJobs.id, job.id))
 			.run();
 	} catch (err) {
-		console.error('[tikket] could not record outbound job result', err);
+		console.error(
+			`[tikket] could not record outbound job result job=${job.id} kind=${job.kind}`,
+			err
+		);
 	}
+	if (outcome === 'dead')
+		console.warn(
+			`[tikket] delivery failed permanently job=${job.id} kind=${job.kind} project=${job.projectId ?? '-'} attempts=${job.attempts}: ${redact(error ?? '', 200)}`
+		);
 	return outcome;
 }
 
@@ -166,8 +173,21 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let stopping = false;
 let scheduled = false;
 
+/** Small periodic tasks run by the worker (due reminders). Must be quick and never throw. */
+const tickHooks: (() => void)[] = [];
+export function registerTickHook(fn: () => void) {
+	tickHooks.push(fn);
+}
+
 function tick() {
 	if (stopping) return;
+	for (const hook of tickHooks) {
+		try {
+			hook();
+		} catch (err) {
+			console.error('[tikket] periodic task failed', err);
+		}
+	}
 	let jobs: OutboundJob[];
 	try {
 		jobs = claimJobs(CONCURRENCY - inflight.size);

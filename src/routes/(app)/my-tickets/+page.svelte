@@ -50,10 +50,10 @@
 	{:else}
 		<EmptyState
 			icon={Inbox}
-			title="Nothing here"
+			title={data.tab === 'created' ? 'You haven’t reported anything yet' : 'Nothing here'}
 			description={data.tab === 'created'
-				? 'Tickets you report will appear here with their current status.'
-				: 'No tickets match.'}
+				? 'Tickets you report will appear here with their current status, so you can follow their progress.'
+				: 'Tickets you follow or are assigned to appear in these tabs.'}
 		>
 			{#if data.tab === 'created'}<Button href="/new" variant="secondary"
 					><Plus /> Report something</Button

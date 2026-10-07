@@ -116,7 +116,7 @@ export function hasScope(auth: ApiAuth, rule: ScopeRule) {
 }
 
 /** Maps domain errors to API errors. */
-export function toApiError(err: unknown): ApiError {
+export function toApiError(err: unknown, context = ''): ApiError {
 	if (err instanceof ApiError) return err;
 	if (err instanceof ServiceError) {
 		const status =
@@ -143,7 +143,7 @@ export function toApiError(err: unknown): ApiError {
 	if (err instanceof SyntaxError)
 		return new ApiError(400, 'invalid_json', 'The request body is not valid JSON');
 	const id = randomUUID();
-	console.error(`[tikket] api ${id}`, err);
+	console.error(`[tikket] api error id=${id}${context}`, err);
 	return new ApiError(500, 'internal_error', `Something went wrong (request ${id})`);
 }
 
@@ -193,7 +193,10 @@ export function apiHandler(
 			for (const [k, v] of headers) if (!res.headers.has(k)) res.headers.set(k, v);
 			return res;
 		} catch (err) {
-			return errorResponse(toApiError(err), headers);
+			return errorResponse(
+				toApiError(err, ` method=${event.request.method} path=${event.url.pathname}`),
+				headers
+			);
 		}
 	};
 }

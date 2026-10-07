@@ -85,3 +85,11 @@ export function getFlag(key: string): unknown {
 		.get();
 	return row?.value;
 }
+
+export function setFlag(key: string, value: unknown) {
+	getDb()
+		.insert(schema.appSettings)
+		.values({ key: `flag:${key}`, value })
+		.onConflictDoUpdate({ target: schema.appSettings.key, set: { value, updatedAt: new Date() } })
+		.run();
+}

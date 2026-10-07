@@ -15,6 +15,8 @@ export interface NotifyInput {
 	data: Record<string, unknown>;
 	/** Restrict recipients to project owners/moderators and administrators (internal notes). */
 	staffOnly?: boolean;
+	/** Deliver in-app even if the category is switched off (the user asked for it: reminders). */
+	force?: boolean;
 }
 
 /**
@@ -58,7 +60,7 @@ export function notify(recipientIds: Iterable<number>, input: NotifyInput, tx: D
 	// Email preferences are independent of in-app preferences.
 	queueNotificationEmails(tx, eligible, input);
 	const rows = eligible
-		.filter((u) => getNotificationPrefs(u)[input.type])
+		.filter((u) => input.force || getNotificationPrefs(u)[input.type])
 		.map((u) => ({
 			userId: u.id,
 			type: input.type,

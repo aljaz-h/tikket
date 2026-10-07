@@ -48,6 +48,13 @@ import {
 	ticketDevLinks
 } from '$lib/server/integrations/github';
 import { allowedTargets, workflowFor } from '$lib/server/services/workflow';
+import {
+	cancelReminder,
+	createReminder,
+	presetTime,
+	ticketReminders,
+	type ReminderPreset
+} from '$lib/server/services/reminders';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -142,6 +149,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			return { repository: `${conn.owner}/${conn.repo}`, links: ticketDevLinks(ticket.id) };
 		})(),
 		canWriteInternal: canWriteInternalNotes(access),
+		reminders: user ? ticketReminders(user.id, ticket.id) : [],
 		workflow: (() => {
 			const w = workflowFor(access.project);
 			return {
@@ -289,6 +297,38 @@ export const actions: Actions = {
 		} catch (err) {
 			return handleServiceError(err);
 		}
+	},
+
+	remind: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const { access, ticket } = requireTicket(user, params.key, params.number, 'view');
+		const form = await request.formData();
+		const preset = String(form.get('preset') ?? '');
+		const date = String(form.get('date') ?? '');
+		let at: Date;
+		if (['tomorrow', '3days', 'week'].includes(preset)) at = presetTime(preset as ReminderPreset);
+		else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+			at = new Date(`${date}T09:00:00`);
+			// Today's date: remind in an hour rather than refusing a time that has already passed.
+			if (at.getTime() <= Date.now()) at = new Date(Date.now() + 60 * 60 * 1000);
+		} else return fail(400, { errors: { remindAt: 'Choose when to be reminded' }, values: {} });
+		try {
+			createReminder(user.id, access, ticket, at, null);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { reminded: true };
+	},
+
+	cancelReminder: async ({ locals, request }) => {
+		const user = requireActionUser(locals);
+		const id = intParam(String((await request.formData()).get('id') ?? ''));
+		try {
+			cancelReminder(user.id, id ?? 0);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { reminderRemoved: true };
 	},
 
 	follow: async ({ locals, params, request }) => {
