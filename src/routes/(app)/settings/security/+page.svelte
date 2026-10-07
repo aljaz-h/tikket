@@ -114,7 +114,7 @@
 		{#each data.sessions as s (s.id)}
 			<li class="flex flex-wrap items-center gap-3 px-3 py-2.5 text-sm">
 				<Monitor class="size-4 text-muted-foreground" />
-				<div class="min-w-0 flex-1">
+				<div class="min-w-0 flex-1 basis-40">
 					<p class="font-medium">
 						{describeAgent(s.userAgent)}
 						{#if s.current}<Badge variant="tone" class="tone-completed">This device</Badge>{/if}

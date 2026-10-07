@@ -68,7 +68,7 @@
 		{#each data.members as m (m.userId)}
 			<li class="flex flex-wrap items-center gap-3 px-3 py-2.5">
 				<UserAvatar user={m} size="md" />
-				<div class="min-w-0 flex-1">
+				<div class="min-w-0 flex-1 basis-40">
 					<p class="truncate text-sm font-medium">
 						{m.displayName}
 						{#if m.status === 'disabled'}<Badge variant="muted">Disabled</Badge>{/if}

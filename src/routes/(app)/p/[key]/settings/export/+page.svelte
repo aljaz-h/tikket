@@ -73,9 +73,9 @@
 			<div>
 				<h2 class="text-base font-semibold">Project bundle (.zip)</h2>
 				<p class="text-sm text-muted-foreground">
-					The JSON export (with the contents chosen on the left) plus the uploaded images of its
-					tickets and comments, with checksums. Use it to move a project to another Tikket – the
-					import restores the images too.
+					The JSON export (standard or staff, as chosen for the JSON export) plus the uploaded
+					images of its tickets and comments, with checksums. Use it to move a project to another
+					Tikket – the import restores the images too.
 				</p>
 			</div>
 		</div>

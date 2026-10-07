@@ -77,7 +77,7 @@
 			>
 				<Menu class="size-5" />
 			</button>
-			<a href="/" class="min-w-0 flex-1"><Logo name={data.app.name} /></a>
+			<a href="/" class="flex min-w-0 flex-1"><Logo name={data.app.name} class="max-w-full" /></a>
 			<button
 				type="button"
 				class="inline-flex size-10 items-center justify-center rounded-md hover:bg-hover"

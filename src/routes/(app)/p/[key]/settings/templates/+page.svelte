@@ -47,7 +47,7 @@
 					>
 						{#each list as t (t.id)}
 							<li class="flex flex-wrap items-center gap-3 px-4 py-3">
-								<div class="min-w-0 flex-1">
+								<div class="min-w-0 flex-1 basis-40">
 									<p class="flex flex-wrap items-center gap-2 font-medium">
 										{t.name}
 										{#if t.isDefault}<Badge variant="solid">Default</Badge>{/if}

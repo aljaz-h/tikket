@@ -100,7 +100,7 @@
 								onchange={(e) => e.currentTarget.form?.requestSubmit()}
 							/>
 						</form>
-						<div class="min-w-0 flex-1">
+						<div class="min-w-0 flex-1 basis-48">
 							<a
 								href="{base}/{rule.id}"
 								class="font-medium [overflow-wrap:anywhere] hover:underline">{rule.name}</a

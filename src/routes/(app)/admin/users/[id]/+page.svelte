@@ -32,7 +32,7 @@
 	>
 	<Card class="flex flex-wrap items-center gap-4 p-5">
 		<UserAvatar user={u} size="xl" />
-		<div class="min-w-0 flex-1">
+		<div class="min-w-0 flex-1 basis-40">
 			<h2 class="text-lg font-semibold">{u.displayName}</h2>
 			<p class="text-sm text-muted-foreground">@{u.username} · {u.email}</p>
 			<div class="mt-2 flex flex-wrap gap-1.5">
