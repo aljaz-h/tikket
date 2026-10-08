@@ -141,11 +141,24 @@ export async function resolvePublic(
 	resolve: Resolver = systemResolver,
 	policy: UrlPolicy = {}
 ) {
+	return (await resolveAllPublic(host, resolve, policy))[0];
+}
+
+/**
+ * Resolves a host to all of its addresses – every one must be public – ordered IPv4 first.
+ * Many Docker hosts have no IPv6 route, so connecting to an AAAA record first would fail even
+ * though the site is reachable over IPv4; callers try the addresses in this order.
+ */
+export async function resolveAllPublic(
+	host: string,
+	resolve: Resolver = systemResolver,
+	policy: UrlPolicy = {}
+): Promise<string[]> {
 	const bare = host.replace(/^\[|\]$/g, '');
 	if (net.isIP(bare)) {
 		if (!addressAllowed(bare, policy))
 			throw new FetchError('That address is not publicly reachable.');
-		return bare;
+		return [bare];
 	}
 	let addresses: string[];
 	try {
@@ -155,7 +168,65 @@ export async function resolvePublic(
 	}
 	if (!addresses.length || addresses.some((a) => !addressAllowed(a, policy)))
 		throw new FetchError('That website resolves to a private or reserved address.');
-	return addresses[0];
+	const unique = [...new Set(addresses)];
+	return [...unique.filter((a) => net.isIPv4(a)), ...unique.filter((a) => !net.isIPv4(a))];
+}
+
+/** Errors where another address of the same host may still work (nothing was sent yet). */
+const CONNECT_ERRORS = new Set([
+	'ENETUNREACH',
+	'EHOSTUNREACH',
+	'ECONNREFUSED',
+	'EADDRNOTAVAIL',
+	'ETIMEDOUT',
+	'ECONNRESET'
+]);
+
+/** A short, non-technical reason for a failed connection (shown to owners, logged for admins). */
+function connectionMessage(code: string | undefined) {
+	switch (code) {
+		case 'ENETUNREACH':
+		case 'EHOSTUNREACH':
+		case 'EADDRNOTAVAIL':
+			return 'The website could not be reached: the Tikket server has no network route to it (check the server’s outbound internet access).';
+		case 'ECONNREFUSED':
+			return 'The website could not be reached: the connection was refused.';
+		case 'ECONNRESET':
+			return 'The website could not be reached: the connection was closed by the website or a firewall.';
+		case 'ETIMEDOUT':
+			return 'The website could not be reached: the connection timed out.';
+		case 'CERT_HAS_EXPIRED':
+		case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+		case 'SELF_SIGNED_CERT_IN_CHAIN':
+		case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
+		case 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY':
+		case 'ERR_TLS_CERT_ALTNAME_INVALID':
+			return 'The website could not be reached: its HTTPS certificate is not valid (or the server can’t verify it).';
+		default:
+			return 'The website could not be reached.';
+	}
+}
+
+/** Tries each validated address until one connects (connection errors only, never after a response). */
+async function requestAny(
+	url: URL,
+	addresses: string[],
+	opts: Options
+): Promise<SafeResponse & { location?: string }> {
+	let last: unknown;
+	for (const address of addresses) {
+		try {
+			return await requestOnce(url, address, opts);
+		} catch (err) {
+			last = err;
+			const code = (err as { code?: string }).code;
+			if (!code || !CONNECT_ERRORS.has(code)) break;
+		}
+	}
+	const code = (last as { code?: string })?.code;
+	if (last instanceof FetchError && !code) throw last;
+	console.warn(`[tikket] outbound request to ${url.hostname} failed: ${code ?? 'unknown error'}`);
+	throw Object.assign(new FetchError(connectionMessage(code)), { code });
 }
 
 export interface SafeResponse {
@@ -199,12 +270,21 @@ function requestOnce(
 						: {})
 				},
 				// Pin the connection to the address we validated (TLS still verifies the hostname).
-				lookup: (_host, _options, callback) =>
-					(callback as (err: null, address: string, family: number) => void)(
-						null,
-						address,
-						net.isIPv6(address) ? 6 : 4
-					),
+				// Node 20+ asks for every address (`all: true`, happy eyeballs) and expects an array then;
+				// answering with a bare string fails every hostname with ERR_INVALID_IP_ADDRESS.
+				lookup: (_host, options, callback) => {
+					const family = net.isIPv6(address) ? 6 : 4;
+					if (options && (options as { all?: boolean }).all)
+						(callback as (err: null, all: { address: string; family: number }[]) => void)(null, [
+							{ address, family }
+						]);
+					else
+						(callback as (err: null, address: string, family: number) => void)(
+							null,
+							address,
+							family
+						);
+				},
 				timeout: opts.timeoutMs ?? 5000,
 				agent: false
 			},
@@ -252,9 +332,8 @@ function requestOnce(
 			}
 		);
 		req.on('timeout', () => req.destroy(new FetchError('The website took too long to answer.')));
-		req.on('error', (err) =>
-			reject(err instanceof FetchError ? err : new FetchError('The website could not be reached.'))
-		);
+		// Keep the system error code (ENETUNREACH, ECONNREFUSED, certificate errors …) for requestAny.
+		req.on('error', (err) => reject(err));
 		req.end(opts.body);
 	});
 }
@@ -265,8 +344,8 @@ function requestOnce(
  */
 export async function safeRequest(raw: string | URL, opts: Options): Promise<SafeResponse> {
 	const url = checkUrl(raw, opts);
-	const address = await resolvePublic(url.hostname, opts.resolve, opts);
-	const { location: _location, ...res } = await requestOnce(url, address, opts);
+	const addresses = await resolveAllPublic(url.hostname, opts.resolve, opts);
+	const { location: _location, ...res } = await requestAny(url, addresses, opts);
 	return res;
 }
 
@@ -274,8 +353,8 @@ export async function safeRequest(raw: string | URL, opts: Options): Promise<Saf
 export async function safeFetch(raw: string | URL, opts: Options): Promise<SafeResponse> {
 	let url = checkUrl(raw, opts);
 	for (let hop = 0; hop <= 3; hop++) {
-		const address = await resolvePublic(url.hostname, opts.resolve, opts);
-		const res = await requestOnce(url, address, opts);
+		const addresses = await resolveAllPublic(url.hostname, opts.resolve, opts);
+		const res = await requestAny(url, addresses, opts);
 		if (res.location) {
 			url = checkUrl(new URL(res.location, url), opts);
 			continue;

@@ -4,9 +4,11 @@ import {
 	checkUrl,
 	FetchError,
 	isPublicAddress,
+	resolveAllPublic,
 	resolvePublic,
 	safeFetch
 } from '../../src/lib/server/safe-fetch';
+import http from 'node:http';
 import {
 	iconCandidates,
 	LOGO_SIZE,
@@ -83,6 +85,48 @@ describe('SSRF guard', () => {
 		await expect(
 			safeFetch('http://internal.example/', { maxBytes: 1000, resolve: async () => ['127.0.0.1'] })
 		).rejects.toThrow(/private/);
+	});
+
+	it('tries IPv4 first (Docker hosts often have no IPv6 route)', async () => {
+		await expect(
+			resolveAllPublic('dual.test', async () => [
+				'2606:4700:3035::ac43:d722',
+				'172.67.215.34',
+				'2606:4700:3035::6815:3b3a',
+				'104.21.59.58'
+			])
+		).resolves.toEqual([
+			'172.67.215.34',
+			'104.21.59.58',
+			'2606:4700:3035::ac43:d722',
+			'2606:4700:3035::6815:3b3a'
+		]);
+	});
+
+	it('falls back to the next address when one cannot be reached, and explains failures', async () => {
+		const server = http.createServer((_req, res) => res.end('ok'));
+		await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+		const port = (server.address() as { port: number }).port;
+		try {
+			// 127.0.0.2 has no listener (connection refused) – the second address answers.
+			const res = await safeFetch(`http://site.test:${port}/`, {
+				maxBytes: 100,
+				anyPort: true,
+				allowPrivate: true,
+				resolve: async () => ['127.0.0.2', '127.0.0.1']
+			});
+			expect(res.body.toString()).toBe('ok');
+			await expect(
+				safeFetch(`http://site.test:${port}/`, {
+					maxBytes: 100,
+					anyPort: true,
+					allowPrivate: true,
+					resolve: async () => ['127.0.0.2']
+				})
+			).rejects.toThrow(/could not be reached: the connection was refused/);
+		} finally {
+			server.close();
+		}
 	});
 });
 

@@ -249,14 +249,31 @@ export async function fetchWebsiteIcon(
 		if (left <= 0) throw new FetchError('Fetching the icon took too long.');
 		return Math.min(left, 6000);
 	};
-	const page = await safeFetch(siteUrl, {
-		maxBytes: 1024 * 1024,
-		accept: 'text/html,application/xhtml+xml',
-		timeoutMs: remaining(),
-		resolve: opts.resolve
-	});
+	// The page tells us where its icons are; if it can't be loaded (bot protection, an error page,
+	// a firewall) the well-known icon paths of the same site are still worth trying.
+	let page: Awaited<ReturnType<typeof safeFetch>> | null = null;
+	let pageError: unknown = null;
+	try {
+		page = await safeFetch(siteUrl, {
+			maxBytes: 1024 * 1024,
+			accept: 'text/html,application/xhtml+xml',
+			timeoutMs: remaining(),
+			resolve: opts.resolve
+		});
+	} catch (err) {
+		// Policy rejections and timeouts are final; anything else falls back to /favicon.ico.
+		if (
+			!(err instanceof FetchError) ||
+			/took too long|not publicly reachable|private or reserved|Only http|credentials|standard web ports|not a valid|Could not find/.test(
+				err.message
+			)
+		)
+			throw err;
+		pageError = err;
+	}
+	const origin = page?.url ?? new URL(siteUrl);
 	const candidates: Candidate[] = [];
-	if (page.contentType.includes('html')) {
+	if (page && page.contentType.includes('html')) {
 		const { icons, manifest } = iconCandidates(page.body.toString('utf8'), page.url);
 		candidates.push(...icons);
 		if (manifest) {
@@ -273,8 +290,8 @@ export async function fetchWebsiteIcon(
 			}
 		}
 	}
-	candidates.push({ url: new URL('/apple-touch-icon.png', page.url), size: 180 });
-	candidates.push({ url: new URL('/favicon.ico', page.url), size: 32 });
+	candidates.push({ url: new URL('/apple-touch-icon.png', origin), size: 180 });
+	candidates.push({ url: new URL('/favicon.ico', origin), size: 32 });
 
 	const seen = new Set<string>();
 	const ordered = candidates
@@ -295,6 +312,8 @@ export async function fetchWebsiteIcon(
 			if (err instanceof FetchError && /took too long/.test(err.message)) throw err;
 		}
 	}
+	// The page itself failed: its reason is the most useful one to show.
+	if (pageError) throw pageError;
 	throw new FetchError(
 		'No usable icon was found on that website (SVG-only icons are not supported).'
 	);
