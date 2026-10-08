@@ -18,31 +18,31 @@ Components use only the CSS variables below, through Tailwind colour names (`bg-
 
 ### Surfaces and text
 
-| Token | Dark | Light | Use |
-| --- | --- | --- | --- |
-| `background` | `#0d0f11` | `#f5f6f4` | Page |
-| `surface` | `#171a1d` | `#ffffff` | Cards, inputs, panels |
-| `surface-2` | `#1c2023` | `#f8f9f7` | Secondary buttons, code blocks |
-| `popover` | `#1a1d21` | `#ffffff` | Menus, selects, dialogs |
-| `sidebar` | `#0b0d0f` | `#eef0ec` | App sidebar |
-| `muted` / `hover` | `#1f2326` / `#22272a` | `#eef0ec` / `#eef1eb` | Quiet fills, hover rows |
+| Token                                | Dark                              | Light                             | Use                                    |
+| ------------------------------------ | --------------------------------- | --------------------------------- | -------------------------------------- |
+| `background`                         | `#0d0f11`                         | `#f5f6f4`                         | Page                                   |
+| `surface`                            | `#171a1d`                         | `#ffffff`                         | Cards, inputs, panels                  |
+| `surface-2`                          | `#1c2023`                         | `#f8f9f7`                         | Secondary buttons, code blocks         |
+| `popover`                            | `#1a1d21`                         | `#ffffff`                         | Menus, selects, dialogs                |
+| `sidebar`                            | `#0b0d0f`                         | `#eef0ec`                         | App sidebar                            |
+| `muted` / `hover`                    | `#1f2326` / `#22272a`             | `#eef0ec` / `#eef1eb`             | Quiet fills, hover rows                |
 | `border` / `border-strong` / `input` | `#2b3034` / `#3a4045` / `#30363b` | `#e1e4e0` / `#cdd2cc` / `#d3d8d2` | Dividers, hover borders, field borders |
-| `foreground` | `#f3f5f4` | `#14181b` | Body text |
-| `muted-foreground` | `#9ba3ad` | `#5c656e` | Secondary text |
-| `subtle-foreground` | `#7b848d` | `#7c858d` | Placeholders, tertiary text |
+| `foreground`                         | `#f3f5f4`                         | `#14181b`                         | Body text                              |
+| `muted-foreground`                   | `#9ba3ad`                         | `#5c656e`                         | Secondary text                         |
+| `subtle-foreground`                  | `#7b848d`                         | `#7c858d`                         | Placeholders, tertiary text            |
 
 ### Accent and feedback
 
-| Token | Meaning |
-| --- | --- |
+| Token                                       | Meaning                                                        |
+| ------------------------------------------- | -------------------------------------------------------------- |
 | `primary` (`#b8f779` dark, `#a6ee62` light) | The one primary action per view; selected state; checked boxes |
-| `primary-foreground` | Text on primary (always near-black) |
-| `primary-soft`, `primary-border` | Tinted backgrounds / borders for selected and focused states |
-| `link`, `link-hover` | Links. Darker green on light for contrast |
-| `destructive` | Errors, delete, invalid fields |
-| `warning`, `success`, `info` | Notices and confirmations |
-| `ring` | Focus ring (translucent primary) |
-| `overlay` | Dialog / sheet backdrop |
+| `primary-foreground`                        | Text on primary (always near-black)                            |
+| `primary-soft`, `primary-border`            | Tinted backgrounds / borders for selected and focused states   |
+| `link`, `link-hover`                        | Links. Darker green on light for contrast                      |
+| `destructive`                               | Errors, delete, invalid fields                                 |
+| `warning`, `success`, `info`                | Notices and confirmations                                      |
+| `ring`                                      | Focus ring (translucent primary)                               |
+| `overlay`                                   | Dialog / sheet backdrop                                        |
 
 ### Meaning colours ("tones")
 
