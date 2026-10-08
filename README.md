@@ -27,7 +27,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - Developer workflow: [Automations](docs/automations.md) · [REST API](docs/api.md) · [API tokens](docs/authentication-tokens.md) · [Import](docs/import.md) · [Workflows](docs/workflows.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
-- [Development](#development)
+- [Development](#development) · [Design guide](DESIGN.md)
 - [Testing](#testing)
 - [Architecture](#architecture)
 - [Security](#security)
