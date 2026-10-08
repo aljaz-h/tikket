@@ -9,12 +9,13 @@
 </script>
 
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { Combobox, Select } from 'bits-ui';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import NativeSelect from './native-select.svelte';
+	import { holdScroll } from './hold-scroll';
 	import { cn } from '$lib/utils';
 
 	interface Props {
@@ -66,6 +67,16 @@
 	let root: HTMLElement | undefined = $state();
 	let search = $state('');
 	let open = $state(false);
+	// Opening or closing the list must never move the page (see hold-scroll.ts).
+	let release: (() => void) | undefined;
+	let wasOpen = false;
+	$effect(() => {
+		if (open === wasOpen) return;
+		wasOpen = open;
+		release?.();
+		release = holdScroll();
+	});
+	onDestroy(() => release?.());
 
 	const selected = $derived(items.find((i) => i.value === value));
 	const filtered = $derived(
