@@ -482,8 +482,30 @@ export const ROADMAP_AUDIENCE_LABEL: Record<RoadmapAudience, string> = {
 	members: 'Project members',
 	viewers: 'Anyone who can view the project'
 };
+export const ROADMAP_IMAGE_LAYOUTS = ['full', 'compact'] as const;
+export type RoadmapImageLayout = (typeof ROADMAP_IMAGE_LAYOUTS)[number];
+/**
+ * Options of the shareable roadmap image. Vote counts and releases follow the roadmap's own
+ * visibility switches; nothing here can reveal more than the roadmap page does.
+ */
+export interface RoadmapImageSettings {
+	/** Serve the live image at /public/projects/KEY/roadmap.png (needs a public roadmap). */
+	public: boolean;
+	layout: RoadmapImageLayout;
+	showLogo: boolean;
+	showTimestamp: boolean;
+}
+export const DEFAULT_ROADMAP_IMAGE: RoadmapImageSettings = {
+	public: false,
+	layout: 'full',
+	showLogo: true,
+	showTimestamp: true
+};
 export interface RoadmapSettings {
 	audience: RoadmapAudience;
+	/** Show the Open / Unplanned column to non-staff (staff always see it). */
+	showOpen: boolean;
+	image: RoadmapImageSettings;
 	showReleases: boolean;
 	showReleaseDates: boolean;
 	showMilestones: boolean;
@@ -498,6 +520,8 @@ export interface RoadmapSettings {
  */
 export const DEFAULT_ROADMAP_SETTINGS: RoadmapSettings = {
 	audience: 'viewers',
+	showOpen: false,
+	image: DEFAULT_ROADMAP_IMAGE,
 	showReleases: false,
 	showReleaseDates: false,
 	showMilestones: false,

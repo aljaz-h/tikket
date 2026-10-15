@@ -1,12 +1,14 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import {
+	DEFAULT_ROADMAP_IMAGE,
 	DEFAULT_ROADMAP_SETTINGS,
 	ROADMAP_AUDIENCES,
+	ROADMAP_IMAGE_LAYOUTS,
 	type RoadmapSettings
 } from '../../shared/constants';
-import type { ProjectAccess } from '../authz';
+import { accessForProject, type ProjectAccess } from '../authz';
 import { getDb, schema } from '../db';
 import type { Project } from '../db/schema';
 import { audit } from './audit';
@@ -21,7 +23,24 @@ import { ServiceError } from './users';
  */
 
 export function roadmapSettings(project: Pick<Project, 'roadmapSettings'>): RoadmapSettings {
-	return { ...DEFAULT_ROADMAP_SETTINGS, ...(project.roadmapSettings ?? {}) };
+	const stored = project.roadmapSettings;
+	return {
+		...DEFAULT_ROADMAP_SETTINGS,
+		...(stored ?? {}),
+		image: { ...DEFAULT_ROADMAP_IMAGE, ...(stored?.image ?? {}) }
+	};
+}
+
+/**
+ * May the live public image (/public/projects/KEY/roadmap.png) be served right now? It must be
+ * switched on AND the roadmap itself must be viewable by an anonymous visitor – so it stops
+ * working the moment the roadmap or the project stops being public. Existing projects are never
+ * exposed implicitly: the image setting defaults to off.
+ */
+export function publicImageAllowed(project: Project) {
+	const settings = roadmapSettings(project);
+	if (!settings.image.public) return false;
+	return canViewRoadmap(accessForProject(null, project), settings);
 }
 
 export function canViewRoadmap(access: ProjectAccess, settings: RoadmapSettings) {
@@ -34,6 +53,13 @@ export function canViewRoadmap(access: ProjectAccess, settings: RoadmapSettings)
 const bool = z.boolean();
 export const roadmapSettingsSchema = z.object({
 	audience: z.enum(ROADMAP_AUDIENCES),
+	showOpen: bool,
+	image: z.object({
+		public: bool,
+		layout: z.enum(ROADMAP_IMAGE_LAYOUTS),
+		showLogo: bool,
+		showTimestamp: bool
+	}),
 	showReleases: bool,
 	showReleaseDates: bool,
 	showMilestones: bool,
@@ -53,6 +79,15 @@ export function saveRoadmapSettings(
 	const next = roadmapSettingsSchema.parse(input);
 	// Dates only make sense together with releases.
 	if (!next.showReleases) next.showReleaseDates = false;
+	// The public image only exists for a roadmap anonymous visitors can open anyway.
+	if (next.image.public) {
+		const publicRoadmap = canViewRoadmap(accessForProject(null, access.project), next);
+		if (!publicRoadmap)
+			throw new ServiceError(
+				'The public image needs a public roadmap: set the roadmap to “Anyone who can view the project” in a public project.',
+				'imagePublic'
+			);
+	}
 	const previous = roadmapSettings(access.project);
 	getDb()
 		.update(schema.projects)
@@ -77,7 +112,13 @@ const RECENT_DAYS = 90;
  * The roadmap as a given viewer may see it: Planned, In Progress and Recently Completed tickets,
  * plus upcoming releases and active milestones when enabled. `full` is for staff.
  */
-export function roadmapFor(project: Project, settings: RoadmapSettings, full: boolean) {
+export function roadmapFor(
+	project: Project,
+	settings: RoadmapSettings,
+	full: boolean,
+	/** Include the Open / Unplanned column (staff views pass true; others follow the setting). */
+	openColumn = full || settings.showOpen
+) {
 	const show = full
 		? {
 				releases: true,
@@ -100,37 +141,37 @@ export function roadmapFor(project: Project, settings: RoadmapSettings, full: bo
 	const r = schema.changelogEntries;
 	const m = schema.milestones;
 	const since = new Date(Date.now() - RECENT_DAYS * 864e5);
-	const rows = db
-		.select({
-			number: t.number,
-			title: t.title,
-			type: t.type,
-			status: t.status,
-			priority: t.priority,
-			voteCount: t.voteCount,
-			completedAt: t.completedAt,
-			updatedAt: t.updatedAt,
-			assigneeName: assignee.displayName,
-			releaseVersion: r.version,
-			releaseStatus: r.status,
-			milestoneName: m.name
-		})
-		.from(t)
-		.leftJoin(assignee, eq(assignee.id, t.assigneeId))
-		.leftJoin(r, eq(r.id, t.releaseId))
-		.leftJoin(m, eq(m.id, t.milestoneId))
-		.where(
-			and(
-				eq(t.projectId, project.id),
-				or(
-					inArray(t.status, ['planned', 'in_progress']),
-					and(eq(t.status, 'completed'), isNotNull(t.completedAt), gt(t.completedAt, since))
-				)
-			)
-		)
-		.orderBy(desc(t.voteCount), desc(t.updatedAt))
-		.limit(400)
-		.all();
+	const fetchRows = (where: ReturnType<typeof and>, limit: number) =>
+		db
+			.select({
+				number: t.number,
+				title: t.title,
+				type: t.type,
+				status: t.status,
+				priority: t.priority,
+				assigneeId: t.assigneeId,
+				voteCount: t.voteCount,
+				completedAt: t.completedAt,
+				updatedAt: t.updatedAt,
+				assigneeName: assignee.displayName,
+				releaseVersion: r.version,
+				releaseStatus: r.status,
+				milestoneName: m.name
+			})
+			.from(t)
+			.leftJoin(assignee, eq(assignee.id, t.assigneeId))
+			.leftJoin(r, eq(r.id, t.releaseId))
+			.leftJoin(m, eq(m.id, t.milestoneId))
+			.where(and(eq(t.projectId, project.id), where))
+			.orderBy(desc(t.voteCount), desc(t.updatedAt))
+			.limit(limit)
+			.all();
+	const recent = and(eq(t.status, 'completed'), isNotNull(t.completedAt), gt(t.completedAt, since));
+	// Each column is queried on its own so a long Open backlog can never push planned work out.
+	const openRows = openColumn ? fetchRows(eq(t.status, 'open'), 100) : [];
+	const activeRows = fetchRows(inArray(t.status, ['planned', 'in_progress']), 400);
+	const doneRows = fetchRows(recent, 400);
+	const rows = [...openRows, ...activeRows, ...doneRows];
 	const strip = (row: (typeof rows)[number]) => ({
 		number: row.number,
 		title: row.title,
@@ -140,12 +181,29 @@ export function roadmapFor(project: Project, settings: RoadmapSettings, full: bo
 		voteCount: show.votes && project.votingEnabled ? row.voteCount : null,
 		priority: show.priorities ? row.priority : null,
 		assignee: show.assignees ? row.assigneeName : null,
+		assigneeId: show.assignees ? row.assigneeId : null,
 		// Planned/cancelled releases are planning data; published ones are public anyway.
 		release:
 			show.releases || row.releaseStatus === 'released' ? (row.releaseVersion ?? null) : null,
 		milestone: show.milestones ? row.milestoneName : null
 	});
+	const countOf = (where: ReturnType<typeof and>) =>
+		db
+			.select({ n: sql<number>`count(*)` })
+			.from(t)
+			.where(and(eq(t.projectId, project.id), where))
+			.get()?.n ?? 0;
+	const totals = {
+		open: openColumn ? countOf(eq(t.status, 'open')) : 0,
+		planned: countOf(eq(t.status, 'planned')),
+		in_progress: countOf(eq(t.status, 'in_progress')),
+		completed: countOf(recent)
+	};
 	const columns = {
+		open: rows
+			.filter((x) => x.status === 'open')
+			.slice(0, 100)
+			.map(strip),
 		planned: rows
 			.filter((x) => x.status === 'planned')
 			.slice(0, 100)
@@ -196,6 +254,12 @@ export function roadmapFor(project: Project, settings: RoadmapSettings, full: bo
 				done: x.progress.completed
 			}))
 		: [];
-	return { columns, releases, milestones, show };
+	return {
+		columns,
+		totals,
+		releases,
+		milestones,
+		show: { ...show, open: openColumn }
+	};
 }
 export type RoadmapView = ReturnType<typeof roadmapFor>;

@@ -266,6 +266,21 @@ try {
 	)?.[1];
 	log(`spoofed X-Forwarded-For ignored (recorded client IP ${ip ?? 'n/a'})`);
 
+	// Roadmap image (rendered inside the container with the bundled font, behind the proxy).
+	const png = await request('GET', '/p/dep/roadmap/export.png', {
+		headers: { cookie: cookieHeader }
+	});
+	assert.equal(png.status, 200, `roadmap export: ${png.status} ${png.body.slice(0, 200)}`);
+	assert.equal(png.headers['content-type'], 'image/png');
+	assert.ok(Number(png.headers['content-length']) > 4000, 'roadmap image looks empty');
+	const notModified = await request('GET', '/p/dep/roadmap/export.png', {
+		headers: { cookie: cookieHeader, 'if-none-match': png.headers.etag }
+	});
+	assert.equal(notModified.status, 304, 'roadmap ETag revalidation through the proxy');
+	assert.equal((await request('GET', '/p/dep/roadmap/export.png')).status, 404);
+	assert.equal((await request('GET', '/public/projects/DEP/roadmap.png')).status, 404);
+	log('roadmap PNG renders in the container; ETag works; private project image is not public');
+
 	// Private data stays private for anonymous requests.
 	const anonFile = await request('GET', href);
 	assert.equal(anonFile.status, 404);

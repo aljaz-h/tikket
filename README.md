@@ -24,6 +24,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - [Feedback widget guide](docs/feedback-widget.md) · [Project management guide](docs/project-management.md)
 - [Integrations](docs/integrations.md): [Email](docs/email.md) · [Webhooks](docs/webhooks.md) · [GitHub](docs/github.md) · [Data export](docs/data-export.md)
 - Operations: [Health, delivery queue & reminders](docs/health.md) · [Backup verification](docs/backup-verification.md)
+- [Roadmap, drag & drop and shareable image](docs/roadmap.md)
 - Developer workflow: [Automations](docs/automations.md) · [REST API](docs/api.md) · [API tokens](docs/authentication-tokens.md) · [Import](docs/import.md) · [Workflows](docs/workflows.md)
 - [Data, attachments and backups](#data-attachments-and-backups)
 - [Updating](#updating)
@@ -74,7 +75,7 @@ It runs as a single Node.js container with an embedded SQLite database and a dat
 - **Duplicate merging** and **ticket links** (related to, blocks, blocked by).
 - **Templates** management with live preview, enable/disable, a default per type, reordering and versioning.
 - Dashboards: personal (my submissions, following, recently updated, notifications) and staff (open/planned/in-progress counters, new reports to review, most requested, recent activity).
-- Automatic roadmap (Planned / In Progress / Completed) and a changelog of published releases.
+- Automatic roadmap (Open / Planned / In Progress / Completed) with drag-and-drop for staff, one-click **Assign to me**, a PNG export and an optional public live image for READMEs ([roadmap guide](docs/roadmap.md)), and a changelog of published releases.
 
 **Integrations & communication (all optional)**
 
@@ -368,6 +369,7 @@ Key decisions:
 - **One event bus** (`integrations/events.ts`): services emit `ticket.*`, `comment.created`, `release.published` and `milestone.completed` inside their transaction; payloads are built once, never contain internal notes, and are shared by webhooks and Discord.
 - **Email mirrors notifications**: `notify()` decides who may hear about something (active, can view the project, staff for internal notes); email preferences are applied on top, and everything is re-checked when the email is sent.
 - **Secrets** live in their own encrypted columns bound to their purpose (AES-GCM additional data); the start-up check refuses stored secrets without a key and re-encrypts after rotation.
+- **Roadmap image routes** (`/p/KEY/roadmap/export.png`, `/public/projects/KEY/roadmap.png`) are drawn from the same filtered roadmap data the page shows a visitor; the public one is off by default, needs a public project and roadmap, answers an identical `404` otherwise, and only embeds the project's own stored logo. See [docs/roadmap.md](docs/roadmap.md).
 - **Roadmap settings** default to what the roadmap already showed (ticket titles, types, votes to project viewers); every planning detail is opt-in and omitted from the server response when off. Migration `0005_integrations` only adds tables and nullable columns.
 
 ### Phase 2 design notes

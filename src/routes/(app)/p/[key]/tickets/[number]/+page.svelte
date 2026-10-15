@@ -581,38 +581,46 @@
 				<div class="grid gap-1.5">
 					<p class="text-xs font-medium text-muted-foreground">Assignee</p>
 					{#if perms.isStaff}
-						<form
-							method="POST"
-							action="?/assign"
-							use:enhance={quickSubmit({ success: 'Assignee updated' })}
-						>
-							<Select
-								name="assigneeId"
-								value={t.assigneeId ? String(t.assigneeId) : 'none'}
-								aria-label="Assignee"
-								autosubmit
-								searchable={data.assignable.length > 6}
-								items={[
-									{ value: 'none', label: 'Unassigned' },
-									...data.assignable.map((u) => ({ value: String(u.id), label: u.displayName }))
-								]}
-							/>
-							<noscript
-								><Button type="submit" size="xs" variant="outline" class="mt-1.5"
-									>Save assignee</Button
-								></noscript
-							>
-						</form>
-						{#if data.user && t.assigneeId !== data.user.id && data.assignable.some((u) => u.id === data.user?.id)}
+						{@const canSelf = !!data.user && data.assignable.some((u) => u.id === data.user?.id)}
+						<div class="flex items-start gap-2">
 							<form
 								method="POST"
 								action="?/assign"
-								use:enhance={quickSubmit({ success: 'Assigned to you' })}
+								class="min-w-0 flex-1"
+								use:enhance={quickSubmit({ success: 'Assignee updated' })}
 							>
-								<input type="hidden" name="assigneeId" value={data.user.id} />
-								<button type="submit" class="text-xs text-link hover:underline">Assign to me</button
+								<Select
+									name="assigneeId"
+									value={t.assigneeId ? String(t.assigneeId) : 'none'}
+									aria-label="Assignee"
+									autosubmit
+									searchable={data.assignable.length > 6}
+									items={[
+										{ value: 'none', label: 'Unassigned' },
+										...data.assignable.map((u) => ({ value: String(u.id), label: u.displayName }))
+									]}
+								/>
+								<noscript
+									><Button type="submit" size="xs" variant="outline" class="mt-1.5"
+										>Save assignee</Button
+									></noscript
 								>
 							</form>
+							{#if canSelf && data.user && t.assigneeId !== data.user.id}
+								<form
+									method="POST"
+									action="?/assign"
+									use:enhance={quickSubmit({ success: 'Assigned to you' })}
+								>
+									<input type="hidden" name="assigneeId" value={data.user.id} />
+									<Button type="submit" size="sm" variant="secondary" class="whitespace-nowrap"
+										>Assign to me</Button
+									>
+								</form>
+							{/if}
+						</div>
+						{#if canSelf && t.assigneeId === data.user?.id}
+							<p class="text-xs text-muted-foreground">Assigned to you</p>
 						{/if}
 					{:else if d.assignee}
 						<span class="flex items-center gap-2"
