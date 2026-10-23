@@ -2,7 +2,7 @@
 
 Tikket has a JSON REST API under `/api/v1` for scripts, CI pipelines and bots.
 
-- **Reference:** `/docs/api` in your Tikket (rendered) and `/api/openapi.json` (OpenAPI 3.1, usable
+- **Reference:** `/docs/api` in your Tikket (rendered; signed-in users only) and `/api/openapi.json` (OpenAPI 3.1, usable
   with Swagger UI, Postman, code generators).
 - **Authentication:** `Authorization: Bearer <token>` with a personal access token or a project
   API token – see [API tokens](authentication-tokens.md). The API ignores browser cookies, so it

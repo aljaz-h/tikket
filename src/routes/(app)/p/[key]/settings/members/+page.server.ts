@@ -7,6 +7,7 @@ import {
 	revokeInvitation
 } from '$lib/server/services/invitations';
 import {
+	addableUsers,
 	addMember,
 	changeMemberRole,
 	listMembers,
@@ -23,6 +24,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		title: `Members · Settings · ${access.project.name}`,
 		members: listMembers(access.project.id),
+		addable: addableUsers(access.project.id),
 		invitations: listInvitations(access.project.id).filter(
 			(i) => !i.usedAt && !i.revokedAt && new Date(i.expiresAt) > new Date()
 		),
@@ -60,6 +62,29 @@ export const actions: Actions = {
 			return handleServiceError(err, { identifier });
 		}
 		return { memberAdded: target.displayName };
+	},
+
+	/** Adds the people ticked in the picker, all with the chosen role. */
+	addMembers: async ({ locals, params, request }) => {
+		const { user, access } = owner(locals, params.key);
+		const form = await request.formData();
+		const role = projectRoleSchema.safeParse(form.get('role'));
+		const ids = [
+			...new Set(
+				form
+					.getAll('userIds')
+					.map((v) => intParam(String(v)))
+					.filter((n): n is number => n !== null)
+			)
+		].slice(0, 100);
+		if (!role.success || !ids.length)
+			return fail(400, { errors: { member: 'Choose at least one person and a role' }, values: {} });
+		try {
+			for (const id of ids) addMember(user.id, access.project, id, role.data, locals.clientIp);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { membersAdded: ids.length };
 	},
 
 	changeRole: async ({ locals, params, request }) => {

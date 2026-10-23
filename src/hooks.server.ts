@@ -82,7 +82,7 @@ function setupRequired() {
 	return !setupDone;
 }
 
-const SETUP_ALLOWED = ['/setup', '/api/health', '/api/openapi.json', '/docs/api'];
+const SETUP_ALLOWED = ['/setup', '/api/health', '/api/openapi.json'];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const { url, cookies, request } = event;

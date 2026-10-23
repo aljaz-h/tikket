@@ -142,6 +142,10 @@ test('API documentation and OpenAPI document', async ({ page, request }) => {
 	const spec = await (await request.get('/api/openapi.json')).json();
 	expect(spec.openapi).toBe('3.1.0');
 	expect(spec.paths['/api/v1/projects/{key}/tickets'].post).toBeTruthy();
+	// The documentation page needs an account.
+	await page.goto('/docs/api');
+	await expect(page).toHaveURL(/\/login\?next=%2Fdocs%2Fapi/);
+	await login(page, ADMIN);
 	await goto(page, '/docs/api');
 	await expect(page.getByRole('heading', { name: 'API documentation' })).toBeVisible();
 	await expect(page.getByText('/api/v1/projects/{key}/tickets').first()).toBeVisible();

@@ -10,6 +10,7 @@
 	import TypeBadge from '$lib/components/TypeBadge.svelte';
 	import RichText from '$lib/components/RichText.svelte';
 	import TimeAgo from '$lib/components/TimeAgo.svelte';
+	import TicketPicker from '$lib/components/planning/TicketPicker.svelte';
 	import ProgressBar from '$lib/components/planning/ProgressBar.svelte';
 	import PlanningStatus from '$lib/components/planning/PlanningStatus.svelte';
 	import ReleaseDialog from '$lib/components/planning/ReleaseDialog.svelte';
@@ -87,20 +88,29 @@
 					<h3 id="release-tickets" class="text-sm font-semibold">Tickets</h3>
 				</div>
 				{#if data.canEdit && open}
-					<form
-						method="POST"
-						action="?/addTickets"
-						class="flex flex-wrap gap-2"
-						use:enhance={quickSubmit({ success: 'Tickets added', reset: true })}
-					>
-						<Input
-							name="tickets"
-							placeholder="{key}-12, {key}-18 …"
-							aria-label="Tickets to add"
-							class="min-w-0 flex-1 font-mono sm:max-w-sm"
+					<div class="flex flex-wrap items-center gap-2">
+						<TicketPicker
+							projectKey={key}
+							tickets={data.pickable}
+							noun="release"
+							action="?/addTickets"
 						/>
-						<Button type="submit" variant="secondary">Add tickets</Button>
-					</form>
+						<span class="text-xs text-muted-foreground">or add by number:</span>
+						<form
+							method="POST"
+							action="?/addTickets"
+							class="flex flex-wrap gap-2"
+							use:enhance={quickSubmit({ success: 'Tickets added', reset: true })}
+						>
+							<Input
+								name="tickets"
+								placeholder="{key}-12, {key}-18 …"
+								aria-label="Tickets to add"
+								class="min-w-0 flex-1 font-mono sm:max-w-sm"
+							/>
+							<Button type="submit" variant="secondary">Add tickets</Button>
+						</form>
+					</div>
 				{/if}
 				{#each groups as group (group.status)}
 					<div class="grid gap-1.5">

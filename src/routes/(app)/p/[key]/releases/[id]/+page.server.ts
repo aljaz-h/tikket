@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { requireProject } from '$lib/server/authz';
 import { handleServiceError, intParam, requireActionUser } from '$lib/server/http';
 import { parseReleaseForm, requireStaffView } from '$lib/server/planning-forms';
+import { pickableTickets } from '$lib/server/services/ticket-picker';
 import { listProjectActivity } from '$lib/server/services/project-activity';
 import {
 	addTicketsToRelease,
@@ -33,6 +34,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		progress: progressFor('release', [release.id]).get(release.id)!,
 		activity: listProjectActivity(access.project.id, 'release', release.id),
 		canEdit: !access.archived,
+		pickable: !access.archived
+			? pickableTickets(access.project.id, { kind: 'release', id: release.id })
+			: [],
 		canPublish: access.isOwner && !access.archived
 	};
 };
@@ -66,7 +70,10 @@ export const actions: Actions = {
 		const user = requireActionUser(locals);
 		const access = requireProject(user, params.key, 'staff');
 		const release = releaseFrom(access, params.id);
-		const refs = String((await request.formData()).get('tickets') ?? '')
+		// One text field with several references, or the ticket picker's checked tickets.
+		const refs = (await request.formData())
+			.getAll('tickets')
+			.join(' ')
 			.split(/[\s,]+/)
 			.map((r) => r.trim())
 			.filter(Boolean)

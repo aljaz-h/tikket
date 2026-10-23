@@ -9,6 +9,7 @@ import {
 	setTicketMilestone,
 	updateMilestone
 } from '$lib/server/services/milestones';
+import { pickableTickets } from '$lib/server/services/ticket-picker';
 import { listProjectActivity } from '$lib/server/services/project-activity';
 import { progressFor } from '$lib/server/services/releases';
 import { getTicket } from '$lib/server/services/tickets';
@@ -32,7 +33,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		tickets: milestoneTickets(milestone.id),
 		progress: progressFor('milestone', [milestone.id]).get(milestone.id)!,
 		activity: listProjectActivity(access.project.id, 'milestone', milestone.id),
-		canEdit: !access.archived
+		canEdit: !access.archived,
+		pickable:
+			!access.archived && milestone.status === 'open'
+				? pickableTickets(access.project.id, { kind: 'milestone', id: milestone.id })
+				: []
 	};
 };
 
@@ -81,6 +86,29 @@ export const actions: Actions = {
 			return handleServiceError(err, { ticket: ref });
 		}
 		return { added: number };
+	},
+	/** Adds the tickets ticked in the picker (several at once). */
+	addTickets: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const access = requireProject(user, params.key, 'staff');
+		const milestone = milestoneFrom(access, params.id);
+		const numbers = [
+			...new Set(
+				(await request.formData())
+					.getAll('tickets')
+					.map((v) => intParam(String(v)))
+					.filter((n): n is number => n !== null)
+			)
+		].slice(0, 200);
+		if (!numbers.length) return fail(400, { errors: { tickets: 'Select at least one ticket' } });
+		const tickets = numbers.map((n) => getTicket(access.project.id, n));
+		if (tickets.some((x) => !x)) return fail(400, { errors: { tickets: 'Ticket not found' } });
+		try {
+			for (const ticket of tickets) setTicketMilestone(user, access, ticket!, milestone.id);
+		} catch (err) {
+			return handleServiceError(err);
+		}
+		return { added: numbers.length };
 	},
 	removeTicket: async ({ locals, params, request }) => {
 		const user = requireActionUser(locals);

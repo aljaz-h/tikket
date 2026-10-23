@@ -5,6 +5,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import Link from '@lucide/svelte/icons/link';
+	import PeoplePicker from '$lib/components/PeoplePicker.svelte';
 	import UserAvatar from '$lib/components/UserAvatar.svelte';
 	import { quickSubmit } from '$lib/components/ticket/enhance';
 	import FormMessage from '$lib/components/FormMessage.svelte';
@@ -38,6 +39,10 @@
 		Owners manage the project. Moderators triage tickets and moderate discussions. Members submit,
 		comment and vote.
 	</p>
+	<div class="mb-2 flex flex-wrap items-center gap-2">
+		<PeoplePicker people={data.addable} action="?/addMembers" />
+		<span class="text-xs text-muted-foreground">or add by username or email:</span>
+	</div>
 	<form
 		method="POST"
 		action="?/addMember"

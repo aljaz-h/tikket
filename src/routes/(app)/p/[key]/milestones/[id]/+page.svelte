@@ -6,6 +6,7 @@
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import TimeAgo from '$lib/components/TimeAgo.svelte';
+	import TicketPicker from '$lib/components/planning/TicketPicker.svelte';
 	import ProgressBar from '$lib/components/planning/ProgressBar.svelte';
 	import PlanningStatus from '$lib/components/planning/PlanningStatus.svelte';
 	import MilestoneDialog from '$lib/components/planning/MilestoneDialog.svelte';
@@ -128,20 +129,29 @@
 				</dl>
 			</Card>
 			{#if data.canEdit && m.status === 'open'}
-				<form
-					method="POST"
-					action="?/addTicket"
-					class="flex flex-wrap gap-2"
-					use:enhance={quickSubmit({ success: 'Ticket added', reset: true })}
-				>
-					<Input
-						name="ticket"
-						placeholder="{key}-12"
-						aria-label="Ticket to add"
-						class="min-w-0 flex-1 font-mono sm:max-w-xs"
+				<div class="flex flex-wrap items-center gap-2">
+					<TicketPicker
+						projectKey={key}
+						tickets={data.pickable}
+						noun="milestone"
+						action="?/addTickets"
 					/>
-					<Button type="submit" variant="secondary">Add ticket</Button>
-				</form>
+					<span class="text-xs text-muted-foreground">or add by number:</span>
+					<form
+						method="POST"
+						action="?/addTicket"
+						class="flex flex-wrap gap-2"
+						use:enhance={quickSubmit({ success: 'Ticket added', reset: true })}
+					>
+						<Input
+							name="ticket"
+							placeholder="{key}-12"
+							aria-label="Ticket to add"
+							class="min-w-0 flex-1 font-mono sm:max-w-xs"
+						/>
+						<Button type="submit" variant="secondary">Add ticket</Button>
+					</form>
+				</div>
 			{/if}
 			{#if data.tickets.length}
 				{#if remaining.length}{@render ticketList(remaining, 'Remaining')}{/if}

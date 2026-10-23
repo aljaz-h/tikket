@@ -331,6 +331,30 @@ export function addMember(
 	);
 }
 
+/**
+ * Active people who are not yet members of the project, for the "choose people" picker of the
+ * members page (owners only). Names and usernames only – no email addresses.
+ */
+export function addableUsers(projectId: number) {
+	return getDb()
+		.select({
+			id: schema.users.id,
+			username: schema.users.username,
+			displayName: schema.users.displayName,
+			avatarId: schema.users.avatarId
+		})
+		.from(schema.users)
+		.where(
+			and(
+				eq(schema.users.status, 'active'),
+				sql`${schema.users.id} not in (select ${schema.projectMembers.userId} from ${schema.projectMembers} where ${schema.projectMembers.projectId} = ${projectId})`
+			)
+		)
+		.orderBy(asc(sql`lower(${schema.users.displayName})`))
+		.limit(500)
+		.all();
+}
+
 /** Adds or upgrades a membership (used by invitations); never downgrades an existing role. */
 export function ensureMember(
 	projectId: number,
