@@ -139,15 +139,23 @@ test('project tokens are bound to their project', async ({ page, request }) => {
 });
 
 test('API documentation and OpenAPI document', async ({ page, request }) => {
-	const spec = await (await request.get('/api/openapi.json')).json();
-	expect(spec.openapi).toBe('3.1.0');
-	expect(spec.paths['/api/v1/projects/{key}/tickets'].post).toBeTruthy();
+	// Not public: anonymous callers get a 401, an API token or a session gets the document.
+	const anonymous = await request.get('/api/openapi.json');
+	expect(anonymous.status()).toBe(401);
+	expect(await anonymous.text()).not.toContain('openapi');
+	const viaToken = await request.get('/api/openapi.json', {
+		headers: { authorization: `Bearer ${memberToken}` }
+	});
+	expect(viaToken.status()).toBe(200);
+	expect((await viaToken.json()).paths['/api/v1/projects/{key}/tickets'].post).toBeTruthy();
 	// The documentation page needs an account.
 	await page.goto('/docs/api');
 	await expect(page).toHaveURL(/\/login\?next=%2Fdocs%2Fapi/);
 	await login(page, ADMIN);
 	await goto(page, '/docs/api');
 	await expect(page.getByRole('heading', { name: 'API documentation' })).toBeVisible();
+	const spec = await (await page.request.get('/api/openapi.json')).json();
+	expect(spec.openapi).toBe('3.1.0');
 	await expect(page.getByText('/api/v1/projects/{key}/tickets').first()).toBeVisible();
 	await page.setViewportSize({ width: 390, height: 844 });
 	await noHorizontalOverflow(page);

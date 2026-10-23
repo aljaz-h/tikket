@@ -209,7 +209,12 @@ try {
 	const cookieOnly = await request('GET', '/api/v1/me', { headers: { cookie: cookieHeader } });
 	assert.equal(cookieOnly.status, 401);
 	assert.equal(JSON.parse(cookieOnly.body).error.code, 'unauthenticated');
-	const openapi = await request('GET', '/api/openapi.json');
+	assert.equal(
+		(await request('GET', '/api/openapi.json')).status,
+		401,
+		'openapi.json is not public'
+	);
+	const openapi = await request('GET', '/api/openapi.json', { headers: { cookie: cookieHeader } });
 	assert.equal(JSON.parse(openapi.body).servers?.[0]?.url, ORIGIN);
 	log('REST API with bearer token through the proxy; session cookies are ignored');
 
