@@ -1,9 +1,14 @@
 name: CI
 
-# Manual only: GitHub Actions minutes are limited on the free plan. The same checks
-# (lint, type check, tests, build, e2e, deployment suite) run locally before every push;
-# start this workflow from the Actions tab when you want them on GitHub too.
+# Runs the essential checks (lint, type check, unit/integration tests, build, browser tests) on
+# every push to main and on pull requests; documentation-only changes are skipped. The slow
+# Docker/proxy deployment suite runs only when started manually from the Actions tab.
 on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
+  pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   workflow_dispatch:
 
 permissions:
@@ -32,6 +37,8 @@ jobs:
       - run: npm run test:e2e
 
   deployment:
+    # Heavy (builds the image and tests nginx, Caddy and Traefik): manual runs only.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

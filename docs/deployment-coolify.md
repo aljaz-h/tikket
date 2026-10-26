@@ -439,7 +439,7 @@ your real IP.
 
 ## What has been tested
 
-Automated (`npm run test:deployment`, also available as a manual CI run) – **locally, without Coolify**:
+Automated (`npm run test:deployment`, run manually from the Actions tab in CI) – **locally, without Coolify**:
 
 - `compose.yml`, `compose.external-proxy.yml` and both overrides validated with `docker compose config`;
   the external-proxy file is asserted identical to `compose.yml` except for its network; no host
