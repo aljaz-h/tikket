@@ -353,7 +353,7 @@ ignored. Rules of thumb:
 
 `.github/workflows/docker-publish.yml` builds `linux/amd64` and `linux/arm64` images and pushes
 them to `ghcr.io/<owner>/tikket` (tags `X.Y.Z`, `X.Y`, `X`, `latest` for `vX.Y.Z` git tags,
-`edge` and `latest` for runs on `main`, `sha-…`). It only needs the built-in `GITHUB_TOKEN` with `packages: write`.
+`edge` for `main`, `sha-…`). It only needs the built-in `GITHUB_TOKEN` with `packages: write`.
 Make the package public in GitHub (_Packages → tikket → Package settings_) or log in to GHCR on the
 server.
 
@@ -439,7 +439,7 @@ your real IP.
 
 ## What has been tested
 
-Automated (`npm run test:deployment`, run manually from the Actions tab in CI) – **locally, without Coolify**:
+Automated (`npm run test:deployment`, also run in CI) – **locally, without Coolify**:
 
 - `compose.yml`, `compose.external-proxy.yml` and both overrides validated with `docker compose config`;
   the external-proxy file is asserted identical to `compose.yml` except for its network; no host

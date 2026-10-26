@@ -3,14 +3,13 @@
 # with compose.yml remains fully supported.
 #
 # Tags:   vX.Y.Z git tag  → :X.Y.Z, :X.Y, :X and :latest
-#         run on main     → :edge and :latest (what compose.ghcr.yml pulls by default)
+#         push to main    → :edge   (rolling, unreleased)
 #         every build     → :sha-<short>
 name: Publish container image
 
-# Runs only for release tags (and manually) to save free-plan Actions minutes; it no longer
-# builds on every push to main.
 on:
   push:
+    branches: [main]
     tags: ['v*.*.*']
   workflow_dispatch:
 
@@ -25,7 +24,7 @@ jobs:
       contents: read
       packages: write # push to ghcr.io/<owner>/<repo>; no other secrets are used
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -45,7 +44,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=edge,branch=main
-            type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
           labels: |
             org.opencontainers.image.title=Tikket
