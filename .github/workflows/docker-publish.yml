@@ -3,13 +3,14 @@
 # with compose.yml remains fully supported.
 #
 # Tags:   vX.Y.Z git tag  → :X.Y.Z, :X.Y, :X and :latest
-#         push to main    → :edge   (rolling, unreleased)
+#         manual run      → :edge   (from the branch you pick), :sha-<short>
 #         every build     → :sha-<short>
 name: Publish container image
 
+# Runs only for release tags (and manually) to save free-plan Actions minutes; it no longer
+# builds on every push to main.
 on:
   push:
-    branches: [main]
     tags: ['v*.*.*']
   workflow_dispatch:
 

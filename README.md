@@ -314,7 +314,7 @@ npm run build && npx playwright install chromium && npm run test:e2e
 npm run check:compose && npm run test:deployment     # Docker required
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, type checks, all three test layers and the deployment test.
+The CI workflow (`.github/workflows/ci.yml`) runs lint, type checks, all three test layers and the deployment test, but only when started manually from the Actions tab (to save free-plan minutes); run the same commands locally before pushing. The image workflow only runs for `vX.Y.Z` tags or manually.
 
 ## Architecture
 

@@ -1,9 +1,9 @@
 name: CI
 
+# Manual only: GitHub Actions minutes are limited on the free plan. The same checks
+# (lint, type check, tests, build, e2e, deployment suite) run locally before every push;
+# start this workflow from the Actions tab when you want them on GitHub too.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
