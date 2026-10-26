@@ -5,7 +5,6 @@
 # Tags:   vX.Y.Z git tag  → :X.Y.Z, :X.Y, :X and :latest
 #         run on main     → :edge and :latest (what compose.ghcr.yml pulls by default)
 #         every build     → :sha-<short>
-#         every build     → :sha-<short>
 name: Publish container image
 
 # Runs only for release tags (and manually) to save free-plan Actions minutes; it no longer
