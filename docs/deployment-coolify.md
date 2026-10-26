@@ -353,7 +353,7 @@ ignored. Rules of thumb:
 
 `.github/workflows/docker-publish.yml` builds `linux/amd64` and `linux/arm64` images and pushes
 them to `ghcr.io/<owner>/tikket` (tags `X.Y.Z`, `X.Y`, `X`, `latest` for `vX.Y.Z` git tags,
-`edge` for `main`, `sha-…`). It only needs the built-in `GITHUB_TOKEN` with `packages: write`.
+`edge` and `latest` for runs on `main`, `sha-…`). It only needs the built-in `GITHUB_TOKEN` with `packages: write`.
 Make the package public in GitHub (_Packages → tikket → Package settings_) or log in to GHCR on the
 server.
 

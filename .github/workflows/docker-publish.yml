@@ -3,7 +3,8 @@
 # with compose.yml remains fully supported.
 #
 # Tags:   vX.Y.Z git tag  → :X.Y.Z, :X.Y, :X and :latest
-#         manual run      → :edge   (from the branch you pick), :sha-<short>
+#         run on main     → :edge and :latest (what compose.ghcr.yml pulls by default)
+#         every build     → :sha-<short>
 #         every build     → :sha-<short>
 name: Publish container image
 
@@ -45,6 +46,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=edge,branch=main
+            type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
           labels: |
             org.opencontainers.image.title=Tikket
