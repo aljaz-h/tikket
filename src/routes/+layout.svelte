@@ -4,11 +4,29 @@
 	import { Toaster } from 'svelte-sonner';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { onNavigate } from '$app/navigation';
+	import { reducedMotion } from '$lib/motion';
 
 	let { children, data } = $props();
 	// Marks the document as interactive (used by end-to-end tests to avoid hydration races).
 	onMount(() => {
 		document.documentElement.dataset.hydrated = 'true';
+	});
+	// Page content cross-fades on navigation (View Transitions API; browsers without it, and
+	// people who prefer reduced motion, simply get the instant change). Only real page changes
+	// animate, not filter or search-parameter updates on the same page.
+	onNavigate((navigation) => {
+		if (!document.startViewTransition || reducedMotion()) return;
+		if (navigation.from?.url.pathname === navigation.to?.url.pathname) return;
+		const root = document.documentElement;
+		root.classList.add('vt-active');
+		return new Promise((resolve) => {
+			const transition = document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete;
+			});
+			transition.finished.finally(() => root.classList.remove('vt-active'));
+		});
 	});
 	const toasterTheme = $derived(
 		data.theme === 'light' ? 'light' : data.theme === 'dark' ? 'dark' : 'system'

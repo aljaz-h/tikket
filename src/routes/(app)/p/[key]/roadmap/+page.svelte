@@ -2,6 +2,8 @@
 	import { deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { DropdownMenu } from 'bits-ui';
+	import { flip } from 'svelte/animate';
+	import { ms, receive, send } from '$lib/motion';
 	import { toast } from 'svelte-sonner';
 	import ArrowBigUp from '@lucide/svelte/icons/arrow-big-up';
 	import Download from '@lucide/svelte/icons/download';
@@ -359,6 +361,9 @@
 						{#each items as t (t.number)}
 							{@const targets = movable(t)}
 							<li
+								in:receive|local={{ key: t.number }}
+								out:send|local={{ key: t.number }}
+								animate:flip={{ duration: ms(200) }}
 								class={[
 									'group relative rounded-lg border border-border bg-surface transition-colors hover:border-border-strong',
 									staff && finePointer && 'cursor-grab active:cursor-grabbing',

@@ -92,7 +92,7 @@ Icons are Lucide (`@lucide/svelte/icons/<name>`), 16 px (`size-4`) in controls, 
 ## Interaction
 
 - **Focus**: every focusable element shows a 2 px `ring` outline with 2 px offset (`:focus-visible`). A skip link is the first tab stop.
-- **Motion**: short (≈150 ms) fades and colour transitions only. All animation is cut to ~0 under `prefers-reduced-motion`.
+- **Motion**: short (≈110–220 ms) and purposeful: fades, a sliding tab underline, cards gliding between roadmap columns (`crossfade` + `animate:flip`), list items and comments easing in or out, and a content cross-fade on page changes (View Transitions API, where supported). Shared helpers live in `src/lib/motion.ts`; all animation is cut to ~0 under `prefers-reduced-motion`.
 - **Feedback**: toasts for completed actions ("Reminder set"), inline `FormMessage` for validation, field-level errors beside the field. Forms keep the user's input when validation fails.
 - **Keyboard**: menus and selects open with Enter/Space/arrows; lists support arrow navigation; dialogs trap Tab. The page must not scroll or jump when a menu opens or closes (`hold-scroll.ts` guards this).
 - **Destructive and outward-facing actions** (delete, send, publish, restore) always confirm and say what will happen.

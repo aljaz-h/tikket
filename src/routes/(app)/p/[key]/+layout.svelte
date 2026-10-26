@@ -107,4 +107,6 @@
 	</div>
 {/if}
 
-{@render children()}
+<div class="vt-tab">
+	{@render children()}
+</div>

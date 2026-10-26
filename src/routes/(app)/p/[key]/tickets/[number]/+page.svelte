@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { cubicOut } from 'svelte/easing';
+	import { fly } from 'svelte/transition';
+	import { ms } from '$lib/motion';
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
@@ -357,7 +360,7 @@
 				<h2 id="discussion" class="text-sm font-semibold">Discussion</h2>
 				<ol class="grid gap-4">
 					{#each timeline as item (item.kind === 'comment' ? `c${item.comment.id}` : `a${item.activity.id}`)}
-						<li>
+						<li in:fly|local={{ y: 8, duration: ms(220), easing: cubicOut }}>
 							{#if item.kind === 'comment'}
 								<CommentItem
 									comment={item.comment}

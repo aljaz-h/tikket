@@ -582,3 +582,42 @@
 .scrollbar-thin {
 	scrollbar-width: thin;
 }
+
+/*
+ * Page transitions (View Transitions API, started in the root layout). The names exist only
+ * while a transition runs, so they never affect normal layout. The whole page is not faded –
+ * the sidebar and header stay put – only the content area, and within a project only the tab
+ * content, so switching tabs doesn't flash the project header.
+ */
+@media (prefers-reduced-motion: no-preference) {
+	:root.vt-active .vt-page {
+		view-transition-name: page;
+	}
+	:root.vt-active .vt-tab {
+		view-transition-name: tab;
+	}
+	::view-transition-group(root),
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation: none;
+	}
+	::view-transition-old(page),
+	::view-transition-old(tab) {
+		animation: vt-out 110ms ease-out both;
+	}
+	::view-transition-new(page),
+	::view-transition-new(tab) {
+		animation: vt-in 170ms ease-out both;
+	}
+	@keyframes vt-out {
+		to {
+			opacity: 0;
+		}
+	}
+	@keyframes vt-in {
+		from {
+			opacity: 0;
+			transform: translateY(4px);
+		}
+	}
+}

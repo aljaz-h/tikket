@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { flip } from 'svelte/animate';
+	import { slide } from 'svelte/transition';
+	import { ms } from '$lib/motion';
 	import { enhance } from '$app/forms';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -121,7 +124,11 @@
 							class="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface"
 						>
 							{#each group.tickets as t (t.id)}
-								<li class="flex items-center gap-3 px-3 py-2 sm:px-4">
+								<li
+									transition:slide|local={{ duration: ms(180) }}
+									animate:flip={{ duration: ms(180) }}
+									class="flex items-center gap-3 px-3 py-2 sm:px-4"
+								>
 									<StatusBadge status={t.status} iconOnly />
 									<a href={ticketPath(key, t.number)} class="min-w-0 flex-1 hover:underline">
 										<span class="font-mono text-xs text-muted-foreground"
