@@ -38,7 +38,7 @@
 	const back = $derived(ticketPath(data.project.key, data.ticket.number));
 </script>
 
-<div class="mx-auto grid max-w-3xl gap-6">
+<div class="mx-auto grid max-w-4xl gap-6">
 	<div>
 		<a
 			href={back}

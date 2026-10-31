@@ -12,7 +12,7 @@
 	];
 </script>
 
-<div class="mx-auto grid max-w-3xl gap-6">
+<div class="mx-auto grid max-w-4xl gap-6">
 	<PageHeader title="Account settings" />
 	<TabNav
 		label="Settings"

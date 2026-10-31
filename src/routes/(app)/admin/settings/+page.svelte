@@ -16,7 +16,7 @@
 
 <form
 	method="POST"
-	class="grid max-w-3xl gap-6"
+	class="grid max-w-4xl gap-6"
 	use:enhance={quickSubmit({ success: 'Settings saved' })}
 >
 	<Card class="grid gap-4 p-5 sm:p-6">

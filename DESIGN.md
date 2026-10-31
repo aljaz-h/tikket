@@ -68,7 +68,7 @@ Project and label colours use the `swatch-*` palette (indigo, violet, sky, teal,
 
 - Radius: `sm` 6 px, `md` 8 px (controls), `lg` 10 px (menus), `xl` 14 px (cards, panels, empty states).
 - Depth is mostly borders. `shadow-card` is a faint 1 px shadow for cards and inputs; `shadow-pop` is only for floating layers (menus, popovers, dialogs).
-- Spacing follows Tailwind's 4 px scale; page content is capped at `90rem` with `px-4 sm:px-6 lg:px-8` and `py-6 lg:py-8`.
+- Spacing follows Tailwind's 4 px scale; page content is capped at `100rem` with `px-4 sm:px-6 lg:px-8` and `py-6 lg:py-8`.
 - Layout: fixed 16 rem sidebar (4.25 rem collapsed) from `lg`; below that a sticky top bar with a sheet navigation.
 
 ## Components

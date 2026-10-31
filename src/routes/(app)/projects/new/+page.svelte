@@ -15,7 +15,7 @@
 	const values = $derived((form?.values ?? {}) as Record<string, string>);
 </script>
 
-<div class="mx-auto grid max-w-2xl gap-6">
+<div class="mx-auto grid max-w-3xl gap-6">
 	<PageHeader
 		title="New project"
 		description="Projects keep tickets, members, the roadmap and changelog together."

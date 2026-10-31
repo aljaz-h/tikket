@@ -24,7 +24,7 @@
 	const resetLink = $derived(form && 'resetLink' in form ? String(form.resetLink) : '');
 </script>
 
-<div class="grid max-w-3xl gap-4">
+<div class="grid max-w-4xl gap-4">
 	<a
 		href="/admin/users"
 		class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

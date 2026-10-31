@@ -15,7 +15,7 @@
 	let { data } = $props();
 </script>
 
-<div class="mx-auto grid max-w-3xl gap-6">
+<div class="mx-auto grid max-w-4xl gap-6">
 	<PageHeader title="Notifications">
 		{#snippet actions()}
 			<Button href="/settings/notifications" variant="ghost" size="sm"

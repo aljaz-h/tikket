@@ -229,7 +229,7 @@
 	);
 </script>
 
-<div class="mx-auto max-w-5xl">
+<div class="mx-auto max-w-6xl">
 	<div class="mb-6">
 		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">New ticket</h1>
 		<p class="mt-1 text-sm text-muted-foreground">

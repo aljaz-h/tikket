@@ -11,7 +11,7 @@
 	let { data } = $props();
 </script>
 
-<div class="mx-auto grid max-w-3xl gap-6">
+<div class="mx-auto grid max-w-4xl gap-6">
 	<PageHeader title="Search" />
 	<form method="GET" class="flex gap-2" role="search">
 		<Input

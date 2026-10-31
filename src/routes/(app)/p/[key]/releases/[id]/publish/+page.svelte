@@ -20,7 +20,7 @@
 	const back = $derived(projectPath(key, `releases/${data.release.id}`));
 </script>
 
-<div class="mx-auto grid max-w-3xl gap-6">
+<div class="mx-auto grid max-w-4xl gap-6">
 	<a
 		href={back}
 		class="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

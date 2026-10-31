@@ -14,7 +14,7 @@
 		`${e.method}-${e.path}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 </script>
 
-<div class="mx-auto grid max-w-4xl gap-6">
+<div class="mx-auto grid max-w-5xl gap-6">
 	<PageHeader title="API documentation" />
 
 	<Card class="grid gap-3 p-5 text-sm sm:p-6">
