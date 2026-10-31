@@ -228,12 +228,11 @@ test('phone widths: no page overflow, every column reachable, Move to… works',
 			await page.evaluate(() => document.documentElement.scrollWidth),
 			`${width}px`
 		).toBeLessThanOrEqual(width);
-		const region = page.getByRole('region', { name: 'Roadmap columns' });
-		expect(await region.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-		await region.evaluate((el) => (el.scrollLeft = el.scrollWidth));
-		await expect(column(page, 'Recently completed').getByRole('heading')).toBeInViewport();
-		await region.evaluate((el) => (el.scrollLeft = 0));
-		await expect(column(page, 'Open / Unplanned').getByRole('heading')).toBeInViewport();
+		// On phones the columns stack, so every one is reachable by scrolling down.
+		for (const name of ['Open / Unplanned', 'Planned', 'In Progress', 'Recently completed']) {
+			await column(page, name).getByRole('heading', { level: 2 }).scrollIntoViewIfNeeded();
+			await expect(column(page, name).getByRole('heading', { level: 2 })).toBeInViewport();
+		}
 	}
 	// Touch layout: the status fallback is always visible and works.
 	await page.setViewportSize({ width: 390, height: 844 });

@@ -15,6 +15,22 @@ Within a column tickets are sorted by votes, then by most recent change (complet
 
 Staff (owners, moderators, administrators) always see the **Open / Unplanned** column. Everyone else only sees it when an owner switches on _Open / Unplanned column_ in **Settings → Roadmap**. It is off by default, so existing public roadmaps do not suddenly list every open ticket.
 
+## Board layout
+
+- **Ten cards per column.** Longer columns end in a dashed **Show N more** button that expands the column in place (and **Show less** to fold it back). The header always shows the real total.
+- **Recently completed is grouped by time** (_This week_, _Last week_, _Earlier in <month>_), each with its count. If the ten-card cap cuts a group off it reads "5 of 11"; the cap fills groups in order. **All tickets** opens the Tickets tab filtered to Completed.
+- **Dates on cards:** _Created_ (Open), _Planned_ (the date it moved to Planned), _Started_ (relative for a week, e.g. "3d ago", then a date) and _Done_. Hover for the exact time. The planned and started dates come from the ticket's status history; tickets without that history fall back to their created date.
+- **Creator avatar:** the creator's avatar sits at the top right of each card (with the assignee next to it when it is someone else); hover for names. Staff always see it. Other visitors see it only if an owner switches on **Who created tickets** in Settings → Roadmap (off by default).
+- **Slim cards:** vote count on the left, title and avatars on top, then ID, a coloured type label, milestone and a right-aligned date. Priority only shows for High and Critical.
+- **Votes:** where voting is available to you, the count is a real button that votes with the ticket page's own rules; otherwise it is a plain count.
+- **Controls:** type chips (single choice), **Group by** Status, Milestone or Month, and a **Board | Timeline** switch. The choices live in the address (`?type=bug&group=milestone&view=timeline`), so a view can be shared. Dragging works in the Status grouping.
+- **Milestones strip:** each active milestone is a full-width row with progress, "4 / 6 done" and the next unfinished ticket. Upcoming releases use the same layout.
+- On phones the columns stack into one.
+
+## Timeline
+
+**Timeline** shows one row per ticket with a date track: a green bar from started to done for completed tickets, an amber bar from started to today for tickets in progress, a purple diamond at the planned date and a hollow circle at the created date for open tickets. Weekly gridlines and a **Today** line run through the track; the track scrolls sideways on narrow screens. Completed rows are capped at ten with **Show N more completed**.
+
 ## Moving tickets (staff)
 
 - **Drag and drop** (mouse or pen): drag a card to another column. Valid columns are highlighted and show where the card will land. Columns the [workflow](workflows.md) does not allow are dimmed and explain why (for example "Tickets cannot move from Open to Completed in this project.").

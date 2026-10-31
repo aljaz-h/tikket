@@ -25,6 +25,7 @@
 	let showVotes = $state(true);
 	let showAssignees = $state(false);
 	let showOpen = $state(false);
+	let showCreators = $state(false);
 	let imagePublic = $state(false);
 	let imageLayout = $state<'full' | 'compact'>('full');
 	let imageShowLogo = $state(true);
@@ -39,6 +40,7 @@
 		showVotes = s.showVotes;
 		showAssignees = s.showAssignees;
 		showOpen = s.showOpen;
+		showCreators = s.showCreators;
 		imagePublic = s.image.public;
 		imageLayout = s.image.layout;
 		imageShowLogo = s.image.showLogo;
@@ -80,6 +82,13 @@
 				: 'Voting is off for this project.',
 			get: () => showVotes,
 			set: (v: boolean) => (showVotes = v)
+		},
+		{
+			name: 'showCreators',
+			label: 'Who created tickets',
+			hint: 'The creator’s name and avatar on each item. Staff always see it.',
+			get: () => showCreators,
+			set: (v: boolean) => (showCreators = v)
 		},
 		{
 			name: 'showPriorities',

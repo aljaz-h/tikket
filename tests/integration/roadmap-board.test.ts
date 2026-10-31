@@ -25,6 +25,7 @@ import { clearRoadmapImageCache, prepareRoadmapImage } from '../../src/lib/serve
 import { GET as publicImage } from '../../src/routes/public/projects/[key]/roadmap.png/+server';
 import { GET as exportImage } from '../../src/routes/(app)/p/[key]/roadmap/export.png/+server';
 import { actions } from '../../src/routes/(app)/p/[key]/roadmap/+page.server';
+import { setVote } from '../../src/lib/server/services/tickets';
 import { DEFAULT_WORKFLOW } from '../../src/lib/shared/constants';
 
 let owner: User, mod: User, member: User, project: Project;
@@ -356,5 +357,62 @@ describe('roadmap image', () => {
 		expect(staff.columns).toHaveLength(4);
 		expect(visitor.columns).toHaveLength(3);
 		expect(staff.etag).not.toBe(visitor.etag);
+	});
+});
+
+describe('roadmap card data', () => {
+	it('derives planned and started dates from the history and falls back to created', () => {
+		status(mod, 1, 'planned');
+		status(mod, 2, 'planned');
+		status(mod, 2, 'in_progress');
+		const view = roadmapFor(fresh(), settings(), true);
+		const planned = view.columns.planned[0];
+		expect(planned.plannedAt.getTime()).toBeGreaterThanOrEqual(planned.createdAt.getTime());
+		const started = view.columns.in_progress[0];
+		expect(started.startedAt.getTime()).toBeGreaterThanOrEqual(started.createdAt.getTime());
+		// An open ticket has no history: both dates fall back to the created date.
+		createTicket(member, access(member, fresh()), input('Third'));
+		const open = roadmapFor(fresh(), settings(), true).columns.open[0];
+		expect(open.plannedAt).toEqual(open.createdAt);
+	});
+
+	it('shows creators only to staff unless the owner allows it', () => {
+		status(mod, 1, 'planned');
+		const staff = roadmapFor(fresh(), settings(), true).columns.planned[0];
+		expect(staff.creator).toMatchObject({ name: member.displayName });
+		const hidden = roadmapFor(fresh(), settings(), false).columns.planned[0];
+		expect(hidden.creator).toBeNull();
+		save({ showCreators: true });
+		expect(roadmapFor(fresh(), settings(), false).columns.planned[0].creator).toMatchObject({
+			name: member.displayName
+		});
+	});
+
+	it("marks the tickets the viewer voted for, with the ticket page's vote rules", () => {
+		status(mod, 1, 'planned');
+		setVote(member, access(member, fresh()), ticket(1), true);
+		const mine = roadmapFor(fresh(), settings(), false, undefined, member.id).columns.planned[0];
+		expect(mine.voted).toBe(true);
+		expect(mine.voteCount).toBe(1);
+		expect(
+			roadmapFor(fresh(), settings(), false, undefined, owner.id).columns.planned[0].voted
+		).toBe(false);
+	});
+
+	it('the roadmap vote action uses setVote and refuses people who cannot vote', async () => {
+		status(mod, 1, 'planned');
+		const call = (user: User | null, on: boolean) => {
+			const body = new FormData();
+			body.set('number', '1');
+			body.set('on', String(on));
+			return (actions.vote as (e: never) => Promise<unknown>)({
+				locals: { user, clientIp: null },
+				params: { key: 'RMB' },
+				request: new Request('http://x/', { method: 'POST', body })
+			} as never);
+		};
+		expect(await call(member, true)).toEqual({ voted: 1, voteCount: 1 });
+		expect(await call(member, false)).toEqual({ voted: 1, voteCount: 0 });
+		await expect(call(null, true)).rejects.toBeDefined();
 	});
 });

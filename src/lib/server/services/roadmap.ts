@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, notInArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { z } from 'zod';
 import {
 	DEFAULT_ROADMAP_IMAGE,
 	DEFAULT_ROADMAP_SETTINGS,
 	ROADMAP_AUDIENCES,
+	RESOLVED_STATUSES,
 	ROADMAP_IMAGE_LAYOUTS,
 	type RoadmapSettings
 } from '../../shared/constants';
@@ -54,6 +55,7 @@ const bool = z.boolean();
 export const roadmapSettingsSchema = z.object({
 	audience: z.enum(ROADMAP_AUDIENCES),
 	showOpen: bool,
+	showCreators: bool,
 	image: z.object({
 		public: bool,
 		layout: z.enum(ROADMAP_IMAGE_LAYOUTS),
@@ -117,7 +119,9 @@ export function roadmapFor(
 	settings: RoadmapSettings,
 	full: boolean,
 	/** Include the Open / Unplanned column (staff views pass true; others follow the setting). */
-	openColumn = full || settings.showOpen
+	openColumn = full || settings.showOpen,
+	/** The signed-in viewer, to mark the tickets they have voted for. */
+	viewerId: number | null = null
 ) {
 	const show = full
 		? {
@@ -126,7 +130,8 @@ export function roadmapFor(
 				milestones: true,
 				priorities: true,
 				votes: true,
-				assignees: true
+				assignees: true,
+				creators: true
 			}
 		: {
 				releases: settings.showReleases,
@@ -134,10 +139,12 @@ export function roadmapFor(
 				milestones: settings.showMilestones,
 				priorities: settings.showPriorities,
 				votes: settings.showVotes,
-				assignees: settings.showAssignees
+				assignees: settings.showAssignees,
+				creators: settings.showCreators
 			};
 	const db = getDb();
 	const assignee = alias(schema.users, 'assignee');
+	const creator = alias(schema.users, 'creator');
 	const r = schema.changelogEntries;
 	const m = schema.milestones;
 	const since = new Date(Date.now() - RECENT_DAYS * 864e5);
@@ -150,16 +157,23 @@ export function roadmapFor(
 				status: t.status,
 				priority: t.priority,
 				assigneeId: t.assigneeId,
+				reporterId: t.reporterId,
+				milestoneId: t.milestoneId,
+				createdAt: t.createdAt,
 				voteCount: t.voteCount,
 				completedAt: t.completedAt,
 				updatedAt: t.updatedAt,
 				assigneeName: assignee.displayName,
+				assigneeAvatar: assignee.avatarId,
+				creatorName: creator.displayName,
+				creatorAvatar: creator.avatarId,
 				releaseVersion: r.version,
 				releaseStatus: r.status,
 				milestoneName: m.name
 			})
 			.from(t)
 			.leftJoin(assignee, eq(assignee.id, t.assigneeId))
+			.leftJoin(creator, eq(creator.id, t.reporterId))
 			.leftJoin(r, eq(r.id, t.releaseId))
 			.leftJoin(m, eq(m.id, t.milestoneId))
 			.where(and(eq(t.projectId, project.id), where))
@@ -169,9 +183,79 @@ export function roadmapFor(
 	const recent = and(eq(t.status, 'completed'), isNotNull(t.completedAt), gt(t.completedAt, since));
 	// Each column is queried on its own so a long Open backlog can never push planned work out.
 	const openRows = openColumn ? fetchRows(eq(t.status, 'open'), 100) : [];
-	const activeRows = fetchRows(inArray(t.status, ['planned', 'in_progress']), 400);
+	const activeRows = fetchRows(inArray(t.status, ['planned', 'in_progress']), 300);
 	const doneRows = fetchRows(recent, 400);
 	const rows = [...openRows, ...activeRows, ...doneRows];
+
+	// "Planned" and "Started" dates come from the ticket history (the latest move into that
+	// status); no extra columns are needed. Tickets without such an entry (imported or created
+	// directly in the status) fall back to their created date.
+	const moved = new Map<number, { planned?: Date; started?: Date }>();
+	const ticketIds = rows.length
+		? db
+				.select({ id: t.id, number: t.number })
+				.from(t)
+				.where(
+					and(
+						eq(t.projectId, project.id),
+						inArray(
+							t.number,
+							rows.map((x) => x.number)
+						)
+					)
+				)
+				.all()
+		: [];
+	const numberById = new Map(ticketIds.map((x) => [x.id, x.number]));
+	if (ticketIds.length) {
+		const history = db
+			.select({
+				ticketId: schema.ticketActivity.ticketId,
+				data: schema.ticketActivity.data,
+				createdAt: schema.ticketActivity.createdAt
+			})
+			.from(schema.ticketActivity)
+			.where(
+				and(
+					eq(schema.ticketActivity.type, 'status'),
+					inArray(
+						schema.ticketActivity.ticketId,
+						ticketIds.map((x) => x.id)
+					)
+				)
+			)
+			.orderBy(asc(schema.ticketActivity.id))
+			.all();
+		for (const h of history) {
+			const number = numberById.get(h.ticketId);
+			if (number === undefined) continue;
+			const entry = moved.get(number) ?? {};
+			const to = (h.data as { to?: string }).to;
+			if (to === 'planned') entry.planned = h.createdAt;
+			if (to === 'in_progress') entry.started = h.createdAt;
+			moved.set(number, entry);
+		}
+	}
+	const votedFor = new Set<number>();
+	if (viewerId && show.votes && project.votingEnabled && ticketIds.length) {
+		const mine = db
+			.select({ ticketId: schema.ticketVotes.ticketId })
+			.from(schema.ticketVotes)
+			.where(
+				and(
+					eq(schema.ticketVotes.userId, viewerId),
+					inArray(
+						schema.ticketVotes.ticketId,
+						ticketIds.map((x) => x.id)
+					)
+				)
+			)
+			.all();
+		for (const v of mine) {
+			const number = numberById.get(v.ticketId);
+			if (number !== undefined) votedFor.add(number);
+		}
+	}
 	const strip = (row: (typeof rows)[number]) => ({
 		number: row.number,
 		title: row.title,
@@ -182,6 +266,17 @@ export function roadmapFor(
 		priority: show.priorities ? row.priority : null,
 		assignee: show.assignees ? row.assigneeName : null,
 		assigneeId: show.assignees ? row.assigneeId : null,
+		assigneeAvatar: show.assignees ? row.assigneeAvatar : null,
+		// Who created the ticket: only shown when the roadmap's visibility allows it.
+		creator:
+			show.creators && row.reporterId
+				? { id: row.reporterId, name: row.creatorName ?? 'Unknown', avatarId: row.creatorAvatar }
+				: null,
+		createdAt: row.createdAt,
+		plannedAt: moved.get(row.number)?.planned ?? row.createdAt,
+		startedAt: moved.get(row.number)?.started ?? row.createdAt,
+		voted: votedFor.has(row.number),
+		milestoneId: show.milestones ? row.milestoneId : null,
 		// Planned/cancelled releases are planning data; published ones are public anyway.
 		release:
 			show.releases || row.releaseStatus === 'released' ? (row.releaseVersion ?? null) : null,
@@ -215,7 +310,7 @@ export function roadmapFor(
 		completed: rows
 			.filter((x) => x.status === 'completed')
 			.sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
-			.slice(0, 30)
+			.slice(0, 60)
 			.map(strip)
 	};
 	let releases: {
@@ -251,7 +346,16 @@ export function roadmapFor(
 				name: x.name,
 				targetDate: show.releaseDates || full ? x.targetDate : null,
 				total: x.progress.total,
-				done: x.progress.completed
+				done: x.progress.completed,
+				// The next unfinished ticket, for the progress strip.
+				next:
+					db
+						.select({ title: t.title })
+						.from(t)
+						.where(and(eq(t.milestoneId, x.id), notInArray(t.status, [...RESOLVED_STATUSES])))
+						.orderBy(asc(t.number))
+						.limit(1)
+						.get()?.title ?? null
 			}))
 		: [];
 	return {

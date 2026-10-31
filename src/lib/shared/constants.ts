@@ -505,6 +505,8 @@ export interface RoadmapSettings {
 	audience: RoadmapAudience;
 	/** Show the Open / Unplanned column to non-staff (staff always see it). */
 	showOpen: boolean;
+	/** Show who created each ticket (name and avatar) to non-staff. */
+	showCreators: boolean;
 	image: RoadmapImageSettings;
 	showReleases: boolean;
 	showReleaseDates: boolean;
@@ -521,6 +523,7 @@ export interface RoadmapSettings {
 export const DEFAULT_ROADMAP_SETTINGS: RoadmapSettings = {
 	audience: 'viewers',
 	showOpen: false,
+	showCreators: false,
 	image: DEFAULT_ROADMAP_IMAGE,
 	showReleases: false,
 	showReleaseDates: false,

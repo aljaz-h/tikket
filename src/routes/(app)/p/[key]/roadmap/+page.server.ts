@@ -4,7 +4,7 @@ import { handleServiceError, requireActionUser } from '$lib/server/http';
 import { requireTicket } from '$lib/server/ticket-context';
 import { isAssignable } from '$lib/server/services/projects';
 import { canViewRoadmap, roadmapFor, roadmapSettings } from '$lib/server/services/roadmap';
-import { assignTicket, changeStatus } from '$lib/server/services/tickets';
+import { assignTicket, changeStatus, setVote } from '$lib/server/services/tickets';
 import { workflowFor } from '$lib/server/services/workflow';
 import { parseForm, statusSchema } from '$lib/server/validation';
 import type { Actions, PageServerLoad } from './$types';
@@ -17,7 +17,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const staff = access.isStaff && !access.archived;
 	return {
 		title: `Roadmap · ${access.project.name}`,
-		roadmap: roadmapFor(access.project, settings, access.isStaff),
+		roadmap: roadmapFor(
+			access.project,
+			settings,
+			access.isStaff,
+			undefined,
+			locals.user?.id ?? null
+		),
+		// One "now" for server and browser, so relative dates ("3d ago") render identically.
+		now: Date.now(),
+		// The vote buttons use the ticket page's own voting rules.
+		canVote: access.canVote && access.project.votingEnabled,
 		audience: settings.audience,
 		// Only staff can move tickets; the browser needs the rules to offer valid targets.
 		workflow: staff ? workflowFor(access.project) : null,
@@ -50,6 +60,24 @@ export const actions: Actions = {
 			return handleServiceError(err);
 		}
 		return { moved: ticket.number, status: parsed.data.status };
+	},
+
+	/** Votes from the roadmap card: the ticket page's vote, same service and rules. */
+	vote: async ({ locals, params, request }) => {
+		const user = requireActionUser(locals);
+		const form = await request.formData();
+		const { access, ticket } = requireTicket(
+			user,
+			params.key,
+			String(form.get('number') ?? ''),
+			'vote'
+		);
+		try {
+			const voteCount = setVote(user, access, ticket, form.get('on') === 'true');
+			return { voted: ticket.number, voteCount };
+		} catch (err) {
+			return handleServiceError(err);
+		}
 	},
 
 	assign: async ({ locals, params, request }) => {

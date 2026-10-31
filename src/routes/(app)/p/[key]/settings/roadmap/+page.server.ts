@@ -49,6 +49,7 @@ export const actions: Actions = {
 				{
 					audience: audience as RoadmapAudience,
 					showOpen: on('showOpen'),
+					showCreators: on('showCreators'),
 					image: {
 						public: on('imagePublic'),
 						layout: (ROADMAP_IMAGE_LAYOUTS.includes(layout as RoadmapImageLayout)
